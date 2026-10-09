@@ -34,6 +34,7 @@ const PATCH_LOGS = [
   'Added snap layouts for floating windows: left/right halves, four corners, and maximize.',
   'Added save and restore controls for floating browser windows; window details are stored in browser local storage and restored on request.',
   'Added Study Sprint to the homepage: a focus/break timer, saved homework checklist, task progress bar, and completed-session counter.',
+  'Added a required DogeUB password screen: first-time password creation, sign-in after reload, Ctrl+L page locking, and password-required shutdown/unlock.'
 ];
 
 const PatchLogs = () => {
