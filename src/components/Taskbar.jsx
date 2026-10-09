@@ -274,7 +274,7 @@ export default function Taskbar() {
         </div>
       )}
 
-      <nav aria-label="Windows style taskbar" className="fixed inset-x-0 bottom-0 z-[11000] flex h-[58px] items-center justify-center border-t border-white/10 bg-[#101827]/85 px-2 text-white shadow-[0_-8px_30px_rgba(0,0,0,0.2)] backdrop-blur-2xl">
+      <nav aria-label="Windows style taskbar" style={{ backgroundColor: 'rgba(16,24,39,var(--dogeub-hub-glass,.85))', borderTopColor: 'var(--dogeub-hub-accent,rgba(255,255,255,.1))' }} className="fixed inset-x-0 bottom-0 z-[11000] flex h-[58px] items-center justify-center border-t border-white/10 px-2 text-white shadow-[0_-8px_30px_rgba(0,0,0,0.2)] backdrop-blur-2xl">
         <div className="flex min-w-0 items-center gap-1.5">
           <button aria-label="Start" title="Start" onClick={() => { setStartOpen((v) => !v); setSearchOpen(false); setTrayOpen(false); }} className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition hover:bg-white/10 ${startOpen ? 'bg-white/15' : ''}`}>
             <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden="true"><path d="M2 3.5 10.5 2.3v8.2H2V3.5Zm9.5-1.35L22 0.5v10H11.5V2.15ZM2 11.5h8.5v8.2L2 18.5v-7Zm9.5 0H22v10l-10.5-1.65V11.5Z" /></svg>
@@ -290,7 +290,7 @@ export default function Taskbar() {
           ].map((app) => {
             const Icon = app.icon;
             const active = location.pathname === app.path;
-            return <button key={app.name} title={app.name} aria-label={app.name} onClick={() => app.hub ? window.dispatchEvent(new CustomEvent('dogeub-open-hub', { detail: { tab: 'control' } })) : app.url ? navigate('/search', { state: { url: app.url } }) : navigate(app.path)} className={`relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition hover:bg-white/10 ${active ? 'bg-white/10' : ''}`}><Icon size={20} />{active && <span className="absolute bottom-0.5 h-1 w-4 rounded-full bg-sky-400" />}</button>;
+            return <button key={app.name} title={app.name} aria-label={app.name} onClick={() => app.hub ? window.dispatchEvent(new CustomEvent('dogeub-open-hub', { detail: { tab: 'control' } })) : app.url ? navigate('/search', { state: { url: app.url } }) : navigate(app.path)} className={`relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition hover:bg-white/10 ${active ? 'bg-white/10' : ''}`}><Icon size={20} />{active && <span className="absolute bottom-0.5 h-1 w-4 rounded-full" style={{ backgroundColor: 'var(--dogeub-hub-accent,#38bdf8)' }} />}</button>;
           })}
         </div>
 
