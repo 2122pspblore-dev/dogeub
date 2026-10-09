@@ -1,7 +1,7 @@
 import clsx from 'clsx';
 import { useState, useEffect, useRef, useCallback, useMemo, memo, startTransition } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LucideSearch, Earth } from 'lucide-react';
+import { LucideSearch, Earth, ChevronDown } from 'lucide-react';
 import { GlowWrapper } from '../utils/Glow';
 import { useOptions } from '../utils/optionsContext';
 import { searchConfig } from '../utils/config';
@@ -138,7 +138,7 @@ const SearchContainer = memo(function SearchContainer({ logo = true, cls, nav = 
           >
             <button
               type="button"
-              className="shrink-0 cursor-pointer"
+              className="shrink-0 cursor-pointer flex items-center gap-1 opacity-90 hover:opacity-100 duration-100"
               title="Change search engine"
               aria-label="Change search engine"
               aria-expanded={pickerOpen}
@@ -149,6 +149,11 @@ const SearchContainer = memo(function SearchContainer({ logo = true, cls, nav = 
               ) : (
                 <Earth size={22} />
               )}
+              <ChevronDown
+                size={14}
+                className={clsx('duration-150', pickerOpen && 'rotate-180')}
+                aria-hidden="true"
+              />
             </button>
 
             <input
