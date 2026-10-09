@@ -7,6 +7,7 @@ import Pagination from '../components/Pagination';
 import styles from '../styles/apps.module.css';
 import theme from '../styles/theming.module.css';
 import clsx from 'clsx';
+import { adjustApps } from '../data/appsFilter';
 
 const SORT_OPTIONS = [
   { value: 'categorical', label: 'Categorical' },
@@ -58,7 +59,7 @@ const Apps = memo(() => {
   const [appsList, setAppsList] = useState([]);
   useEffect(() => {
     let a = true;
-    import('../data/apps.json').then((m) => a && setAppsList(m.default?.apps || []));
+    import('../data/apps.json').then((m) => a && setAppsList(adjustApps(m.default?.apps)));
     return () => {
       a = false;
     };
