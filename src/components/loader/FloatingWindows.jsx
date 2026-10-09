@@ -21,7 +21,22 @@ export default function FloatingWindows() {
   const { options } = useOptions();
   const activeTab = loaderStore((state) => state.tabs.find((tab) => tab.active));
 
-  const [windows, setWindows] = useState([]);
+  const [windows, setWindows] = useState(() => {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem('dogeub-floating-windows') || '[]');
+      if (!Array.isArray(saved)) return [];
+      return saved.slice(0, 8).map((item, index) => ({
+        ...item,
+        id: crypto.randomUUID(),
+        minimized: Boolean(item.minimized),
+        x: Math.max(0, Math.min(window.innerWidth - 300, Number(item.x) || 48)),
+        y: Math.max(0, Math.min(window.innerHeight - 220, Number(item.y) || 70)),
+        width: Math.max(300, Math.min(window.innerWidth * 0.95, Number(item.width) || 620)),
+        height: Math.max(220, Math.min(window.innerHeight * 0.9, Number(item.height) || 430)),
+        z: 20 + index,
+      }));
+    } catch { return []; }
+  });
   const [nextZ, setNextZ] = useState(10);
   const [snapMenu, setSnapMenu] = useState(null);
   const [hasSavedSession, setHasSavedSession] = useState(false);
