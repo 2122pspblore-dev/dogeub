@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   AppWindow, BatteryFull, Globe, Home, Search, Settings, Volume2,
-  Wifi, X, Youtube, BookOpen, Grid3X3, Power, ChevronUp
+  Wifi, X, Youtube, BookOpen, Grid3X3, Power, ChevronUp, Cpu
 } from 'lucide-react';
 
 const apps = [
@@ -28,6 +28,9 @@ export default function Taskbar() {
   const [query, setQuery] = useState('');
   const [clock, setClock] = useState(() => formatClock(new Date()));
   const [trayOpen, setTrayOpen] = useState(false);
+  const [powerConfirm, setPowerConfirm] = useState(false);
+  const [specsOpen, setSpecsOpen] = useState(false);
+  const [closeBlocked, setCloseBlocked] = useState(false);
   const [startBackground, setStartBackground] = useState(() => {
     try { return window.localStorage.getItem('dogeub-site-background') || ''; } catch { return ''; }
   });
@@ -112,11 +115,11 @@ export default function Taskbar() {
 
   return (
     <>
-      {(startOpen || searchOpen || trayOpen) && (
+      {(startOpen || searchOpen || trayOpen || specsOpen || powerConfirm) && (
         <button
           aria-label="Close taskbar panels"
           className="fixed inset-0 z-[10998] cursor-default"
-          onClick={() => { setStartOpen(false); setSearchOpen(false); setTrayOpen(false); }}
+          onClick={() => { setStartOpen(false); setSearchOpen(false); setTrayOpen(false); setSpecsOpen(false); setPowerConfirm(false); }}
         />
       )}
 
@@ -153,9 +156,32 @@ export default function Taskbar() {
           </div>
           <div className="mt-3 flex items-center justify-between border-t border-white/10 pt-3 text-xs text-white/65">
             <span className="flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-sky-500/30">D</span> DogeUB user</span>
-            <button title="Close Start menu" onClick={() => setStartOpen(false)} className="rounded-lg p-2 hover:bg-white/10"><Power size={16} /></button>
+            <button title="Power off / close page" onClick={() => setPowerConfirm(true)} className="rounded-lg p-2 hover:bg-red-500/25"><Power size={16} /></button>
           </div>
         </section>
+      )}
+
+
+      {powerConfirm && (
+        <div role="dialog" aria-modal="true" aria-labelledby="power-confirm-title" className="fixed bottom-[4.6rem] left-1/2 z-[11002] w-[min(92vw,340px)] -translate-x-1/2 rounded-2xl border border-white/15 bg-[#172033]/[.98] p-5 text-white shadow-2xl backdrop-blur-2xl">
+          <div className="mb-3 flex items-center gap-3"><span className="rounded-xl bg-red-500/20 p-2 text-red-300"><Power size={20} /></span><div><h2 id="power-confirm-title" className="text-sm font-semibold">Close DogeUB?</h2><p className="mt-1 text-xs text-white/60">This will try to close this browser tab.</p></div></div>
+          <div className="flex justify-end gap-2"><button onClick={() => setPowerConfirm(false)} className="rounded-lg px-3 py-2 text-xs hover:bg-white/10">Cancel</button><button onClick={() => { setPowerConfirm(false); window.close(); window.setTimeout(() => { if (!window.closed) setCloseBlocked(true); }, 250); }} className="rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold hover:bg-red-500">Close page</button></div>
+          {closeBlocked && <p className="mt-3 text-xs leading-5 text-amber-200/90">Your browser blocked the close request. Browsers usually only allow webpages to close tabs that were opened by a script. You can close this tab with the browser’s ✕ button.</p>}
+        </div>
+      )}
+
+      {specsOpen && (
+        <div className="fixed bottom-[4.6rem] right-3 z-[10999] w-64 rounded-2xl border border-white/15 bg-[#172033]/95 p-4 text-white shadow-2xl backdrop-blur-2xl">
+          <div className="mb-3 flex items-center gap-2 text-sm font-semibold"><Cpu size={17} className="text-sky-300" /> Device specs</div>
+          <div className="space-y-2 text-xs">
+            <div className="flex justify-between gap-3"><span className="text-white/55">Logical CPU cores</span><b>{navigator.hardwareConcurrency || 'Unknown'}</b></div>
+            <div className="flex justify-between gap-3"><span className="text-white/55">Reported memory</span><b>{navigator.deviceMemory ? '~' + navigator.deviceMemory + ' GB' : 'Not exposed'}</b></div>
+            <div className="flex justify-between gap-3"><span className="text-white/55">Screen</span><b>{window.screen.width} × {window.screen.height}</b></div>
+            <div className="flex justify-between gap-3"><span className="text-white/55">Browser</span><b className="max-w-28 truncate">{navigator.userAgent.includes('Edg/') ? 'Microsoft Edge' : navigator.userAgent.includes('Chrome/') ? 'Chrome' : 'Other'}</b></div>
+            <div className="flex justify-between gap-3"><span className="text-white/55">Platform</span><b className="max-w-28 truncate">{navigator.userAgentData?.platform || navigator.platform || 'Unknown'}</b></div>
+          </div>
+          <p className="mt-3 text-[10px] leading-4 text-white/45">Browser-reported info only. Exact CPU model and total RAM aren't available to websites in most browsers.</p>
+        </div>
       )}
 
       {searchOpen && (
@@ -199,10 +225,11 @@ export default function Taskbar() {
         </div>
 
         <div className="absolute right-2 flex h-10 items-center gap-2 rounded-xl px-2 hover:bg-white/10 sm:right-3">
-          <button aria-label="Quick settings" title="Quick settings" onClick={() => { setTrayOpen((v) => !v); setStartOpen(false); setSearchOpen(false); }} className="flex items-center gap-1 rounded-lg p-2 hover:bg-white/10">
+          <button aria-label="Device specs" title="Device specs" onClick={() => { setSpecsOpen((v) => !v); setTrayOpen(false); setStartOpen(false); setSearchOpen(false); }} className="flex items-center gap-1 rounded-lg p-2 hover:bg-white/10"><Cpu size={15} /></button>
+          <button aria-label="Quick settings" title="Quick settings" onClick={() => { setTrayOpen((v) => !v); setSpecsOpen(false); setStartOpen(false); setSearchOpen(false); }} className="flex items-center gap-1 rounded-lg p-2 hover:bg-white/10">
             <Wifi size={15} className="hidden sm:block" /><Volume2 size={15} className="hidden sm:block" /><ChevronUp size={13} className="hidden md:block" />
           </button>
-          <button title={`${clock.time}, ${clock.date}`} onClick={() => { setTrayOpen((v) => !v); setStartOpen(false); setSearchOpen(false); }} className="hidden min-w-[76px] flex-col items-end leading-tight sm:flex">
+          <button title={`${clock.time}, ${clock.date}`} onClick={() => { setTrayOpen((v) => !v); setSpecsOpen(false); setStartOpen(false); setSearchOpen(false); }} className="hidden min-w-[76px] flex-col items-end leading-tight sm:flex">
             <span className="text-xs">{clock.time}</span><span className="mt-0.5 text-[10px] text-white/65">{clock.date}</span>
           </button>
         </div>
