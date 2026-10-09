@@ -2,6 +2,7 @@ import Tabs from '/src/components/loader/Tabs';
 import Omnibox from '/src/components/loader/Omnibox';
 import Viewer from '/src/components/loader/Viewer';
 import Menu from '/src/components/loader/Menu';
+import FloatingWindows from '/src/components/loader/FloatingWindows';
 import loaderStore from '/src/utils/hooks/loader/useLoaderStore';
 import { process } from '/src/utils/hooks/loader/utils';
 import { useOptions } from '../utils/optionsContext';
@@ -32,11 +33,11 @@ export default function Loader({ config = {} }) {
   }, []);
 
   return (
-    <div className="flex flex-col w-full h-screen">
+    <div className="relative flex flex-col w-full h-screen">
       {ui && (
         <>
-          <div 
-            className="flex flex-col w-full" 
+          <div
+            className="flex flex-col w-full"
             style={barStyle}
             onClick={() => loaderStore.getState().showMenu && loaderStore.getState().toggleMenu()}
           >
@@ -46,12 +47,13 @@ export default function Loader({ config = {} }) {
           <Menu />
         </>
       )}
-      <div 
-        className="flex-1 w-full"
+      <div
+        className="flex-1 w-full min-h-0"
         onClick={() => loaderStore.getState().showMenu && loaderStore.getState().toggleMenu()}
       >
         <Viewer conf={{ zoom: zoom, alerts: alerts }} />
       </div>
+      <FloatingWindows />
     </div>
   );
 }
