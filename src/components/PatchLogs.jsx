@@ -19,6 +19,7 @@ const PATCH_LOGS = [
   'Quick links updated: Discord, GitHub, YouTube, and Gemini AI (PR #5).',
   'Fixed production crash on startup caused by an EACCES error during npm install; start command changed to "node server.js".',
   'Site domain moved to studylive.up.railway.app.',
+  'Added a search engine picker to the home search bar: click the engine icon to switch between Bing, DuckDuckGo, Brave, Yahoo, Startpage, Ecosia, and Kagi (PR #12).',
 ];
 
 const PatchLogs = () => {
