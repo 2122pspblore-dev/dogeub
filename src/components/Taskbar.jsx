@@ -11,6 +11,7 @@ const apps = [
   { name: 'Apps', description: 'Explore apps', icon: Grid3X3, path: '/materials' },
   { name: 'Docs', description: 'Games and resources', icon: BookOpen, path: '/docs' },
   { name: 'Settings', description: 'Customize DogeUB', icon: Settings, path: '/settings' },
+  { name: 'Doge Hub', description: 'Control center, files, widgets, notes and themes', icon: AppWindow, hub: true },
 ];
 
 function formatClock(date) {
@@ -132,6 +133,12 @@ export default function Taskbar() {
   };
 
   const openApp = (app) => {
+    if (app.hub) {
+      window.dispatchEvent(new CustomEvent('dogeub-open-hub', { detail: { tab: 'control' } }));
+      setStartOpen(false);
+      setSearchOpen(false);
+      return;
+    }
     navigate(app.path);
     setStartOpen(false);
     setSearchOpen(false);
@@ -278,11 +285,12 @@ export default function Taskbar() {
             { name: 'Home', icon: Home, path: '/' },
             { name: 'Browser', icon: Globe, path: '/search' },
             { name: 'Apps', icon: Grid3X3, path: '/materials' },
+            { name: 'Doge Hub', icon: AppWindow, hub: true },
             { name: 'YouTube', icon: Youtube, path: '/search', url: 'https://www.youtube.com' },
           ].map((app) => {
             const Icon = app.icon;
             const active = location.pathname === app.path;
-            return <button key={app.name} title={app.name} aria-label={app.name} onClick={() => app.url ? navigate('/search', { state: { url: app.url } }) : navigate(app.path)} className={`relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition hover:bg-white/10 ${active ? 'bg-white/10' : ''}`}><Icon size={20} />{active && <span className="absolute bottom-0.5 h-1 w-4 rounded-full bg-sky-400" />}</button>;
+            return <button key={app.name} title={app.name} aria-label={app.name} onClick={() => app.hub ? window.dispatchEvent(new CustomEvent('dogeub-open-hub', { detail: { tab: 'control' } })) : app.url ? navigate('/search', { state: { url: app.url } }) : navigate(app.path)} className={`relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition hover:bg-white/10 ${active ? 'bg-white/10' : ''}`}><Icon size={20} />{active && <span className="absolute bottom-0.5 h-1 w-4 rounded-full bg-sky-400" />}</button>;
           })}
         </div>
 
