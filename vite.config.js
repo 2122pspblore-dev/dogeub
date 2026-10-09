@@ -23,10 +23,33 @@ let bare;
 // Tiles to hide from the remote apps list (matched by exact appName, case-insensitive).
 const HIDDEN_APPS = new Set(['fmhy.net', 'movies/tv', 'google']);
 
+// Tiles added on top of the remote apps list (skipped if an app with the same name already exists).
+const EXTRA_APPS = [
+  {
+    appName: 'Gemini AI',
+    desc: "Google's AI assistant for questions, writing and ideas.",
+    icon: 'https://gemini.google.com/favicon.ico',
+    url: 'https://gemini.google.com',
+    disabled: false,
+  },
+  {
+    appName: 'YouTube',
+    desc: 'Watch and share videos.',
+    icon: 'https://www.youtube.com/favicon.ico',
+    url: 'https://www.youtube.com',
+    disabled: false,
+  },
+];
+
 function removeHiddenApps(data) {
-  const keep = (a) => !HIDDEN_APPS.has(String(a?.appName ?? '').trim().toLowerCase());
+  const name = (a) => String(a?.appName ?? '').trim().toLowerCase();
+  const keep = (a) => !HIDDEN_APPS.has(name(a));
   for (const key of ['apps', 'default']) {
     if (Array.isArray(data?.[key])) data[key] = data[key].filter(keep);
+  }
+  if (Array.isArray(data?.apps)) {
+    const have = new Set(data.apps.map(name));
+    data.apps.push(...EXTRA_APPS.filter((a) => !have.has(name(a))));
   }
   return data;
 }
