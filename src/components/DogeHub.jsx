@@ -118,19 +118,20 @@ export default function DogeHub() {
     if (!open || typeof navigator.getBattery !== 'function') return;
     let mounted = true;
     let manager;
+    let update;
     navigator.getBattery().then((value) => {
       if (!mounted) return;
       manager = value;
-      const update = () => setBattery({ level: Math.round(value.level * 100), charging: value.charging });
+      update = () => setBattery({ level: Math.round(value.level * 100), charging: value.charging });
       update();
       value.addEventListener('levelchange', update);
       value.addEventListener('chargingchange', update);
     }).catch(() => {});
     return () => {
       mounted = false;
-      if (manager) {
-        manager.removeEventListener('levelchange', () => {});
-        manager.removeEventListener('chargingchange', () => {});
+      if (manager && update) {
+        manager.removeEventListener('levelchange', update);
+        manager.removeEventListener('chargingchange', update);
       }
     };
   }, [open]);
