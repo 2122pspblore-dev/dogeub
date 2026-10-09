@@ -36,7 +36,8 @@ const PATCH_LOGS = [
   'Added Study Sprint to the homepage: a focus/break timer, saved homework checklist, task progress bar, and completed-session counter.',
   'Added a required DogeUB password screen: first-time password creation, sign-in after reload, Ctrl+L page locking, and password-required shutdown/unlock.',
   'Fixed the Study Sprint production build by simplifying its dynamic theme class expression, which was causing a Vite/esbuild syntax error.',
-  'Improved password locking: added Alt+L and Ctrl+Shift+L shortcuts plus a dedicated Lock button in the Start menu, since browsers often reserve Ctrl+L for the address bar.'
+  'Improved password locking: added Alt+L and Ctrl+Shift+L shortcuts plus a dedicated Lock button in the Start menu, since browsers often reserve Ctrl+L for the address bar.',
+  'Fixed password input focus and pointer interaction so the password and confirmation fields can receive typing reliably.'
 ];
 
 const PatchLogs = () => {
