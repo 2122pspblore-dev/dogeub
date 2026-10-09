@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { AppWindow, X, Minus, Plus, RotateCw, ExternalLink } from 'lucide-react';
 import { process } from '/src/utils/hooks/loader/utils';
 import { useOptions } from '/src/utils/optionsContext';
+import loaderStore from '/src/utils/hooks/loader/useLoaderStore';
 
 const makeWindow = (title = 'New Window', url = 'https://www.bing.com') => ({
   id: crypto.randomUUID(),
@@ -17,6 +18,7 @@ const makeWindow = (title = 'New Window', url = 'https://www.bing.com') => ({
 
 export default function FloatingWindows() {
   const { options } = useOptions();
+  const activeTab = loaderStore((state) => state.tabs.find((tab) => tab.active));
   const [windows, setWindows] = useState([]);
   const [nextZ, setNextZ] = useState(10);
   const drag = useRef(null);
@@ -26,9 +28,9 @@ export default function FloatingWindows() {
     setNextZ(z);
     setWindows((items) => items.map((item) => item.id === id ? { ...item, z } : item));
   };
-  const addWindow = (url = 'https://www.bing.com') => {
+  const addWindow = (url = 'https://www.bing.com', title) => {
     if (windows.length >= 8) return;
-    const item = makeWindow(url.includes('bing.com') ? 'Bing' : 'New Window', url);
+    const item = makeWindow(title || (url.includes('bing.com') ? 'Bing' : 'New Window'), url);
     item.z = nextZ + 1;
     setNextZ(item.z);
     setWindows((items) => [...items, item]);
@@ -61,7 +63,15 @@ export default function FloatingWindows() {
       <div className="fixed bottom-4 right-4 z-[10000] flex items-center gap-2">
         <button
           type="button"
-          onClick={() => addWindow('https://www.bing.com')}
+          onClick={() => {
+            const currentUrl = activeTab?.url && activeTab.url !== 'tabs://new'
+              ? process(activeTab.url, true, options.prType || 'auto', options.engine || 'https://www.bing.com/search?q=')
+              : 'https://www.bing.com';
+            const currentTitle = activeTab?.url && activeTab.url !== 'tabs://new'
+              ? (activeTab.title && activeTab.title !== 'New Tab' ? activeTab.title : 'Current Page')
+              : 'Bing';
+            addWindow(currentUrl || 'https://www.bing.com', currentTitle);
+          }}
           disabled={windows.length >= 8}
           className="flex items-center gap-2 rounded-xl border border-white/15 bg-[#10243b] px-4 py-3 text-sm font-semibold text-white shadow-2xl hover:bg-[#193b5c] disabled:opacity-50"
           title="Open a floating browser window"
