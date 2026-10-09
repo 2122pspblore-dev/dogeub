@@ -53,6 +53,13 @@ export default function LockScreen() {
     };
     const onKeyDown = (event) => {
       const key = event.key.toLowerCase();
+      // Escape gives users a keyboard shortcut to return focus to the password box.
+      if (key === 'escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        window.setTimeout(() => passwordInputRef.current?.focus(), 0);
+        return;
+      }
       // Ctrl+L is reserved by many browsers for the address bar, so provide
       // Alt+L and Ctrl+Shift+L as reliable in-page alternatives too.
       const lockShortcut =
@@ -143,6 +150,9 @@ export default function LockScreen() {
             : 'Set a password for this browser before using DogeUB. You will need it whenever DogeUB locks.'}
         </p>
         <form onSubmit={submit} className="mt-6 space-y-3">
+          <p className="rounded-lg border border-sky-400/20 bg-sky-400/10 px-3 py-2 text-xs leading-5 text-sky-100/80">
+            Can't select the password box? Press <kbd className="rounded border border-white/20 px-1.5 py-0.5 font-semibold text-white">Esc</kbd> to focus it, then type.
+          </p>
           <label className="block text-xs font-medium text-white/70" htmlFor="dogeub-password">Password</label>
           <div className="flex items-center rounded-xl border border-white/15 bg-black/25 px-3 focus-within:border-sky-400">
             <input
