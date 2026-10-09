@@ -61,7 +61,7 @@ export default function FloatingWindows() {
 
   return (
     <>
-      <div className="fixed bottom-4 right-4 z-[10000] flex items-center gap-2">
+      <div className="fixed bottom-[4.5rem] right-4 z-[10000] flex items-center gap-2">
         <button
           type="button"
           onClick={() => {
@@ -82,7 +82,7 @@ export default function FloatingWindows() {
         </button>
       </div>
       {windows.length > 0 && (
-        <div className="fixed bottom-3 left-1/2 z-[10000] flex max-w-[70vw] -translate-x-1/2 items-center gap-1 overflow-x-auto rounded-2xl border border-white/15 bg-[#101a2a]/95 p-1.5 text-white shadow-2xl backdrop-blur-xl">
+        <div className="fixed bottom-[4.5rem] left-1/2 z-[10000] flex max-w-[70vw] -translate-x-1/2 items-center gap-1 overflow-x-auto rounded-2xl border border-white/15 bg-[#101a2a]/95 p-1.5 text-white shadow-2xl backdrop-blur-xl">
           {windows.map((item) => (
             <button
               key={item.id}
