@@ -338,8 +338,7 @@ export const searchConfig = [
     option: 'Google',
     value: {
       engineName: 'Google',
-      engine: 'https://www.bing.com/search?q=%s
-      ',
+      engine: 'https://www.bing.com/search?q=',
       engineIcon:
         'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3c/Google_Favicon_2025.svg/120px-Google_Favicon_2025.svg.png',
     },
