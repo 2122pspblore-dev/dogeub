@@ -34,7 +34,8 @@ export default function FloatingWindows() {
     const item = makeWindow(title || (url.includes('bing.com') ? 'Bing' : 'New Window'), url);
     item.z = nextZ + 1;
     setNextZ(item.z);
-    setWindows((items) => [...items, item]);
+    // Opening a new floating browser replaces the previous floating page/window.
+    setWindows([item]);
   };
   const update = (id, patch) => setWindows((items) => items.map((item) => item.id === id ? { ...item, ...patch } : item));
   const navigate = (item) => {
