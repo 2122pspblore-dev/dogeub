@@ -21,19 +21,16 @@ const importHome = () => import('./pages/Home');
 const importApps = () => import('./pages/Apps');
 const importGms = () => import('./pages/Apps2');
 const importSettings = () => import('./pages/Settings');
-const importAssistant = () => import('./pages/Assistant');
 
 const Home = lazyLoad(importHome);
 const Apps = lazyLoad(importApps);
 const Apps2 = lazyLoad(importGms);
 const Settings = lazyLoad(importSettings);
-const Assistant = lazyLoad(importAssistant);
 const Player = lazyLoad(() => import('./pages/Player'));
 
 initPreload('/materials', importApps);
 initPreload('/docs', importGms);
 initPreload('/settings', importSettings);
-initPreload('/ai', importAssistant);
 initPreload('/', importHome);
 
 function useTracking() {
@@ -93,7 +90,6 @@ const ThemedApp = memo(() => {
       { path: '/docs/r', element: <Player /> },
       { path: '/search', element: <Search />},
       { path: '/settings', element: <Settings /> },
-      { path: '/ai', element: <Assistant /> },
       { path: '/portal/k12/*', element: <NotFound /> },
       { path: '/ham/*', element: <NotFound /> },
       { path: '*', element: <NotFound /> },
