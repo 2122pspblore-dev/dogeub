@@ -42,7 +42,8 @@ const PATCH_LOGS = [
   'Added a reminder popup after patch logs explaining how to lock DogeUB with Ctrl+L, plus fallback lock options.',
   'Added a live date/time panel and optional location-based current weather beside the password screen.',
   'Resized the Patch Logs window into a compact square with its own scrollable update list.',
-  'Added Doge Hub with a control center, local text-file manager and recycle bin, widgets board, multitasking workspace, sticky notes, and theme customization.'
+  'Added Doge Hub with a control center, local text-file manager and recycle bin, widgets board, multitasking workspace, sticky notes, and theme customization.',
+  'Reduced Doge Hub background work while closed and lowered blur effects to improve performance on slower devices.'
 ];
 
 const PatchLogs = () => {
