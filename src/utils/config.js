@@ -335,12 +335,11 @@ export const meta = [
 
 export const searchConfig = [
   {
-    option: 'Google',
+    option: 'Bing',
     value: {
-      engineName: 'Google',
+      engineName: 'Bing',
       engine: 'https://www.bing.com/search?q=',
-      engineIcon:
-        'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3c/Google_Favicon_2025.svg/120px-Google_Favicon_2025.svg.png',
+      engineIcon: 'https://www.bing.com/favicon.ico',
     },
   },
   {
@@ -349,14 +348,6 @@ export const searchConfig = [
       engineName: 'DuckDuckGo',
       engine: 'https://duckduckgo.com/?q=',
       engineIcon: 'https://duckduckgo.com/favicon.ico',
-    },
-  },
-  {
-    option: 'Bing',
-    value: {
-      engineName: 'Bing',
-      engine: 'https://www.bing.com/search?q=',
-      engineIcon: 'https://www.bing.com/favicon.ico',
     },
   },
   {

@@ -90,14 +90,14 @@ const SearchContainer = memo(function SearchContainer({ logo = true, cls, nav = 
   }, []);
 
   const placeholder = useMemo(
-    () => `Search ${options.engineName || 'Google'} or type URL`,
+    () => `Search ${options.engineName || 'Bing'} or type URL`,
     [options.engineName],
   );
 
   const iconSrc = useMemo(
     () =>
       options.engineIcon ??
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3c/Google_Favicon_2025.svg/120px-Google_Favicon_2025.svg.png',
+      'https://www.bing.com/favicon.ico',
     [options.engineIcon],
   );
 
