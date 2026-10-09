@@ -27,6 +27,7 @@ const PATCH_LOGS = [
   'Added custom site-wide wallpaper uploads from the Start menu; uploaded backgrounds persist after refresh.',
   'Improved wallpaper uploads by resizing and compressing large images before saving, with support for images up to 12 MB.',
   'Applied custom wallpapers directly to the page background for more consistent display across DogeUB.',
+  'Changed floating-window creation so opening a new floating browser closes/replaces the previous floating browser window.',
 ];
 
 const PatchLogs = () => {
