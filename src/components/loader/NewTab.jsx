@@ -21,11 +21,11 @@ const NewTab = ({ id, updateFn, options = {} }) => {
         <Widgets cls="mt-6" />
         <a
           href="https://studylive.up.railway.app/"
-          className="mt-5 inline-flex w-full items-center justify-center rounded-xl bg-blue-600 px-6 py-4 text-base font-bold text-white shadow-lg ring-2 ring-blue-400/70 transition hover:bg-blue-500 hover:scale-[1.02] focus:outline-none focus:ring-4 focus:ring-blue-300"
+          className="mt-5 inline-flex w-full items-center justify-center rounded-xl border border-blue-300/25 bg-[#0b1f4d] px-6 py-4 font-sans text-base font-semibold tracking-wide text-white shadow-lg transition duration-200 hover:scale-[1.02] hover:bg-[#123574] hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-blue-400/60"
           aria-label="Go to StudyLive home page"
         >
-          🏠 Go to StudyLive Home
-          <span className="ml-2" aria-hidden="true">→</span>
+          Open StudyLive Home
+          <span className="ml-3 text-lg" aria-hidden="true">→</span>
         </a>
         <QuickLinks cls="w-full mt-6" nav={false} navigating={navigating} />
       </div>
