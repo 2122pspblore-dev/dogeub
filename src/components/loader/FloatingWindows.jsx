@@ -7,6 +7,7 @@ import loaderStore from '/src/utils/hooks/loader/useLoaderStore';
 const makeWindow = (title = 'New Window', url = 'https://www.bing.com') => ({
   id: crypto.randomUUID(),
   title,
+  minimized: false,
   input: url,
   url: process(url, false, 'auto', 'https://www.bing.com/search?q=') || url,
   x: 48 + Math.round(Math.random() * 80),
@@ -26,7 +27,7 @@ export default function FloatingWindows() {
   const focusWindow = (id) => {
     const z = nextZ + 1;
     setNextZ(z);
-    setWindows((items) => items.map((item) => item.id === id ? { ...item, z } : item));
+    setWindows((items) => items.map((item) => item.id === id ? { ...item, z, minimized: false } : item));
   };
   const addWindow = (url = 'https://www.bing.com', title) => {
     if (windows.length >= 8) return;
@@ -80,12 +81,28 @@ export default function FloatingWindows() {
           {windows.length > 0 && <span className="rounded-full bg-white/15 px-2 py-0.5 text-xs">{windows.length}/8</span>}
         </button>
       </div>
+      {windows.length > 0 && (
+        <div className="fixed bottom-3 left-1/2 z-[10000] flex max-w-[70vw] -translate-x-1/2 items-center gap-1 overflow-x-auto rounded-2xl border border-white/15 bg-[#101a2a]/95 p-1.5 text-white shadow-2xl backdrop-blur-xl">
+          {windows.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              title={item.minimized ? `Restore ${item.title}` : `Minimize ${item.title}`}
+              onClick={() => item.minimized ? focusWindow(item.id) : setWindows((items) => items.map((w) => w.id === item.id ? { ...w, minimized: true } : w))}
+              className={`flex max-w-44 min-w-24 items-center gap-2 rounded-xl px-3 py-2 text-xs transition-colors hover:bg-white/10 ${item.minimized ? 'opacity-70' : 'bg-white/10'}`}
+            >
+              <AppWindow size={14} className="shrink-0" />
+              <span className="truncate">{item.title}</span>
+            </button>
+          ))}
+        </div>
+      )}
       {windows.map((item) => (
         <section
           key={item.id}
           onPointerDown={() => focusWindow(item.id)}
           className="fixed z-[10001] flex flex-col overflow-hidden rounded-xl border border-white/20 bg-[#0b1220] text-white shadow-2xl"
-          style={{ left: item.x, top: item.y, width: item.width, height: item.height, zIndex: item.z + 10001, resize: 'both', minWidth: 300, minHeight: 220, maxWidth: '95vw', maxHeight: '90vh' }}
+          style={{ left: item.x, top: item.y, width: item.width, height: item.height, display: item.minimized ? 'none' : 'flex', zIndex: item.z + 10001, resize: 'both', minWidth: 300, minHeight: 220, maxWidth: '95vw', maxHeight: '90vh' }}
         >
           <header
             onPointerDown={(e) => beginDrag(e, item)}
@@ -96,6 +113,7 @@ export default function FloatingWindows() {
           >
             <AppWindow size={15} className="shrink-0" />
             <span className="min-w-0 flex-1 truncate text-xs font-semibold">{item.title}</span>
+            <button title="Minimize window" className="rounded p-1 hover:bg-white/10" onClick={() => setWindows((items) => items.map((w) => w.id === item.id ? { ...w, minimized: true } : w))}><Minus size={14} /></button>
             <button title="Open in a new browser tab" className="rounded p-1 hover:bg-white/10" onClick={() => window.open(item.url, '_blank', 'noopener,noreferrer')}><ExternalLink size={14} /></button>
             <button title="Close window" className="rounded p-1 hover:bg-red-500/70" onClick={() => setWindows((items) => items.filter((w) => w.id !== item.id))}><X size={15} /></button>
           </header>
