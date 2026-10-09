@@ -6,6 +6,7 @@ import NotFound from './pages/NotFound';
 import { useEffect, useMemo, memo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import Popunder from './components/Popunder';
+import PanicButton from './components/PanicButton';
 import { OptionsProvider, useOptions } from './utils/optionsContext';
 import { initPreload } from './utils/preload';
 import { designConfig as bgDesign } from './utils/config';
@@ -114,6 +115,7 @@ const ThemedApp = memo(() => {
 
   return (
     <>
+      <PanicButton />
       <Routing pages={pages} />
       {popunderEnabled && !adKeyPassed ? <Popunder /> : null}
       <style>{backgroundStyle}</style>
