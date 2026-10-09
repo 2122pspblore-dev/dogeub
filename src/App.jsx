@@ -7,6 +7,7 @@ import { useEffect, useMemo, memo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import Popunder from './components/Popunder';
 import PanicButton from './components/PanicButton';
+import Taskbar from './components/Taskbar';
 import PatchLogs from './components/PatchLogs';
 import { OptionsProvider, useOptions } from './utils/optionsContext';
 import { initPreload } from './utils/preload';
@@ -119,6 +120,7 @@ const ThemedApp = memo(() => {
       <PanicButton />
       <PatchLogs />
       <Routing pages={pages} />
+      <Taskbar />
       {popunderEnabled && !adKeyPassed ? <Popunder /> : null}
       <style>{backgroundStyle}</style>
     </>
