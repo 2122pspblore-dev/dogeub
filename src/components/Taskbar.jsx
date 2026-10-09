@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   AppWindow, BatteryFull, Globe, Home, Search, Settings, BatteryCharging,
-  Wifi, X, Youtube, BookOpen, Grid3X3, Power, ChevronUp, Cpu
+  Wifi, X, Youtube, BookOpen, Grid3X3, Power, ChevronUp, Cpu, LockKeyhole
 } from 'lucide-react';
 
 const apps = [
@@ -192,7 +192,10 @@ export default function Taskbar() {
           </div>
           <div className="mt-3 flex items-center justify-between border-t border-white/10 pt-3 text-xs text-white/65">
             <span className="flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-sky-500/30">D</span> DogeUB user</span>
-            <button title="Power off / close page" onClick={() => setPowerConfirm(true)} className="rounded-lg p-2 hover:bg-red-500/25"><Power size={16} /></button>
+            <div className="flex items-center gap-1">
+              <button title="Lock DogeUB (Alt+L)" aria-label="Lock DogeUB" onClick={() => { setStartOpen(false); window.dispatchEvent(new Event('dogeub-lock')); }} className="rounded-lg p-2 hover:bg-sky-500/20 hover:text-sky-200"><LockKeyhole size={16} /></button>
+              <button title="Power off / close page" onClick={() => setPowerConfirm(true)} className="rounded-lg p-2 hover:bg-red-500/25"><Power size={16} /></button>
+            </div>
           </div>
         </section>
       )}
