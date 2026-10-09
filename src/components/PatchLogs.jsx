@@ -28,6 +28,10 @@ const PATCH_LOGS = [
   'Improved wallpaper uploads by resizing and compressing large images before saving, with support for images up to 12 MB.',
   'Applied custom wallpapers directly to the page background for more consistent display across DogeUB.',
   'Changed floating-window creation so opening a new floating browser closes/replaces the previous floating browser window.',
+  'Added a confirmation before the Start menu power button attempts to close the current browser tab, with an explanation if the browser blocks it.',
+  'Added a taskbar device-specs panel showing browser-reported CPU core count, approximate memory when exposed, screen resolution, browser, and platform.',
+  'Added snap layouts for floating windows: left/right halves, four corners, and maximize.',
+  'Added save and restore controls for floating browser windows; window details are stored in browser local storage and restored on request.',
 ];
 
 const PatchLogs = () => {
