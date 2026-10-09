@@ -38,6 +38,7 @@ const PATCH_LOGS = [
   'Fixed the Study Sprint production build by simplifying its dynamic theme class expression, which was causing a Vite/esbuild syntax error.',
   'Improved password locking: added Alt+L and Ctrl+Shift+L shortcuts plus a dedicated Lock button in the Start menu, since browsers often reserve Ctrl+L for the address bar.',
   'Fixed password input focus and pointer interaction so the password and confirmation fields can receive typing reliably.'
+  'Added an on-screen password-box tip: press Esc to focus the password field.'
 ];
 
 const PatchLogs = () => {
