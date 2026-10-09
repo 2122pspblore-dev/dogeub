@@ -363,7 +363,7 @@ export const searchConfig = [
     value: {
       engineName: 'Yahoo',
       engine: 'https://search.yahoo.com/search?p=',
-      engineIcon: '',
+      engineIcon: 'https://www.google.com/s2/favicons?domain=search.yahoo.com&sz=64',
     },
   },
   {
@@ -371,7 +371,7 @@ export const searchConfig = [
     value: {
       engineName: 'Startpage',
       engine: 'https://www.startpage.com/sp/search?q=',
-      engineIcon: '',
+      engineIcon: 'https://www.google.com/s2/favicons?domain=www.startpage.com&sz=64',
     },
   },
   {
@@ -379,7 +379,7 @@ export const searchConfig = [
     value: {
       engineName: 'Ecosia',
       engine: 'https://www.ecosia.org/search?q=',
-      engineIcon: '',
+      engineIcon: 'https://www.google.com/s2/favicons?domain=www.ecosia.org&sz=64',
     },
   },
   {
@@ -387,7 +387,7 @@ export const searchConfig = [
     value: {
       engineName: 'Ask',
       engine: 'https://www.ask.com/web?q=',
-      engineIcon: '',
+      engineIcon: 'https://www.google.com/s2/favicons?domain=www.ask.com&sz=64',
     },
   },
   {
@@ -395,7 +395,7 @@ export const searchConfig = [
     value: {
       engineName: 'Baidu',
       engine: 'https://www.baidu.com/s?wd=',
-      engineIcon: '',
+      engineIcon: 'https://www.google.com/s2/favicons?domain=www.baidu.com&sz=64',
     },
   },
   {
@@ -403,7 +403,7 @@ export const searchConfig = [
     value: {
       engineName: 'Dogpile',
       engine: 'https://www.dogpile.com/serp?q=',
-      engineIcon: '',
+      engineIcon: 'https://www.google.com/s2/favicons?domain=www.dogpile.com&sz=64',
     },
   },
   {
@@ -411,7 +411,7 @@ export const searchConfig = [
     value: {
       engineName: 'Kagi',
       engine: 'https://kagi.com/search?q=',
-      engineIcon: '',
+      engineIcon: 'https://www.google.com/s2/favicons?domain=kagi.com&sz=64',
     },
   },
   {
@@ -419,7 +419,7 @@ export const searchConfig = [
     value: {
       engineName: 'Lycos',
       engine: 'https://search.lycos.com/web/?q=',
-      engineIcon: '',
+      engineIcon: 'https://www.google.com/s2/favicons?domain=search.lycos.com&sz=64',
     },
   },
   {
@@ -427,7 +427,7 @@ export const searchConfig = [
     value: {
       engineName: 'Mojeek',
       engine: 'https://www.mojeek.com/search?q=',
-      engineIcon: '',
+      engineIcon: 'https://www.google.com/s2/favicons?domain=www.mojeek.com&sz=64',
     },
   },
   {
@@ -435,7 +435,7 @@ export const searchConfig = [
     value: {
       engineName: 'Qwant',
       engine: 'https://www.qwant.com/?q=',
-      engineIcon: '',
+      engineIcon: 'https://www.google.com/s2/favicons?domain=www.qwant.com&sz=64',
     },
   },
   {
@@ -443,7 +443,7 @@ export const searchConfig = [
     value: {
       engineName: 'Swisscows',
       engine: 'https://swisscows.com/web?query=',
-      engineIcon: '',
+      engineIcon: 'https://www.google.com/s2/favicons?domain=swisscows.com&sz=64',
     },
   },
   {
@@ -451,7 +451,7 @@ export const searchConfig = [
     value: {
       engineName: 'Yandex',
       engine: 'https://yandex.com/search/?text=',
-      engineIcon: '',
+      engineIcon: 'https://www.google.com/s2/favicons?domain=yandex.com&sz=64',
     },
   },
   {
@@ -459,7 +459,7 @@ export const searchConfig = [
     value: {
       engineName: 'You.com',
       engine: 'https://you.com/search?q=',
-      engineIcon: '',
+      engineIcon: 'https://www.google.com/s2/favicons?domain=you.com&sz=64',
     },
   },
   {
@@ -467,7 +467,7 @@ export const searchConfig = [
     value: {
       engineName: 'SearXNG',
       engine: 'https://searx.be/search?q=',
-      engineIcon: '',
+      engineIcon: 'https://www.google.com/s2/favicons?domain=searx.be&sz=64',
     },
   },
   {
@@ -475,7 +475,7 @@ export const searchConfig = [
     value: {
       engineName: 'Presearch',
       engine: 'https://presearch.com/search?q=',
-      engineIcon: '',
+      engineIcon: 'https://www.google.com/s2/favicons?domain=presearch.com&sz=64',
     },
   },
   {
@@ -483,7 +483,7 @@ export const searchConfig = [
     value: {
       engineName: 'Petal',
       engine: 'https://petalsearch.com/search?query=',
-      engineIcon: '',
+      engineIcon: 'https://www.google.com/s2/favicons?domain=petalsearch.com&sz=64',
     },
   },
   {
@@ -491,7 +491,7 @@ export const searchConfig = [
     value: {
       engineName: 'Sogou',
       engine: 'https://www.sogou.com/web?query=',
-      engineIcon: '',
+      engineIcon: 'https://www.google.com/s2/favicons?domain=www.sogou.com&sz=64',
     },
   },
   {
@@ -499,7 +499,7 @@ export const searchConfig = [
     value: {
       engineName: 'Gigablast',
       engine: 'https://www.gigablast.com/search?q=',
-      engineIcon: '',
+      engineIcon: 'https://www.google.com/s2/favicons?domain=www.gigablast.com&sz=64',
     },
   },
   {
@@ -507,7 +507,7 @@ export const searchConfig = [
     value: {
       engineName: 'YaCy',
       engine: 'https://yacy.searchlab.eu/yacysearch.json?query=',
-      engineIcon: '',
+      engineIcon: 'https://www.google.com/s2/favicons?domain=yacy.searchlab.eu&sz=64',
     },
   },
   {
@@ -515,7 +515,7 @@ export const searchConfig = [
     value: {
       engineName: 'WebCrawler',
       engine: 'https://www.webcrawler.com/serp?q=',
-      engineIcon: '',
+      engineIcon: 'https://www.google.com/s2/favicons?domain=www.webcrawler.com&sz=64',
     },
   },
 ];
