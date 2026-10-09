@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { LockKeyhole, ShieldCheck, Eye, EyeOff } from 'lucide-react';
+import { LockKeyhole, ShieldCheck, Eye, EyeOff, CloudSun, MapPin, RefreshCw } from 'lucide-react';
 
 const PASSWORD_KEY = 'dogeub-password-credential-v1';
 
@@ -37,7 +37,56 @@ export default function LockScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [now, setNow] = useState(() => new Date());
+  const [weather, setWeather] = useState(null);
+  const [weatherMessage, setWeatherMessage] = useState('Allow location to show local weather.');
+  const [weatherLoading, setWeatherLoading] = useState(false);
   const passwordInputRef = useRef(null);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const loadWeather = () => {
+    if (!navigator.geolocation) {
+      setWeatherMessage('Location is not supported by this browser.');
+      return;
+    }
+    setWeatherLoading(true);
+    setWeatherMessage('Getting your local weather…');
+    navigator.geolocation.getCurrentPosition(async ({ coords }) => {
+      try {
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${coords.latitude}&longitude=${coords.longitude}&current=temperature_2m,apparent_temperature,weather_code,is_day&timezone=auto`;
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('Weather request failed');
+        const data = await response.json();
+        const code = data.current?.weather_code;
+        const description = code === 0 ? 'Clear sky'
+          : [1, 2].includes(code) ? 'Mostly clear'
+          : code === 3 ? 'Cloudy'
+          : [45, 48].includes(code) ? 'Foggy'
+          : [51, 53, 55, 56, 57].includes(code) ? 'Drizzle'
+          : [61, 63, 65, 66, 67, 80, 81, 82].includes(code) ? 'Rain'
+          : [71, 73, 75, 77, 85, 86].includes(code) ? 'Snow'
+          : [95, 96, 99].includes(code) ? 'Thunderstorms'
+          : 'Current conditions';
+        setWeather({
+          temperature: Math.round(data.current.temperature_2m),
+          feelsLike: Math.round(data.current.apparent_temperature),
+          description,
+        });
+        setWeatherMessage('');
+      } catch {
+        setWeatherMessage('Weather could not load. Try again.');
+      } finally {
+        setWeatherLoading(false);
+      }
+    }, () => {
+      setWeatherMessage('Location permission was denied. Allow it to see local weather.');
+      setWeatherLoading(false);
+    }, { timeout: 10000, maximumAge: 600000 });
+  };
 
   useEffect(() => {
     const timer = window.setTimeout(() => passwordInputRef.current?.focus(), 50);
@@ -137,7 +186,44 @@ export default function LockScreen() {
 
   return (
     <div className="fixed inset-0 z-[20000] flex min-h-screen items-center justify-center overflow-y-auto bg-[#070b14] px-4 py-8 text-white">
-      <div className="pointer-events-none absolute inset-0 opacity-40" style={{ background: 'radial-gradient(circle at 50% 15%, #164e63 0, transparent 42%), radial-gradient(circle at 90% 85%, #312e81 0, transparent 35%)' }} />
+      <div className="pointer-events-none absolute inset-0 opacity-40" style={{ background: 'radial-gradient(circle at 20% 25%, #164e63 0, transparent 42%), radial-gradient(circle at 85% 80%, #312e81 0, transparent 35%)' }} />
+      <div className="relative mx-auto flex w-full max-w-5xl flex-col items-stretch justify-center gap-6 md:flex-row md:items-center md:gap-10">
+      <aside className="w-full rounded-3xl border border-white/10 bg-white/[0.04] p-6 backdrop-blur-xl md:max-w-md md:p-8">
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-300">DogeUB • Welcome</p>
+        <p className="mt-5 text-5xl font-light tracking-tight tabular-nums sm:text-6xl">
+          {now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+        </p>
+        <p className="mt-2 text-base text-white/65">
+          {now.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+        </p>
+        <div className="mt-8 rounded-2xl border border-white/10 bg-black/20 p-4">
+          <div className="flex items-center gap-2 text-sm font-medium text-white/75">
+            <CloudSun size={18} className="text-sky-300" /> Local weather
+          </div>
+          {weather ? (
+            <div className="mt-3 flex items-center justify-between gap-4">
+              <div>
+                <p className="text-3xl font-light">{weather.temperature}°C</p>
+                <p className="mt-1 text-sm text-white/70">{weather.description}</p>
+                <p className="mt-1 text-xs text-white/45">Feels like {weather.feelsLike}°C</p>
+              </div>
+              <CloudSun size={42} className="text-sky-300" />
+            </div>
+          ) : (
+            <p className="mt-2 text-sm leading-5 text-white/55">{weatherMessage}</p>
+          )}
+          <button
+            type="button"
+            onClick={loadWeather}
+            disabled={weatherLoading}
+            className="mt-4 flex items-center gap-2 rounded-lg border border-white/15 px-3 py-2 text-xs font-medium text-white/80 transition hover:bg-white/10 disabled:opacity-50"
+          >
+            {weatherLoading ? <RefreshCw size={14} className="animate-spin" /> : <MapPin size={14} />}
+            {weatherLoading ? 'Loading weather…' : weather ? 'Refresh local weather' : 'Show my local weather'}
+          </button>
+        </div>
+        <p className="mt-4 text-xs leading-5 text-white/35">Weather uses your location only if you allow browser location access.</p>
+      </aside>
       <section role="dialog" aria-modal="true" aria-labelledby="dogeub-lock-title" className="relative w-full max-w-sm rounded-3xl border border-white/10 bg-[#111827]/95 p-7 shadow-2xl backdrop-blur-xl">
         <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-sky-400/15 text-sky-300">
           {credential ? <LockKeyhole size={27} /> : <ShieldCheck size={27} />}
@@ -197,6 +283,7 @@ export default function LockScreen() {
         </form>
         <p className="mt-5 text-center text-[11px] leading-5 text-white/35">This locks the DogeUB page in this browser. It is not a replacement for server-side account security.</p>
       </section>
+      </div>
     </div>
   );
 }
