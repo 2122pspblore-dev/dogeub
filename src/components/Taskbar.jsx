@@ -200,8 +200,8 @@ export default function Taskbar() {
 
       {powerConfirm && (
         <div role="dialog" aria-modal="true" aria-labelledby="power-confirm-title" className="fixed bottom-[4.6rem] left-1/2 z-[11002] w-[min(92vw,340px)] -translate-x-1/2 rounded-2xl border border-white/15 bg-[#172033]/[.98] p-5 text-white shadow-2xl backdrop-blur-2xl">
-          <div className="mb-3 flex items-center gap-3"><span className="rounded-xl bg-red-500/20 p-2 text-red-300"><Power size={20} /></span><div><h2 id="power-confirm-title" className="text-sm font-semibold">Close DogeUB?</h2><p className="mt-1 text-xs text-white/60">This will try to close this browser tab.</p></div></div>
-          <div className="flex justify-end gap-2"><button onClick={() => setPowerConfirm(false)} className="rounded-lg px-3 py-2 text-xs hover:bg-white/10">Cancel</button><button onClick={() => { setPowerConfirm(false); setIsShutdown(true); }} className="rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold hover:bg-red-500">Close page</button></div>
+          <div className="mb-3 flex items-center gap-3"><span className="rounded-xl bg-red-500/20 p-2 text-red-300"><Power size={20} /></span><div><h2 id="power-confirm-title" className="text-sm font-semibold">Close DogeUB?</h2><p className="mt-1 text-xs text-white/60">DogeUB will shut down and lock. Your password will be required to unlock it again.</p></div></div>
+          <div className="flex justify-end gap-2"><button onClick={() => setPowerConfirm(false)} className="rounded-lg px-3 py-2 text-xs hover:bg-white/10">Cancel</button><button onClick={() => { setPowerConfirm(false); setIsShutdown(true); window.dispatchEvent(new Event('dogeub-lock')); }} className="rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold hover:bg-red-500">Shut down & lock</button></div>
           
         </div>
       )}
@@ -259,7 +259,7 @@ export default function Taskbar() {
         <div className="fixed inset-0 z-[12000] flex flex-col items-center justify-center bg-[#080d18] px-6 text-center text-white">
           <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-sky-500/15 text-sky-300"><Power size={30} /></div>
           <h1 className="text-2xl font-semibold">DogeUB is shut down</h1>
-          <p className="mt-2 max-w-sm text-sm text-white/60">This page is now turned off. Your browser controls are still available if you want to close the tab completely.</p>
+          <p className="mt-2 max-w-sm text-sm text-white/60">DogeUB is off. Sign in with your password first, then turn DogeUB back on.</p>
           <button onClick={() => setIsShutdown(false)} className="mt-6 rounded-xl bg-sky-500 px-5 py-3 text-sm font-semibold text-white hover:bg-sky-400">Turn DogeUB back on</button>
         </div>
       )}
