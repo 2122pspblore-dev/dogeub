@@ -39,7 +39,8 @@ const PATCH_LOGS = [
   'Improved password locking: added Alt+L and Ctrl+Shift+L shortcuts plus a dedicated Lock button in the Start menu, since browsers often reserve Ctrl+L for the address bar.',
   'Fixed password input focus and pointer interaction so the password and confirmation fields can receive typing reliably.',
   'Added an on-screen password-box tip: press Esc to focus the password field.',
-  'Added a reminder popup after patch logs explaining how to lock DogeUB with Ctrl+L, plus fallback lock options.'
+  'Added a reminder popup after patch logs explaining how to lock DogeUB with Ctrl+L, plus fallback lock options.',
+  'Added a live date/time panel and optional location-based current weather beside the password screen.'
 ];
 
 const PatchLogs = () => {
