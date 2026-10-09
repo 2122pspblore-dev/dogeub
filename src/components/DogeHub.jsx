@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  AppWindow, CalendarDays, Check, ChevronDown, CloudSun, FileText, Folder,
-  LayoutDashboard, Maximize2, Moon, Palette, Plus, RotateCcw, Search, Settings2,
+  AppWindow, CalendarDays, Check, CloudSun, FileText, Folder,
+  LayoutDashboard, Moon, Palette, Plus, RotateCcw, Search, Settings2,
   StickyNote, Sun, Trash2, X, Wifi, Zap
 } from 'lucide-react';
 
@@ -82,7 +82,8 @@ export default function DogeHub() {
   }, []);
 
   useEffect(() => {
-    const timer = window.setInterval(() => setClock(new Date()), 1000);
+    if (!open) return;
+    const timer = window.setInterval(() => setClock(new Date()), 15000);
     const onOnline = () => setOnline(navigator.onLine);
     window.addEventListener('online', onOnline);
     window.addEventListener('offline', onOnline);
@@ -91,7 +92,7 @@ export default function DogeHub() {
       window.removeEventListener('online', onOnline);
       window.removeEventListener('offline', onOnline);
     };
-  }, []);
+  }, [open]);
 
   useEffect(() => {
     try { localStorage.setItem(STORAGE.notes, JSON.stringify(notes)); } catch { setToast('Storage is full. Remove some notes and try again.'); }
@@ -114,20 +115,25 @@ export default function DogeHub() {
   }, [savedThemes]);
 
   useEffect(() => {
-    let manager;
+    if (!open || typeof navigator.getBattery !== 'function') return;
     let mounted = true;
-    if (typeof navigator.getBattery === 'function') {
-      navigator.getBattery().then((value) => {
-        if (!mounted) return;
-        manager = value;
-        const update = () => setBattery({ level: Math.round(value.level * 100), charging: value.charging });
-        update();
-        value.addEventListener('levelchange', update);
-        value.addEventListener('chargingchange', update);
-      }).catch(() => {});
-    }
-    return () => { mounted = false; };
-  }, []);
+    let manager;
+    navigator.getBattery().then((value) => {
+      if (!mounted) return;
+      manager = value;
+      const update = () => setBattery({ level: Math.round(value.level * 100), charging: value.charging });
+      update();
+      value.addEventListener('levelchange', update);
+      value.addEventListener('chargingchange', update);
+    }).catch(() => {});
+    return () => {
+      mounted = false;
+      if (manager) {
+        manager.removeEventListener('levelchange', () => {});
+        manager.removeEventListener('chargingchange', () => {});
+      }
+    };
+  }, [open]);
 
   const folders = useMemo(() => ['All files', ...new Set(files.map((item) => item.folder || 'Documents')), 'Recycle Bin'], [files]);
   const visibleFiles = useMemo(() => {
@@ -212,7 +218,7 @@ export default function DogeHub() {
 
   return (
     <div className={'fixed inset-0 z-[10997] flex items-center justify-center bg-black/55 p-2 text-sm sm:p-6 ' + (theme.motion ? 'transition-opacity duration-200' : '')} onMouseDown={(event) => { if (event.target === event.currentTarget) setOpen(false); }}>
-      <section className={'flex h-[min(88vh,780px)] w-full max-w-6xl overflow-hidden rounded-2xl border shadow-2xl backdrop-blur-2xl ' + shell} style={{ borderColor: theme.accent + '55', borderRadius: theme.radius + 'px', backgroundColor: dark ? 'rgba(16,24,39,' + (theme.glass / 100) + ')' : 'rgba(241,245,249,' + (theme.glass / 100) + ')', filter: 'brightness(' + brightness + '%)' }}>
+      <section className={'flex h-[min(88vh,780px)] w-full max-w-6xl overflow-hidden rounded-2xl border shadow-2xl backdrop-blur-md ' + shell} style={{ borderColor: theme.accent + '55', borderRadius: theme.radius + 'px', backgroundColor: dark ? 'rgba(16,24,39,' + (theme.glass / 100) + ')' : 'rgba(241,245,249,' + (theme.glass / 100) + ')', filter: 'brightness(' + brightness + '%)' }}>
         <aside className={'hidden w-56 shrink-0 flex-col border-r p-3 sm:flex ' + (dark ? 'border-white/10 bg-black/10' : 'border-slate-200 bg-white/40')}>
           <div className="mb-5 flex items-center gap-2 px-2 pt-2">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl text-white" style={accentStyle}><Zap size={19} /></div>
