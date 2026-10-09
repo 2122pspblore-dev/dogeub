@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { LockKeyhole, ShieldCheck, Eye, EyeOff } from 'lucide-react';
 
 const PASSWORD_KEY = 'dogeub-password-credential-v1';
@@ -37,6 +37,12 @@ export default function LockScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const passwordInputRef = useRef(null);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => passwordInputRef.current?.focus(), 50);
+    return () => window.clearTimeout(timer);
+  }, [unlocked, credential]);
 
   useEffect(() => {
     const lock = () => {
@@ -141,13 +147,16 @@ export default function LockScreen() {
           <div className="flex items-center rounded-xl border border-white/15 bg-black/25 px-3 focus-within:border-sky-400">
             <input
               id="dogeub-password"
+              ref={passwordInputRef}
               autoFocus
+              tabIndex={0}
+              style={{ pointerEvents: "auto", userSelect: "text", WebkitUserSelect: "text" }}
               autoComplete={credential ? 'current-password' : 'new-password'}
               type={showPassword ? 'text' : 'password'}
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               placeholder={credential ? 'Enter your password' : 'At least 8 characters'}
-              className="min-w-0 flex-1 bg-transparent py-3 text-sm outline-none placeholder:text-white/30"
+              className="relative z-10 min-w-0 flex-1 bg-transparent py-3 text-sm outline-none placeholder:text-white/30"
             />
             <button type="button" aria-label={showPassword ? 'Hide password' : 'Show password'} onClick={() => setShowPassword((value) => !value)} className="rounded-lg p-1.5 text-white/50 hover:text-white">
               {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
@@ -158,12 +167,14 @@ export default function LockScreen() {
               <label className="block pt-1 text-xs font-medium text-white/70" htmlFor="dogeub-confirm-password">Confirm password</label>
               <input
                 id="dogeub-confirm-password"
+                tabIndex={0}
+                style={{ pointerEvents: "auto", userSelect: "text", WebkitUserSelect: "text" }}
                 autoComplete="new-password"
                 type={showPassword ? 'text' : 'password'}
                 value={confirmPassword}
                 onChange={(event) => setConfirmPassword(event.target.value)}
                 placeholder="Type it again"
-                className="w-full rounded-xl border border-white/15 bg-black/25 px-3 py-3 text-sm outline-none placeholder:text-white/30 focus:border-sky-400"
+                className="relative z-10 w-full rounded-xl border border-white/15 bg-black/25 px-3 py-3 text-sm outline-none placeholder:text-white/30 focus:border-sky-400"
               />
             </>
           )}
