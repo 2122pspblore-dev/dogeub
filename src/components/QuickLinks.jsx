@@ -19,7 +19,7 @@ const QuickLinks = ({ cls, nav = true, navigating }) => {
     { link: 'https://discord.com', icon: '/assets/img/dsci.ico', name: 'Discord' },
     { link: 'https://github.com', icon: '/assets/img/icogh.ico', name: 'GitHub' },
     { link: 'https://youtube.com', icon: 'https://www.youtube.com/favicon.ico', name: 'YouTube' },
-    { link: 'https://gemini.google.com', icon: 'https://gemini.google.com/favicon.ico', name: 'Gemini AI' },
+    { link: 'https://gemini.google.com', icon: 'https://tse4.mm.bing.net/th/id/OIP.umfUzNjKLT1bMF25L3QPoAHaHa?r=0&rs=1&pid=ImgDetMain&o=7&rm=3', name: 'Gemini AI' },
   ];
 
   // These two shortcuts should be available even when a user has older saved shortcuts.
