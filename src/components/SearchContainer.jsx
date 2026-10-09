@@ -4,9 +4,12 @@ import { useNavigate } from 'react-router-dom';
 import { LucideSearch, Earth } from 'lucide-react';
 import { GlowWrapper } from '../utils/Glow';
 import { useOptions } from '../utils/optionsContext';
+import { searchConfig } from '../utils/config';
 import Logo from '../components/Logo';
 import theme from '../styles/theming.module.css';
 import 'movement.css';
+
+const QUICK_ENGINES = ['Bing', 'DuckDuckGo', 'Brave', 'Yahoo', 'Startpage', 'Ecosia', 'Kagi'];
 
 const SearchContainer = memo(function SearchContainer({ logo = true, cls, nav = true, navigating }) {
   const [query, setQuery] = useState('');
@@ -14,7 +17,12 @@ const SearchContainer = memo(function SearchContainer({ logo = true, cls, nav = 
   const debounceRef = useRef(null);
   const latestQuery = useRef('');
   const navigate = useNavigate();
-  const { options } = useOptions();
+  const { options, updateOption } = useOptions();
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const quickEngines = useMemo(
+    () => searchConfig.filter((c) => QUICK_ENGINES.includes(c.option)),
+    [],
+  );
 
   const fetchResults = useCallback(async (searchQuery) => {
     if (!searchQuery.trim()) {
@@ -123,16 +131,25 @@ const SearchContainer = memo(function SearchContainer({ logo = true, cls, nav = 
             id="search-div"
             className={clsx(
               'flex items-center gap-3 shadow-xl pl-4 pr-4 w-full h-[3.41rem]',
-              results.length ? 'rounded-t-[14px] rounded-b-none' : 'rounded-[14px]',
+              results.length || pickerOpen ? 'rounded-t-[14px] rounded-b-none' : 'rounded-[14px]',
               theme[`searchBarColor`],
               theme[`theme-${options.theme || 'default'}`],
             )}
           >
-            {iconSrc ? (
-              <img src={iconSrc} className="w-5 h-5 shrink-0" alt="Search icon" loading="lazy" />
-            ) : (
-              <Earth size={22} />
-            )}
+            <button
+              type="button"
+              className="shrink-0 cursor-pointer"
+              title="Change search engine"
+              aria-label="Change search engine"
+              aria-expanded={pickerOpen}
+              onClick={() => setPickerOpen((v) => !v)}
+            >
+              {iconSrc ? (
+                <img src={iconSrc} className="w-5 h-5" alt="Search engine" loading="lazy" />
+              ) : (
+                <Earth size={22} />
+              )}
+            </button>
 
             <input
               type="text"
@@ -147,7 +164,38 @@ const SearchContainer = memo(function SearchContainer({ logo = true, cls, nav = 
             <LucideSearch className="w-[1.08rem] h-[1.08rem] shrink-0" />
           </div>
 
-          {results.length > 0 && (
+          {pickerOpen && (
+            <div
+              className={clsx(
+                'shadow-xl mt-0 p-2 text-[14px] w-full rounded-b-[14px] flex flex-wrap gap-2',
+                theme[`searchResultStyle`],
+                theme[`theme-${options.theme || 'default'}`],
+              )}
+            >
+              {quickEngines.map((c) => {
+                const active = (options.engine || searchConfig[0].value.engine) === c.value.engine;
+                return (
+                  <button
+                    type="button"
+                    key={c.option}
+                    className={clsx(
+                      'flex items-center gap-2 rounded-[9px] h-9 px-3 cursor-pointer duration-100 ease-in hover:bg-[#d4d4d418]',
+                      active && 'bg-[#d4d4d424]',
+                    )}
+                    onClick={() => {
+                      updateOption(c.value);
+                      setPickerOpen(false);
+                    }}
+                  >
+                    <img src={c.value.engineIcon} className="w-4 h-4" alt="" loading="lazy" />
+                    <span>{c.option}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {!pickerOpen && results.length > 0 && (
             <div
               className={clsx(
                 'shadow-xl mt-0 p-2 text-[14px] w-full rounded-b-[14px] space-y-1',
