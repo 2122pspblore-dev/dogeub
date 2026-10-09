@@ -8,6 +8,7 @@ import {
   designConfig,
 } from '/src/utils/config';
 import { exportSettings, importSettings } from '/src/utils/settingsExport';
+import { PATCH_LOGS_KEY, isPatchLogsEnabled } from '/src/components/PatchLogs';
 
 export const privacyConfig = ({ options, updateOption, openPanic }) => {
   const isCustom = options.isCustomCloak || (options.tabName && !meta.find(c => c.value.tabName === options.tabName));
@@ -163,6 +164,17 @@ export const customizeConfig = ({ options, updateOption }) => ({
     value: options.shrinkHeader ?? false,
     type: 'switch',
     action: (b) => setTimeout(() => updateOption({ shrinkHeader: b }), 100),
+  },
+  8: {
+    name: 'Show patch logs on load',
+    desc: 'Show the Patch Logs panel listing recent changes every time the site loads.',
+    value: isPatchLogsEnabled(),
+    type: 'switch',
+    action: (b) => {
+      try {
+        localStorage.setItem(PATCH_LOGS_KEY, String(b));
+      } catch {}
+    },
   },
 });
 
