@@ -28,6 +28,9 @@ export default function Taskbar() {
   const [query, setQuery] = useState('');
   const [clock, setClock] = useState(() => formatClock(new Date()));
   const [trayOpen, setTrayOpen] = useState(false);
+  const [startBackground, setStartBackground] = useState(() => {
+    try { return window.localStorage.getItem('dogeub-start-background') || ''; } catch { return ''; }
+  });
 
   useEffect(() => {
     const timer = window.setInterval(() => setClock(formatClock(new Date())), 15000);
@@ -39,6 +42,37 @@ export default function Taskbar() {
     setSearchOpen(false);
     setTrayOpen(false);
   }, [location.pathname]);
+
+  const handleBackgroundUpload = (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      window.alert('Please choose an image file.');
+      return;
+    }
+    if (file.size > 2.5 * 1024 * 1024) {
+      window.alert('Please use an image smaller than 2.5 MB.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const image = String(reader.result || '');
+      try {
+        window.localStorage.setItem('dogeub-start-background', image);
+        setStartBackground(image);
+      } catch {
+        window.alert('This image could not be saved in browser storage. Try a smaller image.');
+      }
+    };
+    reader.onerror = () => window.alert('Could not read that image. Please try another one.');
+    reader.readAsDataURL(file);
+  };
+
+  const clearStartBackground = () => {
+    try { window.localStorage.removeItem('dogeub-start-background'); } catch {}
+    setStartBackground('');
+  };
 
   const openApp = (app) => {
     navigate(app.path);
@@ -69,7 +103,7 @@ export default function Taskbar() {
       )}
 
       {startOpen && (
-        <section className="fixed bottom-[4.6rem] left-1/2 z-[10999] w-[min(92vw,390px)] -translate-x-1/2 overflow-hidden rounded-2xl border border-white/15 bg-[#172033]/95 p-4 text-white shadow-2xl backdrop-blur-2xl">
+        <section style={startBackground ? { backgroundImage: `linear-gradient(rgba(15, 23, 42, 0.84), rgba(15, 23, 42, 0.9)), url("${startBackground}")`, backgroundSize: "cover", backgroundPosition: "center" } : undefined} className="fixed bottom-[4.6rem] left-1/2 z-[10999] w-[min(92vw,390px)] -translate-x-1/2 overflow-hidden rounded-2xl border border-white/15 bg-[#172033]/95 p-4 text-white shadow-2xl backdrop-blur-2xl">
           <div className="mb-4 flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm font-semibold"><Grid3X3 size={17} /> Pinned</div>
             <span className="text-xs text-white/50">DogeUB</span>
@@ -91,6 +125,13 @@ export default function Taskbar() {
               <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-500/20 text-sky-200"><Globe size={19} /></span>
               <span><span className="block text-sm">Open browser</span><span className="block text-xs text-white/50">Start browsing on DogeUB</span></span>
             </button>
+          </div>
+          <div className="mt-3 flex items-center justify-between gap-2 border-t border-white/10 pt-3">
+            <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-white/10 px-3 py-2 text-xs font-medium hover:bg-white/15">
+              <input type="file" accept="image/*" className="hidden" onChange={handleBackgroundUpload} />
+              {startBackground ? "Change background" : "Upload background"}
+            </label>
+            {startBackground && <button onClick={clearStartBackground} className="rounded-lg px-3 py-2 text-xs text-white/70 hover:bg-white/10 hover:text-white">Remove image</button>}
           </div>
           <div className="mt-3 flex items-center justify-between border-t border-white/10 pt-3 text-xs text-white/65">
             <span className="flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-sky-500/30">D</span> DogeUB user</span>
