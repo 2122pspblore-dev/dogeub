@@ -46,7 +46,14 @@ export default function LockScreen() {
       setError('');
     };
     const onKeyDown = (event) => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'l') {
+      const key = event.key.toLowerCase();
+      // Ctrl+L is reserved by many browsers for the address bar, so provide
+      // Alt+L and Ctrl+Shift+L as reliable in-page alternatives too.
+      const lockShortcut =
+        ((event.ctrlKey || event.metaKey) && key === 'l') ||
+        (event.altKey && !event.ctrlKey && !event.metaKey && key === 'l') ||
+        ((event.ctrlKey || event.metaKey) && event.shiftKey && key === 'l');
+      if (lockShortcut) {
         event.preventDefault();
         event.stopPropagation();
         lock();
