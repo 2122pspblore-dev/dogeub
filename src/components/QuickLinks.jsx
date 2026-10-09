@@ -14,6 +14,7 @@ const QuickLinks = ({ cls, nav = true, navigating }) => {
   const [dialog, setDialog] = useState({ add: false, edit: false, index: null });
   const [shiftHeld, setShiftHeld] = useState(false);
   const menuRef = useRef(null);
+  const draggedIndex = useRef(null);
 
   const defaultLinks = [
     { link: 'https://discord.com', icon: '/assets/img/dsci.ico', name: 'Discord' },
@@ -87,7 +88,32 @@ const QuickLinks = ({ cls, nav = true, navigating }) => {
   return (
     <div className={clsx('flex flex-wrap justify-center gap-4', cls || 'w-full max-w-[40rem] mx-auto mt-[16rem]')}>
       {quickLinks.map((link, i) => (
-        <div key={i} className={linkItem} onClick={() => go(link.link)}>
+        <div
+          key={i}
+          className={linkItem}
+          draggable
+          onDragStart={(e) => {
+            draggedIndex.current = i;
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', String(i));
+          }}
+          onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
+          onDrop={(e) => {
+            e.preventDefault();
+            const from = draggedIndex.current;
+            const to = i;
+            if (from == null || from === to) return;
+            setQuickLinks((items) => {
+              const next = [...items];
+              const [moved] = next.splice(from, 1);
+              next.splice(to, 0, moved);
+              return next;
+            });
+            draggedIndex.current = null;
+          }}
+          onDragEnd={() => { draggedIndex.current = null; }}
+          onClick={() => go(link.link)}
+        >
           <div
             ref={menuOpen === i ? menuRef : null}
             onClick={(e) => {
