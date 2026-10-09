@@ -109,7 +109,12 @@ const SearchContainer = memo(function SearchContainer({ logo = true, cls, nav = 
       data-m={!cls && 'bounce-up'}
       data-m-duration={!cls && '0.8'}
     >
-      {logo && <Logo options="w-[15.8rem] h-30" />}
+      {logo && (
+        <div className="flex flex-col items-center">
+          <Logo options="w-[15.8rem] h-30" />
+          <div className="mt-2 text-sm tracking-wide opacity-80 select-none">Advik Kumar</div>
+        </div>
+      )}
       <GlowWrapper
         glowOptions={{ color: options.glowWrapperColor || '255, 255, 255', size: 70, opacity: 0.2 }}
       >
