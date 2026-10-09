@@ -8,6 +8,7 @@ import { useLocation } from 'react-router-dom';
 import Popunder from './components/Popunder';
 import PanicButton from './components/PanicButton';
 import PatchLogs from './components/PatchLogs';
+import BackgroundPicker from './components/BackgroundPicker';
 import { OptionsProvider, useOptions } from './utils/optionsContext';
 import { initPreload } from './utils/preload';
 import { designConfig as bgDesign } from './utils/config';
@@ -118,6 +119,7 @@ const ThemedApp = memo(() => {
     <>
       <PanicButton />
       <PatchLogs />
+      <BackgroundPicker />
       <Routing pages={pages} />
       {popunderEnabled && !adKeyPassed ? <Popunder /> : null}
       <style>{backgroundStyle}</style>
