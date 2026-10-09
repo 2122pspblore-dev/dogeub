@@ -51,6 +51,7 @@ export default function DogeHub() {
   const [active, setActive] = useState('control');
   const [clock, setClock] = useState(() => new Date());
   const [online, setOnline] = useState(() => navigator.onLine);
+  const [brightness, setBrightness] = useState(100);
   const [battery, setBattery] = useState(null);
   const [theme, setTheme] = useState(() => ({ ...DEFAULT_THEME, ...readStorage(STORAGE.theme, {}) }));
   const [savedThemes, setSavedThemes] = useState(() => readStorage('dogeub-hub-theme-presets-v1', []));
@@ -161,8 +162,8 @@ export default function DogeHub() {
     const item = { id: makeId(), title, body: noteBody, updatedAt: new Date().toISOString() };
     setNotes((old) => [item, ...old]);
     setSelectedNote(item.id);
-    setNoteTitle('');
-    setNoteBody('');
+    setNoteTitle(title);
+    setNoteBody(noteBody);
     setToast('Note saved on this browser');
   };
   const saveSelectedNote = () => {
@@ -211,7 +212,7 @@ export default function DogeHub() {
 
   return (
     <div className={'fixed inset-0 z-[10997] flex items-center justify-center bg-black/55 p-2 text-sm sm:p-6 ' + (theme.motion ? 'transition-opacity duration-200' : '')} onMouseDown={(event) => { if (event.target === event.currentTarget) setOpen(false); }}>
-      <section className={'flex h-[min(88vh,780px)] w-full max-w-6xl overflow-hidden rounded-2xl border shadow-2xl backdrop-blur-2xl ' + shell} style={{ borderColor: theme.accent + '55', borderRadius: theme.radius + 'px', backgroundColor: dark ? 'rgba(16,24,39,' + (theme.glass / 100) + ')' : 'rgba(241,245,249,' + (theme.glass / 100) + ')' }}>
+      <section className={'flex h-[min(88vh,780px)] w-full max-w-6xl overflow-hidden rounded-2xl border shadow-2xl backdrop-blur-2xl ' + shell} style={{ borderColor: theme.accent + '55', borderRadius: theme.radius + 'px', backgroundColor: dark ? 'rgba(16,24,39,' + (theme.glass / 100) + ')' : 'rgba(241,245,249,' + (theme.glass / 100) + ')', filter: 'brightness(' + brightness + '%)' }}>
         <aside className={'hidden w-56 shrink-0 flex-col border-r p-3 sm:flex ' + (dark ? 'border-white/10 bg-black/10' : 'border-slate-200 bg-white/40')}>
           <div className="mb-5 flex items-center gap-2 px-2 pt-2">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl text-white" style={accentStyle}><Zap size={19} /></div>
@@ -250,6 +251,7 @@ export default function DogeHub() {
                 <Tile className={surface}><div className="flex items-center gap-3"><div className="rounded-xl p-3 text-white" style={accentStyle}><Wifi size={19} /></div><div><div className="font-semibold">Internet</div><div className={'text-xs ' + muted}>{online ? 'Connected' : 'Offline'}</div></div></div><button className={'mt-4 w-full ' + softButton} onClick={() => setToast(online ? 'Browser reports that you are online.' : 'Browser reports that you are offline.')}>Check connection</button></Tile>
                 <Tile className={surface}><div className="flex items-center gap-3"><div className="rounded-xl bg-emerald-500/20 p-3 text-emerald-300"><Zap size={19} /></div><div><div className="font-semibold">Battery</div><div className={'text-xs ' + muted}>{battery ? battery.level + '% · ' + (battery.charging ? 'Charging' : 'On battery') : 'Not available in this browser'}</div></div></div>{battery && <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full" style={{ width: battery.level + '%', backgroundColor: theme.accent }} /></div>}</Tile>
                 <Tile className={surface}><div className="flex items-center gap-3"><div className="rounded-xl bg-amber-400/15 p-3 text-amber-300"><Sun size={19} /></div><div><div className="font-semibold">Appearance</div><div className={'text-xs ' + muted}>{dark ? 'Dark mode' : 'Light mode'}</div></div></div><button className={'mt-4 w-full ' + softButton} onClick={() => setTheme((old) => ({ ...old, mode: old.mode === 'dark' ? 'light' : 'dark' }))}>Switch to {dark ? 'light' : 'dark'} mode</button></Tile>
+                <Tile className={surface}><div className="font-semibold">Display brightness</div><p className={'mt-1 text-xs ' + muted}>Visual-only brightness for the Doge Hub window.</p><input aria-label="Display brightness" className="mt-4 w-full accent-sky-400" type="range" min="60" max="120" value={brightness} onChange={(event) => setBrightness(Number(event.target.value))} /><div className={'mt-1 text-xs ' + muted}>{brightness}% brightness</div></Tile>
                 <Tile className={surface}><div className="font-semibold">Transparency</div><p className={'mt-1 text-xs ' + muted}>Adjust the glass look of Doge Hub.</p><input aria-label="Transparency" className="mt-4 w-full accent-sky-400" type="range" min="35" max="100" value={theme.glass} onChange={(event) => setTheme((old) => ({ ...old, glass: Number(event.target.value) }))} /><div className={'mt-1 text-xs ' + muted}>{theme.glass}% opacity</div></Tile>
                 <Tile className={surface}><div className="font-semibold">Display effects</div><p className={'mt-1 text-xs ' + muted}>Choose a comfortable desktop feel.</p><label className="mt-4 flex items-center justify-between text-xs"><span>Animations</span><input type="checkbox" checked={theme.motion} onChange={(event) => setTheme((old) => ({ ...old, motion: event.target.checked }))} /></label><label className="mt-3 flex items-center justify-between text-xs"><span>Rounded corners</span><input type="range" min="8" max="28" value={theme.radius} onChange={(event) => setTheme((old) => ({ ...old, radius: Number(event.target.value) }))} /></label></Tile>
                 <Tile className={surface}><div className="font-semibold">Quick actions</div><div className="mt-3 grid grid-cols-2 gap-2"><button className={softButton} onClick={() => setActive('widgets')}><CalendarDays size={14} className="mr-1 inline" />Widgets</button><button className={softButton} onClick={() => setActive('notes')}><StickyNote size={14} className="mr-1 inline" />New note</button><button className={softButton} onClick={() => setActive('files')}><Folder size={14} className="mr-1 inline" />Files</button><button className={softButton} onClick={() => setActive('themes')}><Palette size={14} className="mr-1 inline" />Themes</button></div></Tile>
