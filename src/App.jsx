@@ -50,6 +50,25 @@ const ThemedApp = memo(() => {
   });
 
   useEffect(() => {
+    const body = document.body;
+    if (customBackground) {
+      body.style.setProperty('background-image', `url("${customBackground}")`, 'important');
+      body.style.setProperty('background-size', 'cover', 'important');
+      body.style.setProperty('background-position', 'center center', 'important');
+      body.style.setProperty('background-repeat', 'no-repeat', 'important');
+      body.style.setProperty('background-attachment', 'fixed', 'important');
+      body.style.setProperty('background-color', options.bgColor || '#111827', 'important');
+    } else {
+      body.style.removeProperty('background-image');
+      body.style.removeProperty('background-size');
+      body.style.removeProperty('background-position');
+      body.style.removeProperty('background-repeat');
+      body.style.removeProperty('background-attachment');
+      body.style.removeProperty('background-color');
+    }
+  }, [customBackground, options.bgColor]);
+
+  useEffect(() => {
     const syncBackground = () => {
       try { setCustomBackground(window.localStorage.getItem('dogeub-site-background') || ''); } catch { setCustomBackground(''); }
     };
