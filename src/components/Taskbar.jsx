@@ -51,7 +51,7 @@ export default function Taskbar() {
     const value = query.trim();
     if (!value) return;
     navigate('/search', {
-      state: { url: /^https?:\\/\\//i.test(value) ? value : `https://www.bing.com/search?q=${encodeURIComponent(value)}` },
+      state: { url: (value.startsWith('http://') || value.startsWith('https://')) ? value : `https://www.bing.com/search?q=${encodeURIComponent(value)}` },
     });
     setQuery('');
     setStartOpen(false);
