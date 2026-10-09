@@ -20,7 +20,18 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 logging.set_level(logging.NONE);
 let bare;
 
-async function remoteApps(urls = ['https://ci.baylib.top/apps.json?t=' + Date.now()]) {
+// Tiles to hide from the remote apps list (matched by exact appName, case-insensitive).
+const HIDDEN_APPS = new Set(['fmhy.net', 'movies/tv', 'google']);
+
+function removeHiddenApps(data) {
+  const keep = (a) => !HIDDEN_APPS.has(String(a?.appName ?? '').trim().toLowerCase());
+  for (const key of ['apps', 'default']) {
+    if (Array.isArray(data?.[key])) data[key] = data[key].filter(keep);
+  }
+  return data;
+}
+
+async function remoteApps(urls =['https://ci.baylib.top/apps.json?t=' + Date.now()]) {
   const list = Array.isArray(urls) ? urls : [urls];
   let lastErr;
 
@@ -32,7 +43,7 @@ async function remoteApps(urls = ['https://ci.baylib.top/apps.json?t=' + Date.no
         throw new Error(`apps.json ${res.status}`);
       }
 
-      return JSON.stringify(await res.json());
+      return JSON.stringify(removeHiddenApps(await res.json()));
     } catch (e) {
       lastErr = e;
     }
