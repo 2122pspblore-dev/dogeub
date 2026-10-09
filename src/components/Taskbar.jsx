@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
-  AppWindow, BatteryFull, Globe, Home, Search, Settings, Volume2,
+  AppWindow, BatteryFull, Globe, Home, Search, Settings, BatteryCharging,
   Wifi, X, Youtube, BookOpen, Grid3X3, Power, ChevronUp, Cpu
 } from 'lucide-react';
 
@@ -28,6 +28,8 @@ export default function Taskbar() {
   const [query, setQuery] = useState('');
   const [clock, setClock] = useState(() => formatClock(new Date()));
   const [trayOpen, setTrayOpen] = useState(false);
+  const [battery, setBattery] = useState(null);
+  const [network, setNetwork] = useState(() => ({ online: navigator.onLine, type: navigator.connection?.effectiveType || 'Unavailable', downlink: navigator.connection?.downlink, rtt: navigator.connection?.rtt, saveData: navigator.connection?.saveData }));
   const [powerConfirm, setPowerConfirm] = useState(false);
   const [specsOpen, setSpecsOpen] = useState(false);
   const [isShutdown, setIsShutdown] = useState(false);
@@ -38,6 +40,40 @@ export default function Taskbar() {
   useEffect(() => {
     const timer = window.setInterval(() => setClock(formatClock(new Date())), 15000);
     return () => window.clearInterval(timer);
+  }, []);
+
+
+  useEffect(() => {
+    let mounted = true;
+    let batteryManager;
+    const updateBattery = (manager) => {
+      if (mounted) setBattery({ level: Math.round(manager.level * 100), charging: Boolean(manager.charging), chargingTime: manager.chargingTime, dischargingTime: manager.dischargingTime });
+    };
+    if (typeof navigator.getBattery === 'function') {
+      navigator.getBattery().then((manager) => {
+        if (!mounted) return;
+        batteryManager = manager;
+        updateBattery(manager);
+        manager.addEventListener('levelchange', () => updateBattery(manager));
+        manager.addEventListener('chargingchange', () => updateBattery(manager));
+        manager.addEventListener('chargingtimechange', () => updateBattery(manager));
+        manager.addEventListener('dischargingtimechange', () => updateBattery(manager));
+      }).catch(() => { if (mounted) setBattery(null); });
+    }
+    const updateNetwork = () => {
+      const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+      setNetwork({ online: navigator.onLine, type: connection?.effectiveType || 'Unavailable', downlink: connection?.downlink, rtt: connection?.rtt, saveData: connection?.saveData });
+    };
+    window.addEventListener('online', updateNetwork);
+    window.addEventListener('offline', updateNetwork);
+    const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    connection?.addEventListener?.('change', updateNetwork);
+    return () => {
+      mounted = false;
+      window.removeEventListener('online', updateNetwork);
+      window.removeEventListener('offline', updateNetwork);
+      connection?.removeEventListener?.('change', updateNetwork);
+    };
   }, []);
 
   useEffect(() => {
@@ -193,18 +229,31 @@ export default function Taskbar() {
         </form>
       )}
 
+
       {trayOpen && (
-        <div className="fixed bottom-[4.6rem] right-3 z-[10999] w-56 rounded-2xl border border-white/15 bg-[#172033]/95 p-4 text-white shadow-2xl backdrop-blur-2xl">
-          <div className="mb-3 text-sm font-semibold">Quick settings</div>
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <div className="flex items-center gap-2 rounded-xl bg-sky-500/20 p-3"><Wifi size={17} /> Wi-Fi</div>
-            <div className="flex items-center gap-2 rounded-xl bg-white/10 p-3"><Volume2 size={17} /> Volume</div>
-            <div className="col-span-2 flex items-center gap-2 rounded-xl bg-white/10 p-3"><BatteryFull size={17} /> Battery status unavailable</div>
+        <div className="fixed bottom-[4.6rem] right-3 z-[10999] w-64 rounded-2xl border border-white/15 bg-[#172033]/95 p-4 text-white shadow-2xl backdrop-blur-2xl">
+          <div className="mb-3 text-sm font-semibold">Connection & battery</div>
+          <div className="space-y-3 text-xs">
+            <div className="rounded-xl bg-white/5 p-3">
+              <div className="mb-1 flex items-center gap-2 font-semibold"><BatteryCharging size={16} className="text-sky-300" /> Battery</div>
+              {battery ? <>
+                <div className="mb-2 flex items-center justify-between"><span className="text-white/60">Charge</span><b>{battery.level}%{battery.charging ? ' · Charging' : ''}</b></div>
+                <div className="h-2 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-sky-400 transition-all" style={{ width: battery.level + '%' }} /></div>
+                <p className="mt-2 text-[10px] text-white/50">{battery.charging ? (Number.isFinite(battery.chargingTime) && battery.chargingTime > 0 ? 'About ' + Math.round(battery.chargingTime / 60) + ' min until full' : 'Charging status reported by browser') : (Number.isFinite(battery.dischargingTime) && battery.dischargingTime > 0 ? 'About ' + Math.round(battery.dischargingTime / 60) + ' min remaining' : 'Time remaining unavailable')}</p>
+              </> : <p className="text-white/55">Live battery data is not supported by this browser or device.</p>}
+            </div>
+            <div className="rounded-xl bg-white/5 p-3">
+              <div className="mb-2 flex items-center gap-2 font-semibold"><Wifi size={16} className={network.online ? 'text-emerald-300' : 'text-red-300'} /> Internet connection</div>
+              <div className="flex justify-between gap-3"><span className="text-white/55">Status</span><b className={network.online ? 'text-emerald-300' : 'text-red-300'}>{network.online ? 'Online' : 'Offline'}</b></div>
+              <div className="mt-1 flex justify-between gap-3"><span className="text-white/55">Connection type</span><b>{network.type}</b></div>
+              <div className="mt-1 flex justify-between gap-3"><span className="text-white/55">Estimated downlink</span><b>{typeof network.downlink === 'number' ? network.downlink + ' Mbps' : 'Unavailable'}</b></div>
+              <div className="mt-1 flex justify-between gap-3"><span className="text-white/55">Estimated latency</span><b>{typeof network.rtt === 'number' ? network.rtt + ' ms' : 'Unavailable'}</b></div>
+              {network.saveData && <p className="mt-2 text-[10px] text-amber-200">Data saver is enabled.</p>}
+            </div>
           </div>
-          <p className="mt-3 text-[11px] leading-4 text-white/45">These are visual controls only; DogeUB cannot change your device settings from this panel.</p>
+          <p className="mt-3 text-[10px] leading-4 text-white/45">Stats refresh when your browser reports changes. Browsers generally do not expose Wi-Fi name or signal strength to websites.</p>
         </div>
       )}
-
 
       {isShutdown && (
         <div className="fixed inset-0 z-[12000] flex flex-col items-center justify-center bg-[#080d18] px-6 text-center text-white">
@@ -237,7 +286,7 @@ export default function Taskbar() {
         <div className="absolute right-2 flex h-10 items-center gap-2 rounded-xl px-2 hover:bg-white/10 sm:right-3">
           <button aria-label="Device specs" title="Device specs" onClick={() => { setSpecsOpen((v) => !v); setTrayOpen(false); setStartOpen(false); setSearchOpen(false); }} className="flex items-center gap-1 rounded-lg p-2 hover:bg-white/10"><Cpu size={15} /></button>
           <button aria-label="Quick settings" title="Quick settings" onClick={() => { setTrayOpen((v) => !v); setSpecsOpen(false); setStartOpen(false); setSearchOpen(false); }} className="flex items-center gap-1 rounded-lg p-2 hover:bg-white/10">
-            <Wifi size={15} className="hidden sm:block" /><Volume2 size={15} className="hidden sm:block" /><ChevronUp size={13} className="hidden md:block" />
+            <Wifi size={15} className="hidden sm:block" /><ChevronUp size={13} className="hidden md:block" />
           </button>
           <button title={`${clock.time}, ${clock.date}`} onClick={() => { setTrayOpen((v) => !v); setSpecsOpen(false); setStartOpen(false); setSearchOpen(false); }} className="hidden min-w-[76px] flex-col items-end leading-tight sm:flex">
             <span className="text-xs">{clock.time}</span><span className="mt-0.5 text-[10px] text-white/65">{clock.date}</span>
