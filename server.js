@@ -117,10 +117,28 @@ app.get("/return", async (req, reply) =>
 );
 
 
+const aiRequestWindows = new Map();
+
 app.post("/api/ai/chat", async (req, reply) => {
   const apiKey = process.env.AI_API_KEY;
   if (!apiKey) {
     return reply.code(503).send({ error: "AI assistant is not configured yet. The site owner needs to add AI_API_KEY to the server environment." });
+  }
+
+  // A small per-IP limit helps prevent accidental or abusive API spend.
+  const now = Date.now();
+  const clientIp = req.ip || req.raw.socket.remoteAddress || "unknown";
+  const window = aiRequestWindows.get(clientIp);
+  if (window && now - window.startedAt < 60000 && window.count >= 8) {
+    return reply.code(429).send({ error: "Too many AI requests. Please wait a minute and try again." });
+  }
+  aiRequestWindows.set(clientIp, window && now - window.startedAt < 60000
+    ? { startedAt: window.startedAt, count: window.count + 1 }
+    : { startedAt: now, count: 1 });
+  if (aiRequestWindows.size > 10000) {
+    for (const [ip, item] of aiRequestWindows) {
+      if (now - item.startedAt >= 60000) aiRequestWindows.delete(ip);
+    }
   }
 
   const body = req.body;
