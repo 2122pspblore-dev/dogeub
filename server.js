@@ -116,6 +116,81 @@ app.get("/return", async (req, reply) =>
     : reply.code(401).send({ error: "query parameter?" })
 );
 
+
+const aiRequestWindows = new Map();
+
+app.post("/api/ai/chat", async (req, reply) => {
+  const apiKey = process.env.AI_API_KEY;
+  if (!apiKey) {
+    return reply.code(503).send({ error: "AI assistant is not configured yet. The site owner needs to add AI_API_KEY to the server environment." });
+  }
+
+  // A small per-IP limit helps prevent accidental or abusive API spend.
+  const now = Date.now();
+  const clientIp = req.ip || req.raw.socket.remoteAddress || "unknown";
+  const window = aiRequestWindows.get(clientIp);
+  if (window && now - window.startedAt < 60000 && window.count >= 8) {
+    return reply.code(429).send({ error: "Too many AI requests. Please wait a minute and try again." });
+  }
+  aiRequestWindows.set(clientIp, window && now - window.startedAt < 60000
+    ? { startedAt: window.startedAt, count: window.count + 1 }
+    : { startedAt: now, count: 1 });
+  if (aiRequestWindows.size > 10000) {
+    for (const [ip, item] of aiRequestWindows) {
+      if (now - item.startedAt >= 60000) aiRequestWindows.delete(ip);
+    }
+  }
+
+  const body = req.body;
+  if (!body || !Array.isArray(body.messages) || body.messages.length < 1 || body.messages.length > 20) {
+    return reply.code(400).send({ error: "Send between 1 and 20 messages." });
+  }
+
+  const messages = [];
+  for (const message of body.messages) {
+    if (!message || !["user", "assistant"].includes(message.role) ||
+        typeof message.content !== "string" || !message.content.trim() ||
+        message.content.length > 6000) {
+      return reply.code(400).send({ error: "Each message must have a valid role and text under 6,000 characters." });
+    }
+    messages.push({ role: message.role, content: message.content.trim() });
+  }
+
+  try {
+    const upstream = await fetch(process.env.AI_API_URL || "https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: process.env.AI_MODEL || "gpt-4o-mini",
+        messages: [
+          { role: "system", content: "You are DogeUB AI, a helpful, friendly assistant. Give clear, practical answers. For schoolwork, help the user learn instead of just doing all the work for them. Never ask for passwords, API keys, or other secrets." },
+          ...messages
+        ],
+        temperature: 0.7,
+        max_tokens: 1200
+      }),
+      signal: AbortSignal.timeout(45000)
+    });
+
+    const data = await upstream.json().catch(() => ({}));
+    if (!upstream.ok) {
+      req.log?.warn?.({ status: upstream.status }, "AI provider request failed");
+      return reply.code(502).send({ error: "The AI provider could not complete the request. Check the server's AI settings and try again." });
+    }
+
+    const answer = data?.choices?.[0]?.message?.content;
+    if (typeof answer !== "string" || !answer.trim()) {
+      return reply.code(502).send({ error: "The AI provider returned an empty response." });
+    }
+    return reply.send({ reply: answer.trim() });
+  } catch {
+    return reply.code(502).send({ error: "Couldn't reach the AI provider. Try again in a moment." });
+  }
+});
+
 app.setNotFoundHandler((req, reply) =>
   req.raw.method === "GET" && req.headers.accept?.includes("text/html")
     ? reply.sendFile("index.html")
