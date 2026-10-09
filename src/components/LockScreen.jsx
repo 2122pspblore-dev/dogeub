@@ -112,6 +112,7 @@ export default function LockScreen() {
         window.localStorage.setItem(PASSWORD_KEY, JSON.stringify(saved));
         setCredential(saved);
         setUnlocked(true);
+        window.dispatchEvent(new CustomEvent('dogeub-unlocked'));
         setPassword('');
         setConfirmPassword('');
       } else {
@@ -121,6 +122,7 @@ export default function LockScreen() {
           return;
         }
         setUnlocked(true);
+        window.dispatchEvent(new CustomEvent('dogeub-unlocked'));
         setPassword('');
         setConfirmPassword('');
       }
