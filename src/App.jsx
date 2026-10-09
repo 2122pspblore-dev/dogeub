@@ -45,6 +45,17 @@ function useTracking() {
 const ThemedApp = memo(() => {
   const { options, updateOption } = useOptions();
   const popunderEnabled = POPUNDER_ENABLED === 'true';
+  const [customBackground, setCustomBackground] = useState(() => {
+    try { return window.localStorage.getItem('dogeub-site-background') || ''; } catch { return ''; }
+  });
+
+  useEffect(() => {
+    const syncBackground = () => {
+      try { setCustomBackground(window.localStorage.getItem('dogeub-site-background') || ''); } catch { setCustomBackground(''); }
+    };
+    window.addEventListener('dogeub-background-change', syncBackground);
+    return () => window.removeEventListener('dogeub-background-change', syncBackground);
+  }, []);
   const adKeyPassed = usePopunderStore((state) => state.adKeyPassed);
   const setAdKeyPassed = usePopunderStore((state) => state.setAdKeyPassed);
   useReg();
@@ -109,11 +120,15 @@ const ThemedApp = memo(() => {
     return `
       body {
         color: ${options.siteTextColor || '#a0b0c8'};
-        background-image: ${bgDesignConfig};
+        background-image: ${customBackground ? `url("${customBackground}")` : bgDesignConfig};
+        background-size: ${customBackground ? 'cover' : 'auto'};
+        background-position: ${customBackground ? 'center center' : 'initial'};
+        background-repeat: ${customBackground ? 'no-repeat' : 'repeat'};
+        background-attachment: ${customBackground ? 'fixed' : 'scroll'};
         background-color: ${options.bgColor || '#111827'};
       }
     `;
-  }, [options.siteTextColor, options.bgDesign, options.bgDesignColor, options.bgColor]);
+  }, [options.siteTextColor, options.bgDesign, options.bgDesignColor, options.bgColor, customBackground]);
 
   return (
     <>
