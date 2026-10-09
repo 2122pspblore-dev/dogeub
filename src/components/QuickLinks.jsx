@@ -22,9 +22,21 @@ const QuickLinks = ({ cls, nav = true, navigating }) => {
     { link: 'https://gemini.google.com', icon: 'https://gemini.google.com/favicon.ico', name: 'Gemini AI' },
   ];
 
+  // These two shortcuts should be available even when a user has older saved shortcuts.
+  const requiredLinks = defaultLinks.filter((item) =>
+    ['https://youtube.com', 'https://gemini.google.com'].includes(item.link)
+  );
+
   const [quickLinks, setQuickLinks] = useState(() => {
     try {
-      return JSON.parse(localStorage.getItem('options'))?.quickLinks || defaultLinks;
+      const savedLinks = JSON.parse(localStorage.getItem('options'))?.quickLinks;
+      if (!Array.isArray(savedLinks)) return defaultLinks;
+
+      const savedUrls = new Set(savedLinks.map((item) => item?.link));
+      return [
+        ...savedLinks,
+        ...requiredLinks.filter((item) => !savedUrls.has(item.link)),
+      ];
     } catch {
       return defaultLinks;
     }
