@@ -51,22 +51,38 @@ export default function Taskbar() {
       window.alert('Please choose an image file.');
       return;
     }
-    if (file.size > 2.5 * 1024 * 1024) {
-      window.alert('Please use an image smaller than 2.5 MB.');
+    if (file.size > 12 * 1024 * 1024) {
+      window.alert('Please choose an image smaller than 12 MB.');
       return;
     }
+
     const reader = new FileReader();
-    reader.onload = () => {
-      const image = String(reader.result || '');
-      try {
-        window.localStorage.setItem('dogeub-site-background', image);
-        setStartBackground(image);
-        window.dispatchEvent(new Event('dogeub-background-change'));
-      } catch {
-        window.alert('This image could not be saved in browser storage. Try a smaller image.');
-      }
-    };
     reader.onerror = () => window.alert('Could not read that image. Please try another one.');
+    reader.onload = () => {
+      const source = new Image();
+      source.onerror = () => window.alert('That image could not be opened. Please try another one.');
+      source.onload = () => {
+        const scale = Math.min(1, 1920 / source.width, 1080 / source.height);
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(source.width * scale));
+        canvas.height = Math.max(1, Math.round(source.height * scale));
+        const context = canvas.getContext('2d');
+        if (!context) {
+          window.alert('Your browser could not process that image.');
+          return;
+        }
+        context.drawImage(source, 0, 0, canvas.width, canvas.height);
+        const image = canvas.toDataURL('image/jpeg', 0.82);
+        try {
+          window.localStorage.setItem('dogeub-site-background', image);
+          setStartBackground(image);
+          window.dispatchEvent(new Event('dogeub-background-change'));
+        } catch {
+          window.alert('Could not save this image in browser storage. Try another, smaller image.');
+        }
+      };
+      source.src = String(reader.result || '');
+    };
     reader.readAsDataURL(file);
   };
 
