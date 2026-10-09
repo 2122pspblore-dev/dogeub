@@ -40,7 +40,8 @@ const PATCH_LOGS = [
   'Fixed password input focus and pointer interaction so the password and confirmation fields can receive typing reliably.',
   'Added an on-screen password-box tip: press Esc to focus the password field.',
   'Added a reminder popup after patch logs explaining how to lock DogeUB with Ctrl+L, plus fallback lock options.',
-  'Added a live date/time panel and optional location-based current weather beside the password screen.'
+  'Added a live date/time panel and optional location-based current weather beside the password screen.',
+  'Resized the Patch Logs window into a compact square with its own scrollable update list.'
 ];
 
 const PatchLogs = () => {
@@ -67,17 +68,17 @@ const PatchLogs = () => {
     <Dialog open={open} onClose={closePatchLogs} className="fixed inset-0 bg-black/40 z-50">
       <div className="flex justify-center items-center h-full p-4">
         <DialogPanel
-          className="w-[30rem] max-w-full max-h-full overflow-y-auto p-5 rounded-xl flex flex-col gap-3 shadow-2xl"
+          className="flex aspect-square w-[min(88vw,28rem)] max-h-[85vh] flex-col gap-3 overflow-hidden rounded-xl p-5 shadow-2xl"
           style={{ backgroundColor: options.quickModalBgColor || '#252f3e' }}
         >
-          <DialogTitle className="text-[1.1rem] font-medium">Patch Logs</DialogTitle>
-          <p className="text-[0.7rem] opacity-70">{PATCH_DATE}</p>
-          <ul className="list-disc pl-5 flex flex-col gap-2 text-[0.85rem]">
+          <DialogTitle className="shrink-0 text-[1.1rem] font-medium">Patch Logs</DialogTitle>
+          <p className="shrink-0 text-[0.7rem] opacity-70">{PATCH_DATE}</p>
+          <ul className="min-h-0 flex-1 list-disc space-y-2 overflow-y-auto pl-5 text-[0.85rem]">
             {PATCH_LOGS.map((entry) => (
               <li key={entry}>{entry}</li>
             ))}
           </ul>
-          <div className="flex justify-end mt-2">
+          <div className="flex shrink-0 justify-end border-t border-white/10 pt-3">
             <Button
               onClick={closePatchLogs}
               className="cursor-pointer duration-150 hover:opacity-80"
