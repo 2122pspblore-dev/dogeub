@@ -29,7 +29,7 @@ export default function Taskbar() {
   const [clock, setClock] = useState(() => formatClock(new Date()));
   const [trayOpen, setTrayOpen] = useState(false);
   const [startBackground, setStartBackground] = useState(() => {
-    try { return window.localStorage.getItem('dogeub-start-background') || ''; } catch { return ''; }
+    try { return window.localStorage.getItem('dogeub-site-background') || ''; } catch { return ''; }
   });
 
   useEffect(() => {
@@ -59,8 +59,9 @@ export default function Taskbar() {
     reader.onload = () => {
       const image = String(reader.result || '');
       try {
-        window.localStorage.setItem('dogeub-start-background', image);
+        window.localStorage.setItem('dogeub-site-background', image);
         setStartBackground(image);
+        window.dispatchEvent(new Event('dogeub-background-change'));
       } catch {
         window.alert('This image could not be saved in browser storage. Try a smaller image.');
       }
@@ -70,7 +71,8 @@ export default function Taskbar() {
   };
 
   const clearStartBackground = () => {
-    try { window.localStorage.removeItem('dogeub-start-background'); } catch {}
+    try { window.localStorage.removeItem('dogeub-site-background');
+      window.dispatchEvent(new Event('dogeub-background-change')); } catch {}
     setStartBackground('');
   };
 
@@ -103,7 +105,7 @@ export default function Taskbar() {
       )}
 
       {startOpen && (
-        <section style={startBackground ? { backgroundImage: `linear-gradient(rgba(15, 23, 42, 0.84), rgba(15, 23, 42, 0.9)), url("${startBackground}")`, backgroundSize: "cover", backgroundPosition: "center" } : undefined} className="fixed bottom-[4.6rem] left-1/2 z-[10999] w-[min(92vw,390px)] -translate-x-1/2 overflow-hidden rounded-2xl border border-white/15 bg-[#172033]/95 p-4 text-white shadow-2xl backdrop-blur-2xl">
+        <section className="fixed bottom-[4.6rem] left-1/2 z-[10999] w-[min(92vw,390px)] -translate-x-1/2 overflow-hidden rounded-2xl border border-white/15 bg-[#172033]/95 p-4 text-white shadow-2xl backdrop-blur-2xl">
           <div className="mb-4 flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm font-semibold"><Grid3X3 size={17} /> Pinned</div>
             <span className="text-xs text-white/50">DogeUB</span>
@@ -129,7 +131,7 @@ export default function Taskbar() {
           <div className="mt-3 flex items-center justify-between gap-2 border-t border-white/10 pt-3">
             <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-white/10 px-3 py-2 text-xs font-medium hover:bg-white/15">
               <input type="file" accept="image/*" className="hidden" onChange={handleBackgroundUpload} />
-              {startBackground ? "Change background" : "Upload background"}
+              {startBackground ? "Change site background" : "Upload site background"}
             </label>
             {startBackground && <button onClick={clearStartBackground} className="rounded-lg px-3 py-2 text-xs text-white/70 hover:bg-white/10 hover:text-white">Remove image</button>}
           </div>
