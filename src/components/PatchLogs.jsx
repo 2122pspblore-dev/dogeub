@@ -20,6 +20,13 @@ const PATCH_LOGS = [
   'Fixed production crash on startup caused by an EACCES error during npm install; start command changed to "node server.js".',
   'Site domain moved to studylive.up.railway.app.',
   'Added a search engine picker to the home search bar: click the engine icon to switch between Bing, DuckDuckGo, Brave, Yahoo, Startpage, Ecosia, and Kagi (PR #12).',
+  'Added a Windows-style taskbar across DogeUB with Start menu, app shortcuts, search, clock/date, and quick-settings panel.',
+  'Fixed taskbar search so URL-like input is opened as a website instead of treated as a search query.',
+  'Improved floating browser windows so their controls stay above the taskbar.',
+  'Made homepage quick-link icons draggable and reorderable.',
+  'Added custom site-wide wallpaper uploads from the Start menu; uploaded backgrounds persist after refresh.',
+  'Improved wallpaper uploads by resizing and compressing large images before saving, with support for images up to 12 MB.',
+  'Applied custom wallpapers directly to the page background for more consistent display across DogeUB.',
 ];
 
 const PatchLogs = () => {
