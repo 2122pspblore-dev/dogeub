@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Dialog, DialogPanel, DialogTitle, Button } from '@headlessui/react';
 import { useOptions } from '/src/utils/optionsContext';
 
@@ -44,9 +44,18 @@ const PATCH_LOGS = [
 
 const PatchLogs = () => {
   const { options } = useOptions();
-  // Read once per page load; closing only hides the panel for this session.
-  const [open, setOpen] = useState(isPatchLogsEnabled);
+  // Wait until the password screen unlocks before opening modal dialogs.
+  // Headless UI's modal focus trap can otherwise make the password inputs inert.
+  const [open, setOpen] = useState(false);
   const [showLockWarning, setShowLockWarning] = useState(false);
+
+  useEffect(() => {
+    const onUnlocked = () => {
+      if (isPatchLogsEnabled()) setOpen(true);
+    };
+    window.addEventListener('dogeub-unlocked', onUnlocked);
+    return () => window.removeEventListener('dogeub-unlocked', onUnlocked);
+  }, []);
   const closePatchLogs = () => {
     setOpen(false);
     setShowLockWarning(true);
