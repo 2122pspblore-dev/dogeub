@@ -10,6 +10,7 @@ import PanicButton from './components/PanicButton';
 import Taskbar from './components/Taskbar';
 import PatchLogs from './components/PatchLogs';
 import LockScreen from './components/LockScreen';
+import DogeHub from './components/DogeHub';
 import { OptionsProvider, useOptions } from './utils/optionsContext';
 import { initPreload } from './utils/preload';
 import { designConfig as bgDesign } from './utils/config';
@@ -156,6 +157,7 @@ const ThemedApp = memo(() => {
       <PatchLogs />
       <Routing pages={pages} />
       <Taskbar />
+      <DogeHub />
       <LockScreen />
       {popunderEnabled && !adKeyPassed ? <Popunder /> : null}
       <style>{backgroundStyle}</style>
