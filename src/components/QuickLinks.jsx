@@ -20,6 +20,8 @@ const QuickLinks = ({ cls, nav = true, navigating }) => {
     { link: 'https://cineby.gd', icon: '/assets/img/fyhn.ico', name: 'Movies' },
     { link: 'https://discord.com', icon: '/assets/img/dsci.ico', name: 'Discord' },
     { link: 'https://github.com', icon: '/assets/img/icogh.ico', name: 'GitHub' },
+    { link: 'https://youtube.com', icon: 'https://www.youtube.com/favicon.ico', name: 'YouTube' },
+    { link: 'https://gemini.google.com', icon: 'https://gemini.google.com/favicon.ico', name: 'Gemini AI' },
   ];
 
   const [quickLinks, setQuickLinks] = useState(() => {

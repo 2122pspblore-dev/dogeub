@@ -2,6 +2,7 @@ import Nav from '../layouts/Nav';
 import Search from '../components/SearchContainer';
 import Footer from '../components/Footer';
 import QuickLinks from '../components/QuickLinks';
+import Widgets from '../components/Widgets';
 import { memo } from 'react';
 
 const Home = memo(() => {
@@ -9,7 +10,8 @@ const Home = memo(() => {
     <>
       <Nav />
       <Search />
-      <QuickLinks />
+      <Widgets />
+      <QuickLinks cls="w-full max-w-[40rem] mx-auto mt-6" />
       <Footer />
     </>
   );
