@@ -16,8 +16,6 @@ const QuickLinks = ({ cls, nav = true, navigating }) => {
   const menuRef = useRef(null);
 
   const defaultLinks = [
-    { link: 'https://google.com', icon: 'https://google.com/favicon.ico', name: 'Google' },
-    { link: 'https://cineby.gd', icon: '/assets/img/fyhn.ico', name: 'Movies' },
     { link: 'https://discord.com', icon: '/assets/img/dsci.ico', name: 'Discord' },
     { link: 'https://github.com', icon: '/assets/img/icogh.ico', name: 'GitHub' },
     { link: 'https://youtube.com', icon: 'https://www.youtube.com/favicon.ico', name: 'YouTube' },
