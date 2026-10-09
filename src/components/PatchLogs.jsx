@@ -30,6 +30,7 @@ const PATCH_LOGS = [
   'Changed floating-window creation so opening a new floating browser closes/replaces the previous floating browser window.',
   'Changed the Start menu power button to show a confirmation and then switch DogeUB into a shutdown screen; websites cannot reliably close tabs opened normally by a user.',
   'Added a taskbar device-specs panel showing browser-reported CPU core count, approximate memory when exposed, screen resolution, browser, and platform.',
+  'Replaced the volume control in Quick Settings with live battery percentage/charging information and browser-reported network status, connection type, estimated downlink, and latency. Availability depends on browser support.',
   'Added snap layouts for floating windows: left/right halves, four corners, and maximize.',
   'Added save and restore controls for floating browser windows; window details are stored in browser local storage and restored on request.',
 ];
