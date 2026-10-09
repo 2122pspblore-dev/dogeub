@@ -85,7 +85,7 @@ export default function StudySprint() {
   return (
     <section className="w-full px-4 mt-7 mb-8">
       <div
-        className={`mx-auto w-full max-w-[40rem] overflow-hidden rounded-2xl border border-white/10 shadow-xl backdrop-blur-xl ${theme.searchBarColor || ''} ${theme[`theme-${options.theme || 'default'}'] || ''}`}
+        className={`mx-auto w-full max-w-[40rem] overflow-hidden rounded-2xl border border-white/10 shadow-xl backdrop-blur-xl ${theme.searchBarColor || ''}`}
         style={{ backgroundColor, color }}
       >
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-5 py-4">
