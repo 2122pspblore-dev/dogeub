@@ -37,17 +37,24 @@ const PATCH_LOGS = [
   'Added a required DogeUB password screen: first-time password creation, sign-in after reload, Ctrl+L page locking, and password-required shutdown/unlock.',
   'Fixed the Study Sprint production build by simplifying its dynamic theme class expression, which was causing a Vite/esbuild syntax error.',
   'Improved password locking: added Alt+L and Ctrl+Shift+L shortcuts plus a dedicated Lock button in the Start menu, since browsers often reserve Ctrl+L for the address bar.',
-  'Fixed password input focus and pointer interaction so the password and confirmation fields can receive typing reliably.'
-  'Added an on-screen password-box tip: press Esc to focus the password field.'
+  'Fixed password input focus and pointer interaction so the password and confirmation fields can receive typing reliably.',
+  'Added an on-screen password-box tip: press Esc to focus the password field.',
+  'Added a reminder popup after patch logs explaining how to lock DogeUB with Ctrl+L, plus fallback lock options.'
 ];
 
 const PatchLogs = () => {
   const { options } = useOptions();
   // Read once per page load; closing only hides the panel for this session.
   const [open, setOpen] = useState(isPatchLogsEnabled);
+  const [showLockWarning, setShowLockWarning] = useState(false);
+  const closePatchLogs = () => {
+    setOpen(false);
+    setShowLockWarning(true);
+  };
 
   return (
-    <Dialog open={open} onClose={() => setOpen(false)} className="fixed inset-0 bg-black/40 z-50">
+    <>
+    <Dialog open={open} onClose={closePatchLogs} className="fixed inset-0 bg-black/40 z-50">
       <div className="flex justify-center items-center h-full p-4">
         <DialogPanel
           className="w-[30rem] max-w-full max-h-full overflow-y-auto p-5 rounded-xl flex flex-col gap-3 shadow-2xl"
@@ -62,7 +69,7 @@ const PatchLogs = () => {
           </ul>
           <div className="flex justify-end mt-2">
             <Button
-              onClick={() => setOpen(false)}
+              onClick={closePatchLogs}
               className="cursor-pointer duration-150 hover:opacity-80"
             >
               Close
@@ -71,6 +78,31 @@ const PatchLogs = () => {
         </DialogPanel>
       </div>
     </Dialog>
+    <Dialog open={showLockWarning} onClose={() => setShowLockWarning(false)} className="fixed inset-0 z-[60] bg-black/50">
+      <div className="flex h-full items-center justify-center p-4">
+        <DialogPanel
+          className="w-full max-w-sm rounded-2xl border border-sky-400/30 p-6 shadow-2xl"
+          style={{ backgroundColor: options.quickModalBgColor || '#252f3e' }}
+        >
+          <DialogTitle className="text-lg font-semibold">Quick tip: Lock DogeUB</DialogTitle>
+          <p className="mt-3 text-sm leading-6 opacity-90">
+            Press <kbd className="rounded border border-white/30 px-1.5 py-0.5 font-semibold">Ctrl + L</kbd> to lock DogeUB and require your password again.
+          </p>
+          <p className="mt-2 text-xs leading-5 opacity-70">
+            Some browsers reserve Ctrl + L for the address bar. If it doesn't work, use Alt + L, Ctrl + Shift + L, or the Lock button in the Start menu.
+          </p>
+          <div className="mt-5 flex justify-end">
+            <Button
+              onClick={() => setShowLockWarning(false)}
+              className="cursor-pointer rounded-lg bg-sky-500 px-4 py-2 font-medium text-white hover:bg-sky-400"
+            >
+              Got it
+            </Button>
+          </div>
+        </DialogPanel>
+      </div>
+    </Dialog>
+    </>
   );
 };
 
