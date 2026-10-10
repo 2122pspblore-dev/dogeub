@@ -112,7 +112,7 @@ const SearchContainer = memo(function SearchContainer({ logo = true, cls, nav = 
   return (
     <div
       className={clsx(
-        !cls ? 'absolute w-full px-20 py-4 flex flex-col items-center mt-8 z-50' : cls,
+        !cls ? 'absolute w-full px-4 sm:px-20 py-4 flex flex-col items-center mt-8 z-50' : cls,
       )}
       data-m={!cls && 'bounce-up'}
       data-m-duration={!cls && '0.8'}
@@ -126,7 +126,7 @@ const SearchContainer = memo(function SearchContainer({ logo = true, cls, nav = 
       <GlowWrapper
         glowOptions={{ color: options.glowWrapperColor || '255, 255, 255', size: 70, opacity: 0.2 }}
       >
-        <div className="w-[40.625rem]">
+        <div className="w-full max-w-[40.625rem] min-w-0">
           <div
             id="search-div"
             className={clsx(
