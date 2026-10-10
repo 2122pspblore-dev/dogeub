@@ -134,6 +134,48 @@ export default function DogeAssistant() {
       updateOption({ itemsPerPage: value }); say('Apps per page set to ' + (value === 999 ? 'all' : value) + '.'); return;
     }
 
+    // Open a real website inside DogeUB's browser route (rather than leaving the app).
+    const websiteAliases = {
+      youtube: 'https://www.youtube.com', 'youtube music': 'https://music.youtube.com',
+      google: 'https://www.google.com', bing: 'https://www.bing.com',
+      roblox: 'https://www.roblox.com', github: 'https://github.com',
+      discord: 'https://discord.com/app', reddit: 'https://www.reddit.com',
+      tiktok: 'https://www.tiktok.com', twitch: 'https://www.twitch.tv',
+      spotify: 'https://open.spotify.com', netflix: 'https://www.netflix.com',
+      wikipedia: 'https://www.wikipedia.org', classroom: 'https://classroom.google.com',
+      gmail: 'https://mail.google.com', 'google drive': 'https://drive.google.com',
+      'google docs': 'https://docs.google.com', 'google slides': 'https://slides.google.com',
+      'google maps': 'https://maps.google.com', 'microsoft teams': 'https://teams.microsoft.com',
+      outlook: 'https://outlook.live.com', amazon: 'https://www.amazon.com',
+      chatgpt: 'https://chatgpt.com', gemini: 'https://gemini.google.com',
+    };
+    const openPrefix = lower.match(/^(?:please\s+)?(?:open|go to|visit|browse to|navigate to|take me to|launch)\s+(.+?)\s*$/);
+    if (openPrefix && !/^(home|homepage|browser|search|settings|apps|materials|docs|documents|recommended|recommendations|doge hub|hub|os studio|studio)$/i.test(openPrefix[1].trim())) {
+      const requested = openPrefix[1].trim().replace(/[.!?]+$/, '');
+      const aliasKey = requested.toLowerCase().replace(/^www\./, '');
+      let target = websiteAliases[aliasKey] || '';
+      if (!target) {
+        const candidate = /^(?:https?:\/\/|[a-z0-9-]+\.)/i.test(requested) ? requested : '';
+        if (candidate) {
+          target = /^https?:\/\//i.test(candidate) ? candidate : 'https://' + candidate;
+          try {
+            const parsed = new URL(target);
+            if (!['http:', 'https:'].includes(parsed.protocol) || !parsed.hostname.includes('.')) target = '';
+          } catch { target = ''; }
+        }
+      }
+      if (target) {
+        setOpen(false);
+        navigate('/search', { state: { url: target } });
+        return;
+      }
+      if (!/\s/.test(requested) && /^[a-z0-9-]+(?:\.[a-z]{2,})(?::\d+)?(?:\/[^\s]*)?$/i.test(requested)) {
+        setOpen(false);
+        navigate('/search', { state: { url: 'https://' + requested } });
+        return;
+      }
+    }
+
     const goMatch = lower.match(/\b(?:open|go to|navigate to|take me to|launch|show)\s+(home|homepage|browser|search|settings|apps|materials|docs|documents|recommended|recommendations)\b/);
     if (goMatch) {
       const destinations = { home: '/', homepage: '/', browser: '/search', search: '/search', settings: '/settings', apps: '/materials', materials: '/materials', docs: '/docs', documents: '/docs', recommended: '/recommended', recommendations: '/recommended' };
