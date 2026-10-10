@@ -157,7 +157,7 @@ const SearchContainer = memo(function SearchContainer({ logo = true, cls, nav = 
           <div className="mt-2 select-none text-sm font-extrabold tracking-[0.22em] opacity-90" style={{ fontFamily: "'Space Grotesk', Inter, sans-serif" }}>DOGEUB OS</div>
         </div>
       )}
-      <div className="flex w-full max-w-5xl items-center justify-center gap-3">
+      <div className="flex w-full max-w-5xl flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
       <div className="min-w-0 flex-1">
       <GlowWrapper
         glowOptions={{ color: options.glowWrapperColor || '255, 255, 255', size: 70, opacity: 0.2 }}
@@ -281,7 +281,7 @@ const SearchContainer = memo(function SearchContainer({ logo = true, cls, nav = 
         </div>
       </GlowWrapper>
       </div>
-      <QuickLinks compact cls="shrink-0" />
+      <QuickLinks compact cls="shrink-0 justify-center" />
       </div>
     </div>
   );
