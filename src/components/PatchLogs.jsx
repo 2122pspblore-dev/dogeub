@@ -51,7 +51,8 @@ const PATCH_LOGS = [
   'Added DOGEUB OS Studio: desktop dashboard, live clock and optional weather, five workspaces and modes, school task planner, gaming launchpad, Doge AI local preview, command terminal, theme presets, world clocks, DogeDrop text sharing, browser diagnostics, achievements, and a boot-screen preview.',
   'Added cinematic DOGEUB OS startup and shutdown previews with an orbital logo, animated starfield, scan light, glowing progress sequence, theme-matched accents, and a dedicated Startup / Shutdown panel.',
   'Added a dedicated Startup / Shutdown shortcut to the Start menu so the cinematic previews open directly without hunting through OS Studio.',
-  'Connected the Start menu power confirmation to the cinematic shutdown screen; exiting the preview locks DogeUB and requires sign-in.'
+  'Connected the Start menu power confirmation to the cinematic shutdown screen; exiting the preview locks DogeUB and requires sign-in.',
+  'Added a Files app (nav bar, Start menu, and taskbar): import screenshots, videos, documents, and other files from your computer by button or drag-and-drop, preview them, organize them into folders, and export one file or a .zip of many. Files are saved in this browser only (PR #42).',
 ];
 
 const PatchLogs = () => {
