@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import DeviceManager from './DeviceManager';
 import {
-  AppWindow, CalendarDays, Check, CloudSun, FileText, Folder,
+  Activity, AppWindow, CalendarDays, Check, CloudSun, FileText, Folder, Gauge,
   LayoutDashboard, Moon, Palette, Plus, RotateCcw, Search, Settings2,
   StickyNote, Sun, Trash2, X, Wifi, Zap
 } from 'lucide-react';
