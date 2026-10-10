@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { getCachedSpecs, getDeviceSpecs, specsToText } from '../utils/deviceSpecs';
 import {
   AppWindow, BatteryFull, Globe, Home, Search, Settings, BatteryCharging,
   Wifi, WifiOff, Music2, X, Youtube, BookOpen, Grid3X3, Power, ChevronUp, Cpu, LockKeyhole, Sparkles, Smile, FolderOpen
@@ -36,6 +37,24 @@ export default function Taskbar() {
   const [network, setNetwork] = useState(() => ({ online: navigator.onLine, type: navigator.connection?.effectiveType || 'Unavailable', downlink: navigator.connection?.downlink, rtt: navigator.connection?.rtt, saveData: navigator.connection?.saveData }));
   const [powerConfirm, setPowerConfirm] = useState(false);
   const [specsOpen, setSpecsOpen] = useState(false);
+  const [specs, setSpecs] = useState(getCachedSpecs);
+  const [specsCopied, setSpecsCopied] = useState(false);
+
+  useEffect(() => {
+    if (!specsOpen) return undefined;
+    let alive = true;
+    getDeviceSpecs().then((rows) => alive && setSpecs(rows)).catch(() => {});
+    return () => { alive = false; };
+  }, [specsOpen]);
+
+  const copySpecs = async () => {
+    if (!specs) return;
+    try {
+      await navigator.clipboard.writeText(specsToText(specs));
+      setSpecsCopied(true);
+      window.setTimeout(() => setSpecsCopied(false), 2000);
+    } catch { /* clipboard blocked */ }
+  };
   const [isShutdown, setIsShutdown] = useState(false);
   const [mediaInfo, setMediaInfo] = useState({ title: 'Nothing playing', artist: '', playing: false, hasMedia: false });
   const [startBackground, setStartBackground] = useState(() => {
@@ -269,16 +288,17 @@ export default function Taskbar() {
       )}
 
       {specsOpen && (
-        <div className="fixed bottom-[4.6rem] right-3 z-[10999] w-64 rounded-2xl border border-white/15 bg-[#172033]/95 p-4 text-white shadow-2xl backdrop-blur-2xl">
-          <div className="mb-3 flex items-center gap-2 text-sm font-semibold"><Cpu size={17} className="text-sky-300" /> Device specs</div>
-          <div className="space-y-2 text-xs">
-            <div className="flex justify-between gap-3"><span className="text-white/55">Logical CPU cores</span><b>{navigator.hardwareConcurrency || 'Unknown'}</b></div>
-            <div className="flex justify-between gap-3"><span className="text-white/55">Reported memory</span><b>{navigator.deviceMemory ? '~' + navigator.deviceMemory + ' GB' : 'Not exposed'}</b></div>
-            <div className="flex justify-between gap-3"><span className="text-white/55">Screen</span><b>{window.screen.width} × {window.screen.height}</b></div>
-            <div className="flex justify-between gap-3"><span className="text-white/55">Browser</span><b className="max-w-28 truncate">{navigator.userAgent.includes('Edg/') ? 'Microsoft Edge' : navigator.userAgent.includes('Chrome/') ? 'Chrome' : 'Other'}</b></div>
-            <div className="flex justify-between gap-3"><span className="text-white/55">Platform</span><b className="max-w-28 truncate">{navigator.userAgentData?.platform || navigator.platform || 'Unknown'}</b></div>
+        <div className="fixed bottom-[4.6rem] right-3 z-[10999] max-h-[75vh] w-80 max-w-[calc(100vw-1.5rem)] overflow-y-auto rounded-2xl border border-white/15 bg-[#172033]/95 p-4 text-white shadow-2xl backdrop-blur-2xl">
+          <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
+            <Cpu size={17} className="text-sky-300" /> Device specs
+            <button type="button" onClick={copySpecs} disabled={!specs} className="ml-auto rounded-lg border border-white/15 px-2 py-1 text-[11px] font-medium text-white/80 hover:bg-white/10 disabled:opacity-40">{specsCopied ? 'Copied!' : 'Copy'}</button>
           </div>
-          <p className="mt-3 text-[10px] leading-4 text-white/45">Browser-reported info only. Exact CPU model and total RAM aren't available to websites in most browsers.</p>
+          <div className="space-y-2 text-xs">
+            {specs ? specs.map((row) => (
+              <div key={row.label} className="flex justify-between gap-3"><span className="shrink-0 text-white/55">{row.label}</span><b className="min-w-0 break-words text-right" title={row.value}>{row.value}</b></div>
+            )) : <div className="text-white/55">Reading your device…</div>}
+          </div>
+          <p className="mt-3 text-[10px] leading-4 text-white/45">Browser-reported info only, and it stays on your device. Exact CPU model and total RAM aren't available to websites.</p>
         </div>
       )}
 
