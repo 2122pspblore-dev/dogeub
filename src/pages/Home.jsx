@@ -4,6 +4,7 @@ import Footer from '../components/Footer';
 import QuickLinks from '../components/QuickLinks';
 import Widgets from '../components/Widgets';
 import StudySprint from '../components/StudySprint';
+import HomeDashboard from '../components/HomeDashboard';
 import { memo } from 'react';
 
 const Home = memo(() => {
@@ -12,6 +13,7 @@ const Home = memo(() => {
       <Nav />
       <Search />
       <Widgets />
+      <HomeDashboard />
       <QuickLinks cls="w-full max-w-[40rem] mx-auto mt-6" />
       <StudySprint />
       <Footer />
