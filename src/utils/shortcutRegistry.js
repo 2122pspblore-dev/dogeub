@@ -4,7 +4,7 @@ const shortcutRegistry = [
   {
     app: 'Doge Capture',
     category: 'Capture',
-    keys: ['Alt', 'Shift', 'P'],
+    keys: ['Ctrl', 'Alt', 'P'],
     title: 'Take screenshot',
     description: 'Save a PNG screenshot to DogeFiler → Screenshots.',
     route: '/capture',
@@ -13,9 +13,9 @@ const shortcutRegistry = [
   {
     app: 'Doge Capture',
     category: 'Capture',
-    keys: ['Alt', 'Shift', 'V'],
+    keys: ['Ctrl', 'Alt', 'V'],
     title: 'Start / stop screen recording',
-    description: 'Toggle screen recording with Alt + Shift + V; recordings save to DogeFiler → Videos.',
+    description: 'Toggle screen recording with Ctrl + Alt + V; recordings save to DogeFiler → Videos.',
     route: '/capture',
     note: 'Screen sharing must already be active.',
   },
