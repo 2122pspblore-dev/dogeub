@@ -41,10 +41,19 @@ export default function Loader({ config = {} }) {
             style={barStyle}
             onClick={() => loaderStore.getState().showMenu && loaderStore.getState().toggleMenu()}
           >
-            <div className="flex h-8 items-center gap-2 border-b border-white/5 px-3 sm:px-4" style={{ backgroundColor: options.barColor || '#09121e' }}>
-              <span className="flex h-5 w-5 items-center justify-center rounded-md bg-gradient-to-br from-sky-400 to-violet-500 text-[10px] font-black text-white shadow-sm">D</span>
-              <span className="select-none text-[11px] font-bold tracking-[0.2em] text-white/90" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>DOGEUB OS</span>
-              <span className="ml-auto text-[9px] font-medium tracking-wider text-white/35">BROWSER</span>
+            <div
+              className="relative flex w-full shrink-0 items-center gap-3 border-b border-white/10 px-4"
+              style={{ backgroundColor: options.barColor || '#09121e', minHeight: '42px', height: '42px', zIndex: 2, color: '#ffffff' }}
+            >
+              <span
+                aria-hidden="true"
+                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '24px', height: '24px', flexShrink: 0, borderRadius: '7px', background: 'linear-gradient(135deg, #38bdf8, #8b5cf6)', color: '#fff', fontSize: '13px', fontWeight: 900 }}
+              >D</span>
+              <span
+                className="select-none"
+                style={{ display: 'inline-block', color: '#fff', fontFamily: "'Space Grotesk', 'Inter', sans-serif", fontSize: '13px', fontWeight: 800, letterSpacing: '0.18em', lineHeight: 1.2, whiteSpace: 'nowrap' }}
+              >DOGEUB OS</span>
+              <span style={{ marginLeft: 'auto', color: 'rgba(255,255,255,0.5)', fontSize: '10px', fontWeight: 600, letterSpacing: '0.14em' }}>BROWSER</span>
             </div>
             <Tabs />
             <Omnibox />
