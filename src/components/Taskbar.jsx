@@ -246,7 +246,7 @@ export default function Taskbar() {
       {powerConfirm && (
         <div role="dialog" aria-modal="true" aria-labelledby="power-confirm-title" className="fixed bottom-[4.6rem] left-1/2 z-[11002] w-[min(92vw,340px)] -translate-x-1/2 rounded-2xl border border-white/15 bg-[#172033]/[.98] p-5 text-white shadow-2xl backdrop-blur-2xl">
           <div className="mb-3 flex items-center gap-3"><span className="rounded-xl bg-red-500/20 p-2 text-red-300"><Power size={20} /></span><div><h2 id="power-confirm-title" className="text-sm font-semibold">Close DogeUB?</h2><p className="mt-1 text-xs text-white/60">DogeUB will shut down and lock. Your password will be required to unlock it again.</p></div></div>
-          <div className="flex justify-end gap-2"><button onClick={() => setPowerConfirm(false)} className="rounded-lg px-3 py-2 text-xs hover:bg-white/10">Cancel</button><button onClick={() => { setPowerConfirm(false); setIsShutdown(true); window.dispatchEvent(new Event('dogeub-lock')); }} className="rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold hover:bg-red-500">Shut down & lock</button></div>
+          <div className="flex justify-end gap-2"><button onClick={() => setPowerConfirm(false)} className="rounded-lg px-3 py-2 text-xs hover:bg-white/10">Cancel</button><button onClick={() => { setPowerConfirm(false); window.dispatchEvent(new CustomEvent('dogeub-open-os-studio', { detail: { tab: 'power', preview: 'shutdown' } })); }} className="rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold hover:bg-red-500">Shut down & lock</button></div>
           
         </div>
       )}
