@@ -32,8 +32,7 @@ export default function Capture() {
       setStatus('Screen shared. Take a screenshot below.');
     }
     return () => {
-      // Do not stop the recorder or stream here: route changes must not cancel recordings.
-      // Explicit Stop & save / Stop sharing controls are responsible for ending capture.
+      // Keep the selected screen available when navigating within DogeUB.
     };
   }, []);
 
@@ -102,8 +101,7 @@ export default function Capture() {
     activeStream = null;
     streamRef.current = null;
     setStream(null);
-    setRecording(false);
-    setStatus('Screen sharing stopped. ');
+    setStatus('Screen sharing stopped.');
   };
 
   return (
