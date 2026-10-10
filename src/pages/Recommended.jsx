@@ -3,8 +3,8 @@ import { ArrowLeft, ArrowUpRight, Sparkles } from 'lucide-react';
 
 const sites = [
   { name: 'YouTube', description: 'Videos, tutorials, and music', url: 'https://www.youtube.com', color: '#ff3333' },
-  { name: 'Google', description: 'Find answers across the web', url: 'https://www.google.com', color: '#4285f4' },
-  { name: 'ChatGPT', description: 'Ask questions and get help', url: 'https://chatgpt.com', color: '#10a37f' },
+  { name: 'DuckDuckGo', description: 'Search the web with fewer trackers', url: 'https://duckduckgo.com', color: '#de5833' },
+  { name: 'Brave Search', description: 'An alternative web search engine', url: 'https://search.brave.com', color: '#fb542b' },
   { name: 'Gemini', description: 'Google’s AI assistant', url: 'https://gemini.google.com', color: '#8b7cff' },
   { name: 'Discord', description: 'Chat with your communities', url: 'https://discord.com/app', color: '#5865f2' },
   { name: 'GitHub', description: 'Explore and build software', url: 'https://github.com', color: '#8b949e' },
@@ -14,6 +14,10 @@ const sites = [
   { name: 'Spotify', description: 'Listen to music and podcasts', url: 'https://open.spotify.com', color: '#1db954' },
   { name: 'Microsoft 365', description: 'Word, PowerPoint, and more', url: 'https://www.microsoft365.com', color: '#d83b01' },
   { name: 'Khan Academy', description: 'Learn and practice school subjects', url: 'https://www.khanacademy.org', color: '#14bf96' },
+  { name: 'Canva', description: 'Make presentations, posters, and designs', url: 'https://www.canva.com', color: '#7d2ae8' },
+  { name: 'Photopea', description: 'Edit images right in your browser', url: 'https://www.photopea.com', color: '#18a497' },
+  { name: 'Scratch', description: 'Create games and animations with code blocks', url: 'https://scratch.mit.edu', color: '#f5a623' },
+  { name: 'Steam', description: 'Discover PC games', url: 'https://store.steampowered.com', color: '#1b2838' },
 ];
 
 export default function Recommended() {
