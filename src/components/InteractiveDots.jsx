@@ -20,35 +20,45 @@ export default function InteractiveDots() {
     const canvas = canvasRef.current;
     if (!canvas || !enabled) return undefined;
     const ctx = canvas.getContext('2d');
+    if (!ctx) return undefined;
+
     let drawing = false;
     let points = [];
     let audioContext;
-
-    const resize = () => {
-      const ratio = Math.min(window.devicePixelRatio || 1, 2);
-      canvas.width = Math.round(window.innerWidth * ratio);
-      canvas.height = Math.round(window.innerHeight * ratio);
-      canvas.style.width = window.innerWidth + 'px';
-      canvas.style.height = window.innerHeight + 'px';
-      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-      paint();
-    };
+    let resizeFrame = 0;
 
     const paint = () => {
-      ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      ctx.clearRect(0, 0, width, height);
+
+      // Draw the actual snap targets, so the interaction is visible before
+      // the user starts drawing and always matches the 24px snap grid.
+      ctx.save();
+      ctx.fillStyle = 'rgba(125, 211, 252, 0.28)';
+      for (let y = SPACING / 2; y < height; y += SPACING) {
+        for (let x = SPACING / 2; x < width; x += SPACING) {
+          ctx.beginPath();
+          ctx.arc(x, y, 1.35, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      ctx.restore();
+
       if (points.length > 1) {
         ctx.beginPath();
         ctx.moveTo(points[0].x, points[0].y);
         points.slice(1).forEach((point) => ctx.lineTo(point.x, point.y));
-        ctx.strokeStyle = 'rgba(125, 211, 252, 0.9)';
+        ctx.strokeStyle = 'rgba(125, 211, 252, 0.95)';
         ctx.lineWidth = 2.5;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
-        ctx.shadowColor = 'rgba(56, 189, 248, 0.65)';
+        ctx.shadowColor = 'rgba(56, 189, 248, 0.7)';
         ctx.shadowBlur = 9;
         ctx.stroke();
         ctx.shadowBlur = 0;
       }
+
       points.forEach((point) => {
         ctx.beginPath();
         ctx.arc(point.x, point.y, 4, 0, Math.PI * 2);
@@ -58,6 +68,16 @@ export default function InteractiveDots() {
         ctx.fill();
         ctx.shadowBlur = 0;
       });
+    };
+
+    const resize = () => {
+      const ratio = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.round(window.innerWidth * ratio);
+      canvas.height = Math.round(window.innerHeight * ratio);
+      canvas.style.width = window.innerWidth + 'px';
+      canvas.style.height = window.innerHeight + 'px';
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+      paint();
     };
 
     const pluck = () => {
@@ -91,11 +111,14 @@ export default function InteractiveDots() {
         oscillator.stop(now + 0.44);
         overtone.stop(now + 0.44);
       } catch {
-        // Audio is optional; connecting dots should still work if sound is unavailable.
+        // Audio is optional; drawing still works when sound is unavailable.
       }
     };
 
-    const isInteractive = (target) => target instanceof Element && Boolean(target.closest('a, button, input, textarea, select, [role="button"], [contenteditable="true"]'));
+    const isInteractive = (target) =>
+      target instanceof Element &&
+      Boolean(target.closest('a, button, input, textarea, select, [role="button"], [contenteditable="true"]'));
+
     const eventPoint = (event) => {
       const rect = canvas.getBoundingClientRect();
       return getPoint(event.clientX - rect.left, event.clientY - rect.top);
@@ -110,34 +133,43 @@ export default function InteractiveDots() {
       pluck();
       paint();
     };
+
     const onMove = (event) => {
       if (!drawing) return;
       const point = eventPoint(event);
       if (!point) return;
       const last = points[points.length - 1];
       if (last && last.x === point.x && last.y === point.y) return;
-      // Only add nearby dots, so the line feels like it snaps from dot to dot.
       if (last && Math.hypot(last.x - point.x, last.y - point.y) > SPACING * 1.6) return;
       points.push(point);
       pluck();
       paint();
     };
+
     const onUp = () => { drawing = false; };
     const clear = () => { drawing = false; points = []; paint(); };
+    const onKeyDown = (event) => { if (event.key === 'Escape') clear(); };
+    const scheduleResize = () => {
+      window.cancelAnimationFrame(resizeFrame);
+      resizeFrame = window.requestAnimationFrame(resize);
+    };
 
     resize();
-    window.addEventListener('resize', resize);
+    window.addEventListener('resize', scheduleResize);
     document.addEventListener('pointerdown', onDown);
     document.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
     window.addEventListener('pointercancel', onUp);
-    window.addEventListener('keydown', (event) => { if (event.key === 'Escape') clear(); });
+    window.addEventListener('keydown', onKeyDown);
+
     return () => {
-      window.removeEventListener('resize', resize);
+      window.cancelAnimationFrame(resizeFrame);
+      window.removeEventListener('resize', scheduleResize);
       document.removeEventListener('pointerdown', onDown);
       document.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onUp);
+      window.removeEventListener('keydown', onKeyDown);
       audioContext?.close();
     };
   }, [enabled]);
