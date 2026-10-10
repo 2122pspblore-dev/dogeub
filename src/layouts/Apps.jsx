@@ -116,6 +116,16 @@ const Apps = memo(() => {
   const navApp = useCallback(
     (app) => {
       if (!app) return;
+      const appName = String(app.appName || '');
+      const appUrl = String(app.url || '');
+      const looksLikeGame = /game|roblox|minecraft|fnf|slope|retro|geometry|cookie|drift|racing|among us|subway|mario|sonic|pokemon|2048|idle|run 3/i.test(appName);
+      if (looksLikeGame) {
+        try {
+          window.dispatchEvent(new CustomEvent('dogeub-game-launched', {
+            detail: { id: appName.toLowerCase(), name: appName, url: appUrl, icon: app.icon || '' },
+          }));
+        } catch {}
+      }
       nav("/search", {
         state: {
           url: app.url,
