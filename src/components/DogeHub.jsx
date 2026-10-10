@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
+import DeviceManager from './DeviceManager';
 import {
-  AppWindow, CalendarDays, Check, CloudSun, FileText, Folder,
+  Activity, AppWindow, CalendarDays, Check, CloudSun, FileText, Folder, Gauge,
   LayoutDashboard, Moon, Palette, Plus, RotateCcw, Search, Settings2,
   StickyNote, Sun, Trash2, X, Wifi, Zap
 } from 'lucide-react';
@@ -40,6 +41,8 @@ const tabs = [
   { id: 'multi', label: 'Multitasking', icon: AppWindow },
   { id: 'notes', label: 'Sticky Notes', icon: StickyNote },
   { id: 'themes', label: 'Themes Studio', icon: Palette },
+  { id: 'system', label: 'Device Specs', icon: Activity },
+  { id: 'taskmanager', label: 'Task Manager', icon: Gauge },
 ];
 
 function Tile({ children, className = '' }) {
@@ -350,6 +353,8 @@ export default function DogeHub() {
                 <Tile className={surface}><div className="font-semibold">Homework checklist</div><form onSubmit={addTask} className="mt-3 flex gap-2"><input value={taskInput} onChange={(event) => setTaskInput(event.target.value)} placeholder="Add an assignment…" className={'min-w-0 flex-1 rounded-lg border bg-transparent px-3 py-2 text-xs outline-none ' + surface} /><button className={buttonBase + ' border-transparent text-white'} style={accentStyle} aria-label="Add assignment"><Plus size={15}/></button></form><div className="mt-3 space-y-2">{tasks.map((task) => <div key={task.id} className="flex items-center gap-2 text-xs"><input type="checkbox" checked={task.done} onChange={(event) => setTasks((old) => old.map((item) => item.id === task.id ? { ...item, done: event.target.checked } : item))} /><span className={'min-w-0 flex-1 ' + (task.done ? 'line-through opacity-50' : '')}>{task.text}</span><button aria-label="Delete assignment" onClick={() => setTasks((old) => old.filter((item) => item.id !== task.id))} className={muted}><X size={13}/></button></div>)}{tasks.length===0 && <p className={'text-xs ' + muted}>No assignments yet. Add one above.</p>}</div></Tile>
               </div>
             </div>}
+
+            {(active === 'system' || active === 'taskmanager') && <DeviceManager />}
 
             {active === 'multi' && <div className="space-y-4">
               <div><h2 className="text-lg font-bold">Multitasking workspace</h2><p className={'text-xs ' + muted}>Arrange mock workspace panels. This organizes Doge Hub content; it cannot control other browser tabs or Windows apps.</p></div>
