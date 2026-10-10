@@ -24,14 +24,15 @@ export default function InteractiveDots() {
 
     let drawing = false;
     let points = [];
+    let sparks = [];
     let resizeFrame = 0;
+    let animationFrame = 0;
 
     const paint = () => {
       const width = window.innerWidth;
       const height = window.innerHeight;
       ctx.clearRect(0, 0, width, height);
 
-      // Keep the snap targets visible so users can discover the interaction.
       ctx.fillStyle = 'rgba(125, 211, 252, 0.28)';
       for (let y = SPACING / 2; y < height; y += SPACING) {
         for (let x = SPACING / 2; x < width; x += SPACING) {
@@ -42,25 +43,44 @@ export default function InteractiveDots() {
       }
 
       if (points.length > 1) {
+        const gradient = ctx.createLinearGradient(
+          points[0].x, points[0].y,
+          points[points.length - 1].x, points[points.length - 1].y,
+        );
+        gradient.addColorStop(0, 'rgba(99, 102, 241, 0.95)');
+        gradient.addColorStop(0.5, 'rgba(56, 189, 248, 1)');
+        gradient.addColorStop(1, 'rgba(236, 72, 153, 1)');
         ctx.beginPath();
         ctx.moveTo(points[0].x, points[0].y);
         points.slice(1).forEach((point) => ctx.lineTo(point.x, point.y));
-        ctx.strokeStyle = 'rgba(125, 211, 252, 0.95)';
-        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = gradient;
+        ctx.lineWidth = 3;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
-        ctx.shadowColor = 'rgba(56, 189, 248, 0.7)';
-        ctx.shadowBlur = 9;
+        ctx.shadowColor = 'rgba(56, 189, 248, 0.95)';
+        ctx.shadowBlur = 15;
         ctx.stroke();
         ctx.shadowBlur = 0;
       }
 
+      sparks = sparks.filter((spark) => spark.life > 0);
+      sparks.forEach((spark) => {
+        ctx.beginPath();
+        ctx.arc(spark.x, spark.y, 1.2 + spark.life * 2, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(192, 132, 252, ' + spark.life + ')';
+        ctx.shadowColor = 'rgba(56, 189, 248, 0.95)';
+        ctx.shadowBlur = 12;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        spark.life -= 0.035;
+      });
+
       points.forEach((point) => {
         ctx.beginPath();
         ctx.arc(point.x, point.y, 4, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(186, 230, 253, 0.98)';
-        ctx.shadowColor = 'rgba(56, 189, 248, 0.9)';
-        ctx.shadowBlur = 12;
+        ctx.fillStyle = 'rgba(224, 242, 254, 0.98)';
+        ctx.shadowColor = 'rgba(168, 85, 247, 0.95)';
+        ctx.shadowBlur = 14;
         ctx.fill();
         ctx.shadowBlur = 0;
       });
@@ -88,9 +108,16 @@ export default function InteractiveDots() {
     const onDown = (event) => {
       if (event.button !== 0 || isInteractive(event.target)) return;
       const point = eventPoint(event);
+      // Click once to start drawing, then click again to finish. Holding is not required.
+      if (drawing) {
+        drawing = false;
+        paint();
+        return;
+      }
       if (!point) return;
       drawing = true;
       points = [point];
+      sparks = [];
       paint();
     };
 
@@ -102,32 +129,34 @@ export default function InteractiveDots() {
       if (last && last.x === point.x && last.y === point.y) return;
       if (last && Math.hypot(last.x - point.x, last.y - point.y) > SPACING * 1.6) return;
       points.push(point);
+      sparks.push({ x: point.x, y: point.y, life: 1 });
       paint();
     };
 
-    const onUp = () => { drawing = false; };
-    const clear = () => { drawing = false; points = []; paint(); };
+    const clear = () => { drawing = false; points = []; sparks = []; paint(); };
     const onKeyDown = (event) => { if (event.key === 'Escape') clear(); };
     const scheduleResize = () => {
       window.cancelAnimationFrame(resizeFrame);
       resizeFrame = window.requestAnimationFrame(resize);
     };
+    const animate = () => {
+      if (sparks.length) paint();
+      animationFrame = window.requestAnimationFrame(animate);
+    };
 
     resize();
+    animate();
     window.addEventListener('resize', scheduleResize);
     document.addEventListener('pointerdown', onDown);
     document.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', onUp);
-    window.addEventListener('pointercancel', onUp);
     window.addEventListener('keydown', onKeyDown);
 
     return () => {
       window.cancelAnimationFrame(resizeFrame);
+      window.cancelAnimationFrame(animationFrame);
       window.removeEventListener('resize', scheduleResize);
       document.removeEventListener('pointerdown', onDown);
       document.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
-      window.removeEventListener('pointercancel', onUp);
       window.removeEventListener('keydown', onKeyDown);
     };
   }, [enabled]);
