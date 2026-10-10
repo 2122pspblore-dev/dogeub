@@ -6,6 +6,7 @@ import { GlowWrapper } from '../utils/Glow';
 import { useOptions } from '../utils/optionsContext';
 import { searchConfig } from '../utils/config';
 import Logo from '../components/Logo';
+import QuickLinks from '../components/QuickLinks';
 import theme from '../styles/theming.module.css';
 import 'movement.css';
 
@@ -156,6 +157,8 @@ const SearchContainer = memo(function SearchContainer({ logo = true, cls, nav = 
           <div className="mt-2 select-none text-sm font-extrabold tracking-[0.22em] opacity-90" style={{ fontFamily: "'Space Grotesk', Inter, sans-serif" }}>DOGEUB OS</div>
         </div>
       )}
+      <div className="flex w-full max-w-5xl items-center justify-center gap-3">
+      <div className="min-w-0 flex-1">
       <GlowWrapper
         glowOptions={{ color: options.glowWrapperColor || '255, 255, 255', size: 70, opacity: 0.2 }}
       >
@@ -277,6 +280,9 @@ const SearchContainer = memo(function SearchContainer({ logo = true, cls, nav = 
           )}
         </div>
       </GlowWrapper>
+      </div>
+      <QuickLinks compact cls="shrink-0" />
+      </div>
     </div>
   );
 });
