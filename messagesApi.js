@@ -48,7 +48,7 @@ const ALLOWED_AVATAR_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "
 
 const makeDirectory = async (path) => mkdir(path, { recursive: true });
 const safeFilename = (value) => basename(String(value || "attachment").replace(/[\u0000-\u001f\u007f]/g, "")).replace(/[<>:"/\\|?*]/g, "_").trim().slice(0, 120) || "attachment";
-const hasProfanity = (value) => PROFANITY_REGEX.test(String(value || ""));
+const hasProfanity = (value) => new RegExp(PROFANITY_REGEX.source, "i").test(String(value || ""));
 const censorProfanity = (value) => String(value || "").replace(PROFANITY_REGEX, (word) => "*".repeat(Math.min(word.length, 12)));
 
 function publicUser(user) {
