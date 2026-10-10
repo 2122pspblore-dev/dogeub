@@ -336,7 +336,7 @@ export default function Files() {
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-lg"><FolderOpen size={23} /></div>
           <div className="min-w-0 flex-1">
             <p className="text-xs font-bold uppercase tracking-[0.22em] opacity-60">DOGEUB OS</p>
-            <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl" style={{ fontFamily: "'Space Grotesk', Inter, sans-serif" }}>Files</h1>
+            <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl" style={{ fontFamily: "'Space Grotesk', Inter, sans-serif" }}>DogeFiler</h1>
           </div>
           <input ref={inputRef} type="file" multiple className="hidden" onChange={(e) => { importFiles(e.target.files); e.target.value = ''; }} />
           <button onClick={() => inputRef.current?.click()} disabled={!!busy} className="flex items-center gap-2 rounded-xl bg-sky-500 px-4 py-2.5 text-sm font-bold text-black transition hover:bg-sky-400 disabled:opacity-60"><Upload size={16} /> Import</button>

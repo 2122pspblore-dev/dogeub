@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { getCachedSpecs, getDeviceSpecs, specsToText } from '../utils/deviceSpecs';
 import {
-  AppWindow, BatteryFull, Globe, Home, Search, Settings, BatteryCharging,
+  AppWindow, BatteryFull, Globe, Home, Search, Settings, BatteryCharging, Camera,
   Wifi, WifiOff, Music2, X, Youtube, BookOpen, Grid3X3, Power, ChevronUp, Cpu, LockKeyhole, Sparkles, Smile, FolderOpen
 } from 'lucide-react';
 
@@ -11,7 +11,8 @@ const apps = [
   { name: 'Browser', description: 'Browse the web', icon: Globe, path: '/search' },
   { name: 'Apps', description: 'Explore apps', icon: Grid3X3, path: '/materials' },
   { name: 'Docs', description: 'Games and resources', icon: BookOpen, path: '/docs' },
-  { name: 'Files', description: 'Import, view and export screenshots, videos and documents', icon: FolderOpen, path: '/files' },
+  { name: 'DogeFiler', description: 'Import, organize, preview and export files', icon: FolderOpen, path: '/files' },
+  { name: 'Screen Capture', description: 'Take screenshots and record your screen', icon: Camera, path: '/capture' },
   { name: 'Settings', description: 'Customize DogeUB', icon: Settings, path: '/settings' },
   { name: 'Doge Hub', description: 'Control center, files, widgets, notes and themes', icon: AppWindow, hub: true },
   { name: 'OS Studio', description: 'Workspaces, modes, themes, terminal, and diagnostics', icon: Sparkles, studio: true },
