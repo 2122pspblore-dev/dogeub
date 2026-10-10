@@ -254,7 +254,7 @@ export default function DogeHub() {
   const desktopFiles = files.filter((item) => item.desktopPinned && !item.deleted);
   if (!open) return (
     <div className="fixed inset-0 z-[1] pointer-events-none" aria-label="DogeUB desktop files">
-      <div className="pointer-events-auto absolute inset-0" onDragOver={(event) => event.preventDefault()} onDrop={(event) => {
+      <div className="pointer-events-none absolute inset-0" onDragOver={(event) => event.preventDefault()} onDrop={(event) => {
         event.preventDefault();
         const id = event.dataTransfer.getData('text/dogeub-file');
         if (id) setFiles((old) => old.map((item) => item.id === id ? { ...item, desktopPinned: true, desktopPosition: { x: Math.max(8, event.clientX - 35), y: Math.max(48, event.clientY - 35) } } : item));
@@ -264,7 +264,7 @@ export default function DogeHub() {
           return <div key={item.id} draggable onDragStart={(event) => { event.dataTransfer.setData('text/dogeub-file', item.id); event.dataTransfer.effectAllowed = 'move'; setDraggingDesktop(item.id); }}
             onDragEnd={(event) => { const x = Math.max(8, event.clientX - 35); const y = Math.max(48, event.clientY - 35); setFiles((old) => old.map((file) => file.id === item.id ? { ...file, desktopPosition: { x, y } } : file)); setDraggingDesktop(null); }}
             onDoubleClick={() => { setSelectedFile(item.id); setFileContent(item.fileKind === 'text' || !item.fileKind ? item.content : ''); setActive('files'); setOpen(true); }}
-            className={'absolute flex w-[76px] cursor-grab flex-col items-center gap-1 rounded-lg p-2 text-center text-white drop-shadow-lg hover:bg-white/15 active:cursor-grabbing ' + (draggingDesktop === item.id ? 'opacity-50' : '')}
+            className={'pointer-events-auto absolute flex w-[76px] cursor-grab flex-col items-center gap-1 rounded-lg p-2 text-center text-white drop-shadow-lg hover:bg-white/15 active:cursor-grabbing ' + (draggingDesktop === item.id ? 'opacity-50' : '')}
             style={{ left: position.x, top: position.y, touchAction: 'none' }} title={item.name}>
             {item.fileKind === 'binary' && item.type?.startsWith('image/') ? <img src={item.content} alt="" className="h-9 w-9 rounded object-cover" /> : <FileText size={32} />}
             <span className="w-full break-words text-[11px] leading-tight">{item.name}</span>
