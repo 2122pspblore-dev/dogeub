@@ -11,15 +11,6 @@ const shortcutRegistry = [
     note: 'Screen sharing must already be active.',
   },
   {
-    app: 'Doge Capture',
-    category: 'Capture',
-    keys: ['Ctrl', 'Alt', 'V'],
-    title: 'Start / stop screen recording',
-    description: 'Toggle screen recording with Ctrl + Alt + V; recordings save to DogeFiler → Videos.',
-    route: '/capture',
-    note: 'Screen sharing must already be active.',
-  },
-  {
     app: 'Panic Button',
     category: 'Safety',
     keys: ['Ctrl', 'C'],
