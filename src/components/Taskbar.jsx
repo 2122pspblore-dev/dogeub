@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
-  AppWindow, BatteryFull, Globe, Home, Search, Settings, BatteryCharging, Smile,
+  AppWindow, BatteryFull, Globe, Home, Search, Settings, BatteryCharging,
   Wifi, WifiOff, Music2, X, Youtube, BookOpen, Grid3X3, Power, ChevronUp, Cpu, LockKeyhole, Sparkles
 } from 'lucide-react';
 
@@ -316,7 +316,6 @@ export default function Taskbar() {
           </button>
           <button aria-label="Taskbar search" title="Search" onClick={() => { setSearchOpen((v) => !v); setStartOpen(false); setTrayOpen(false); }} className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition hover:bg-white/10 ${searchOpen ? 'bg-white/15' : ''}`}><Search size={19} /></button>
           <span className="mx-1 h-7 w-px shrink-0 bg-white/10" />
-          <button aria-label="Emoji and custom widgets" title="Emoji & Widgets" onClick={() => window.dispatchEvent(new Event('dogeub-open-emoji-widgets'))} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-cyan-100 transition hover:bg-cyan-400/15"><Smile size={20} /></button>
           {[
             { name: 'Home', icon: Home, path: '/' },
             { name: 'Browser', icon: Globe, path: '/search' },
