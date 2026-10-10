@@ -49,7 +49,8 @@ const PATCH_LOGS = [
   'Added a toggleable Pet Buddy with 10 animals, cute random messages, and an animal picker in Settings.',
   'Updated Recommended Sites: removed Google and ChatGPT shortcuts, added DuckDuckGo and Brave Search, plus Canva, Photopea, Scratch, and Steam.',
   'Added DOGEUB OS Studio: desktop dashboard, live clock and optional weather, five workspaces and modes, school task planner, gaming launchpad, Doge AI local preview, command terminal, theme presets, world clocks, DogeDrop text sharing, browser diagnostics, achievements, and a boot-screen preview.',
-  'Added cinematic DOGEUB OS startup and shutdown previews with an orbital logo, animated starfield, scan light, glowing progress sequence, theme-matched accents, and a dedicated Startup / Shutdown panel.'
+  'Added cinematic DOGEUB OS startup and shutdown previews with an orbital logo, animated starfield, scan light, glowing progress sequence, theme-matched accents, and a dedicated Startup / Shutdown panel.',
+  'Added a dedicated Startup / Shutdown shortcut to the Start menu so the cinematic previews open directly without hunting through OS Studio.'
 ];
 
 const PatchLogs = () => {
