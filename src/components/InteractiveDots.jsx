@@ -22,7 +22,6 @@ export default function InteractiveDots() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return undefined;
 
-    let drawing = false;
     let points = [];
     let sparks = [];
     let resizeFrame = 0;
@@ -105,24 +104,9 @@ export default function InteractiveDots() {
       return getPoint(event.clientX - rect.left, event.clientY - rect.top);
     };
 
-    const onDown = (event) => {
-      if (event.button !== 0 || isInteractive(event.target)) return;
-      const point = eventPoint(event);
-      // Click once to start drawing, then click again to finish. Holding is not required.
-      if (drawing) {
-        drawing = false;
-        paint();
-        return;
-      }
-      if (!point) return;
-      drawing = true;
-      points = [point];
-      sparks = [];
-      paint();
-    };
-
     const onMove = (event) => {
-      if (!drawing) return;
+      // Free-draw by moving over the dots; no mouse button or click state needed.
+      if (isInteractive(event.target)) return;
       const point = eventPoint(event);
       if (!point) return;
       const last = points[points.length - 1];
@@ -133,7 +117,7 @@ export default function InteractiveDots() {
       paint();
     };
 
-    const clear = () => { drawing = false; points = []; sparks = []; paint(); };
+    const clear = () => { points = []; sparks = []; paint(); };
     const onKeyDown = (event) => { if (event.key === 'Escape') clear(); };
     const scheduleResize = () => {
       window.cancelAnimationFrame(resizeFrame);
@@ -147,7 +131,6 @@ export default function InteractiveDots() {
     resize();
     animate();
     window.addEventListener('resize', scheduleResize);
-    document.addEventListener('pointerdown', onDown);
     document.addEventListener('pointermove', onMove);
     window.addEventListener('keydown', onKeyDown);
 
@@ -155,7 +138,6 @@ export default function InteractiveDots() {
       window.cancelAnimationFrame(resizeFrame);
       window.cancelAnimationFrame(animationFrame);
       window.removeEventListener('resize', scheduleResize);
-      document.removeEventListener('pointerdown', onDown);
       document.removeEventListener('pointermove', onMove);
       window.removeEventListener('keydown', onKeyDown);
     };
