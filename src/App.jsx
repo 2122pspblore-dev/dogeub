@@ -11,6 +11,7 @@ import Taskbar from './components/Taskbar';
 import PatchLogs from './components/PatchLogs';
 import LockScreen from './components/LockScreen';
 import DogeHub from './components/DogeHub';
+import PetBuddy from './components/PetBuddy';
 import { OptionsProvider, useOptions } from './utils/optionsContext';
 import { initPreload } from './utils/preload';
 import { designConfig as bgDesign } from './utils/config';
@@ -158,6 +159,7 @@ const ThemedApp = memo(() => {
       <Routing pages={pages} />
       <Taskbar />
       <DogeHub />
+      <PetBuddy />
       <LockScreen />
       {popunderEnabled && !adKeyPassed ? <Popunder /> : null}
       <style>{backgroundStyle}</style>
