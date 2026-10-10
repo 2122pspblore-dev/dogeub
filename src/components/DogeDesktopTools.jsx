@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { FolderOpen, Image as ImageIcon, Power, X, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, File, Folder, HardDrive, AlertTriangle } from 'lucide-react';
+import { FolderOpen, Image as ImageIcon, Power, X, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, File, Folder, HardDrive, AlertTriangle, RotateCcw, Moon } from 'lucide-react';
 
 const shell = 'fixed inset-0 z-[13000] flex items-center justify-center bg-black/70 p-3 backdrop-blur-sm';
 const button = 'inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[.06] px-3 py-2 text-sm text-white/85 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40';
@@ -13,6 +13,7 @@ export default function DogeDesktopTools() {
   const [imageIndex, setImageIndex] = useState(0);
   const [zoom, setZoom] = useState(1);
   const [notice, setNotice] = useState('');
+  const [powerScreen, setPowerScreen] = useState('');
   const inputRef = useRef(null);
   const imageInputRef = useRef(null);
   const imageUrl = useMemo(() => images[imageIndex]?.url || '', [images, imageIndex]);
@@ -23,6 +24,7 @@ export default function DogeDesktopTools() {
       if (['explorer', 'viewer', 'power'].includes(next)) {
         setNotice('');
         setTool(next);
+        setPowerScreen(['shutdown', 'restart', 'sleep', 'wake'].includes(event?.detail?.action) ? event.detail.action : '');
       }
     };
     window.addEventListener('dogeub-open-desktop-tool', onOpen);
@@ -74,7 +76,12 @@ export default function DogeDesktopTools() {
       else setNotice('DogeUB can preview image files here. Other file types can be selected and downloaded/opened with Windows itself.');
     } catch { setNotice('The browser could not read this file.'); }
   };
-  const close = () => { setTool(''); setNotice(''); };
+  const close = () => { setTool(''); setNotice(''); setPowerScreen(''); };
+  const confirmPowerAction = () => {
+    if (powerScreen === 'shutdown') setPowerScreen('shutdown-complete');
+    else if (powerScreen === 'restart') setPowerScreen('restart-complete');
+    else if (powerScreen === 'sleep') setPowerScreen('sleeping');
+  };
   const stepImage = (step) => setImageIndex((index) => (index + step + images.length) % images.length);
 
   if (!tool) return null;
@@ -113,12 +120,11 @@ export default function DogeDesktopTools() {
         <p className="mt-2 text-center text-xs text-white/40">Images are read locally in your browser and are not uploaded by this viewer.</p>
       </div>}
       {tool === 'power' && <div className="flex-1 p-5 sm:p-8">
-        <div className="mx-auto max-w-xl rounded-2xl border border-amber-300/20 bg-amber-300/[.06] p-5">
-          <AlertTriangle className="mb-3 text-amber-200" size={32}/>
-          <h2 className="text-lg font-semibold">Windows power controls need permission outside the browser</h2>
-          <p className="mt-2 text-sm leading-6 text-white/65">Because DogeUB runs as a website, it cannot directly shut down or restart your actual Windows PC. A website-only button pretending to do that would be fake. Real shutdown support needs an optional Windows companion app that you install and explicitly authorize.</p>
-          <button className={button + ' mt-4'} onClick={() => { setNotice('DogeUB is still running. No Windows shutdown command was sent.'); }}><Power size={16}/> Check shutdown support</button>
-        </div>
+        {powerScreen === 'shutdown-complete' ? <div className="mx-auto max-w-xl rounded-2xl border border-cyan-300/20 bg-cyan-300/[.06] p-6 text-center"><Power size={40} className="mx-auto mb-3 text-cyan-200"/><h2 className="text-xl font-semibold">DogeUB is shut down</h2><p className="mt-2 text-sm text-white/60">Only DogeUB's in-app interface was shut down. Your browser and Windows are untouched.</p><button className={button + ' mt-5'} onClick={() => { setPowerScreen(''); setTool(''); }}>Turn DogeUB back on</button></div>
+        : powerScreen === 'restart-complete' ? <div className="mx-auto max-w-xl rounded-2xl border border-cyan-300/20 bg-cyan-300/[.06] p-6 text-center"><RotateCcw size={38} className="mx-auto mb-3 text-cyan-200"/><h2 className="text-xl font-semibold">DogeUB restarted</h2><p className="mt-2 text-sm text-white/60">The in-app power state was reset. Windows was not touched.</p><button className={button + ' mt-5'} onClick={() => setPowerScreen('')}>Back to DogeUB Power</button></div>
+        : powerScreen === 'sleeping' ? <div className="mx-auto max-w-xl rounded-2xl border border-violet-300/20 bg-violet-300/[.06] p-6 text-center"><h2 className="text-xl font-semibold">DogeUB is sleeping</h2><p className="mt-2 text-sm text-white/60">This is an in-app sleep screen only.</p><button className={button + ' mt-5'} onClick={() => setPowerScreen('')}>Wake DogeUB</button></div>
+        : powerScreen ? <div className="mx-auto max-w-xl rounded-2xl border border-amber-300/20 bg-amber-300/[.06] p-6 text-center"><AlertTriangle size={34} className="mx-auto mb-3 text-amber-200"/><h2 className="text-lg font-semibold">{powerScreen === 'shutdown' ? 'Shut down DogeUB?' : powerScreen === 'restart' ? 'Restart DogeUB?' : 'Put DogeUB to sleep?'}</h2><p className="mt-2 text-sm text-white/60">This affects only DogeUB's interface, not your desktop, files, browser, or Windows.</p><div className="mt-5 flex justify-center gap-2"><button className={button} onClick={() => setPowerScreen('')}>Cancel</button><button className={button} onClick={confirmPowerAction}>Confirm</button></div></div>
+        : <div className="mx-auto max-w-xl rounded-2xl border border-cyan-300/20 bg-cyan-300/[.04] p-5"><Power className="mb-3 text-cyan-200" size={32}/><h2 className="text-lg font-semibold">DogeUB Power</h2><p className="mt-2 text-sm leading-6 text-white/65">These controls only affect DogeUB inside this browser. They never run commands on your computer.</p><div className="mt-5 flex flex-wrap gap-2"><button className={button} onClick={() => setPowerScreen('shutdown')}><Power size={16}/> Shut down DogeUB</button><button className={button} onClick={() => setPowerScreen('restart')}><RotateCcw size={16}/> Restart DogeUB</button><button className={button} onClick={() => setPowerScreen('sleep')}><Moon size={16}/> Sleep DogeUB</button></div></div>}
       </div>}
       <footer className="border-t border-white/10 px-4 py-3 text-xs text-white/35">Local-only file access · You choose what DogeUB can read</footer>
     </section>

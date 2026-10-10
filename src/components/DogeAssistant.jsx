@@ -57,14 +57,14 @@ export default function DogeAssistant() {
 
     const desktopTool = /\\b(file explorer|explorer|files|file manager)\\b/.test(lower) ? 'explorer'
       : /\\b(image viewer|view images|photo viewer|photos)\\b/.test(lower) ? 'viewer'
-      : /\\b(power menu|shutdown|shut down|power controls|power options|restart windows)\\b/.test(lower) ? 'power' : '';
-    if (desktopTool && /\\b(open|launch|show|start|view|shutdown|shut down|restart|power)\\b/.test(lower)) {
-      window.dispatchEvent(new CustomEvent('dogeub-open-desktop-tool', { detail: { tool: desktopTool } }));
+      : /\\b(power menu|shutdown|shut down|power controls|power options|restart dogeub|restart app|shutdown dogeub|shut down dogeub|turn off dogeub|power off dogeub|sleep dogeub)\\b/.test(lower) ? 'power' : '';
+    if (desktopTool && /\\b(open|launch|show|start|view|shutdown|shut down|restart|power|sleep|turn off)\\b/.test(lower)) {
+      const powerAction = /\\brestart\\b/.test(lower) ? 'restart' : /\\bsleep\\b/.test(lower) ? 'sleep' : /\\b(shutdown|shut down|turn off|power off)\\b/.test(lower) ? 'shutdown' : '';
+      window.dispatchEvent(new CustomEvent('dogeub-open-desktop-tool', { detail: { tool: desktopTool, action: powerAction } }));
       const reply = desktopTool === 'explorer' ? 'Opening Doge File Explorer. Choose the folder or files you want DogeUB to access.'
         : desktopTool === 'viewer' ? 'Opening Doge Image Viewer. Select the images you want to view.'
-        : 'Opening Doge Power. Actual Windows shutdown/restart requires an explicitly installed companion app; a website cannot power off your PC by itself.';
-      say(reply);
-      return;
+        : powerAction ? 'Opening DogeUB Power for ' + powerAction + '. This only affects DogeUB, never Windows.' : 'Opening DogeUB Power. All power actions stay inside DogeUB.';
+      say(reply); return;
     }
 
     // Prefer the real AI endpoint. If it is not configured or temporarily unavailable,
@@ -81,7 +81,7 @@ export default function DogeAssistant() {
       });
       if (response.ok) {
         const result = await response.json();
-        const allowed = new Set(['set_theme', 'set_background', 'toggle_pet_buddy', 'toggle_tabs_bar', 'set_compact_header', 'set_apps_per_page', 'set_search_engine', 'navigate', 'open_website', 'search_web', 'show_settings', 'reset_appearance', 'go_back', 'reload_page', 'open_desktop_tool']);
+        const allowed = new Set(['set_theme', 'set_background', 'toggle_pet_buddy', 'toggle_tabs_bar', 'set_compact_header', 'set_apps_per_page', 'set_search_engine', 'navigate', 'open_website', 'search_web', 'show_settings', 'reset_appearance', 'go_back', 'reload_page', 'open_desktop_tool', 'dogeub_power']);
         let executed = 0;
         for (const action of (Array.isArray(result.actions) ? result.actions : []).slice(0, 8)) {
           if (!allowed.has(action?.type)) continue;
@@ -89,8 +89,14 @@ export default function DogeAssistant() {
             case 'open_desktop_tool': {
               const tool = String(action.value || '').toLowerCase();
               if (['explorer', 'viewer', 'power'].includes(tool)) {
-                window.dispatchEvent(new CustomEvent('dogeub-open-desktop-tool', { detail: { tool } }));
-                executed++;
+                window.dispatchEvent(new CustomEvent('dogeub-open-desktop-tool', { detail: { tool } })); executed++;
+              }
+              break;
+            }
+            case 'dogeub_power': {
+              const actionName = String(action.value || '').toLowerCase();
+              if (['shutdown', 'restart', 'sleep', 'wake'].includes(actionName)) {
+                window.dispatchEvent(new CustomEvent('dogeub-open-desktop-tool', { detail: { tool: 'power', action: actionName } })); executed++;
               }
               break;
             }
@@ -172,7 +178,7 @@ export default function DogeAssistant() {
     setStatus('Working…');
 
     if (/^(help|commands|what can you do|show commands|capabilities)$/.test(lower)) {
-      say('Here’s what I can do right now:\n\n• Appearance: switch themes, change background color, toggle compact header\n• Layout: show/hide the tabs bar and Pet Buddy; choose how many apps appear per page\n• Search: change the search engine or search for something\n• Navigation: Home, Browser, Apps, Docs, Recommended, Settings\n• Tools: open Doge Hub, OS Studio, File Explorer, Image Viewer, or Power menu\n• Utilities: show current settings, reset DogeUB appearance preferences, go back, or reload\n\nFile Explorer and Image Viewer work with files you explicitly select. Actual Windows shutdown/restart needs an optional installed companion app; this browser page cannot power off Windows by itself.');
+      say('Here’s what I can do right now:\n\n• Appearance: switch themes, change background color, toggle compact header\n• Layout: show/hide the tabs bar and Pet Buddy; choose how many apps appear per page\n• Search: change the search engine or search for something\n• Navigation: Home, Browser, Apps, Docs, Recommended, Settings\n• Tools: open Doge Hub, OS Studio, File Explorer, Image Viewer, or Power menu\n• Utilities: show current settings, reset DogeUB appearance preferences, go back, or reload\n\nFile Explorer and Image Viewer work with files you explicitly select. Power actions affect only DogeUB's in-app interface, never Windows.');
       return;
     }
 
