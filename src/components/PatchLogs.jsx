@@ -47,7 +47,7 @@ const PATCH_LOGS = [
   'Added PC file import/export and desktop-pinned icons that can be dragged around or unpinned.',
   'Added a Windows-style image viewer for imported pictures and a top Dynamic Island showing media, battery, and connection status.',
   'Added a toggleable Pet Buddy with 10 animals, cute random messages, and an animal picker in Settings.',
-  'Replaced the name above the homepage search bar with DOGEUB OS and added a Recommended sites page with one-click shortcuts.'
+  'Updated Recommended Sites: removed Google and ChatGPT shortcuts, added DuckDuckGo and Brave Search, plus Canva, Photopea, Scratch, and Steam.'
 ];
 
 const PatchLogs = () => {
