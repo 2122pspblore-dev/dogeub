@@ -12,7 +12,7 @@ export const isPatchLogsEnabled = () => {
   }
 };
 
-const PATCH_DATE = '2026-10-09';
+const PATCH_DATE = '2026-10-11';
 
 const PATCH_LOGS = [
   'Added homescreen widgets: weather and clock (merged in PR #4).',
@@ -53,6 +53,12 @@ const PATCH_LOGS = [
   'Added a dedicated Startup / Shutdown shortcut to the Start menu so the cinematic previews open directly without hunting through OS Studio.',
   'Connected the Start menu power confirmation to the cinematic shutdown screen; exiting the preview locks DogeUB and requires sign-in.',
   'Added a Files app (nav bar, Start menu, and taskbar): import screenshots, videos, documents, and other files from your computer by button or drag-and-drop, preview them, organize them into folders, and export one file or a .zip of many. Files are saved in this browser only (PR #42).',
+  'Added a configurable desktop workspace with responsive widget placement and support for resizing and rearranging desktop cards.',
+  'Added a Notification Center and Quick Settings panel for browser-supported status, alerts, and common DOGEUB controls.',
+  'Expanded Task Manager with clearer browser-only performance readings, activity filtering, and DOGEUB-local controls.',
+  'Improved Game Launcher with favorites, recently played tracking, play counts, and categories for supported DOGEUB catalog games.',
+  'Polished desktop animations and responsive layout, with clearer labels when browser APIs cannot report real device metrics.',
+  'Added a required five-second post-sign-in notice reminding users that DOGEUB is not responsible for off-task classroom use or cheating with its tools.',
 ];
 
 const PatchLogs = () => {
@@ -61,13 +67,18 @@ const PatchLogs = () => {
   // Headless UI's modal focus trap can otherwise make the password inputs inert.
   const [open, setOpen] = useState(false);
   const [showLockWarning, setShowLockWarning] = useState(false);
+  const [showClassroomNotice, setShowClassroomNotice] = useState(false);
 
   useEffect(() => {
+    let noticeTimer;
     const onUnlocked = () => {
+      setShowClassroomNotice(true);
+      window.clearTimeout(noticeTimer);
+      noticeTimer = window.setTimeout(() => setShowClassroomNotice(false), 5000);
       if (isPatchLogsEnabled()) setOpen(true);
     };
     window.addEventListener('dogeub-unlocked', onUnlocked);
-    return () => window.removeEventListener('dogeub-unlocked', onUnlocked);
+    return () => { window.removeEventListener('dogeub-unlocked', onUnlocked); window.clearTimeout(noticeTimer); };
   }, []);
   const closePatchLogs = () => {
     setOpen(false);
@@ -76,6 +87,7 @@ const PatchLogs = () => {
 
   return (
     <>
+    {showClassroomNotice && <div role="alertdialog" aria-modal="true" aria-label="Classroom use notice" className="fixed inset-0 z-[2147483647] flex items-center justify-center bg-black px-6 text-center text-white"><p className="max-w-3xl text-xl font-semibold leading-relaxed sm:text-3xl">Dogeub is not responsible for any user getting into trouble for going offtask in class and cheating with the tools</p></div>}
     <Dialog open={open} onClose={closePatchLogs} className="fixed inset-0 bg-black/40 z-50">
       <div className="flex justify-center items-center h-full p-4">
         <DialogPanel
