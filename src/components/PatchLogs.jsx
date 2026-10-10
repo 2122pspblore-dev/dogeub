@@ -47,7 +47,8 @@ const PATCH_LOGS = [
   'Added PC file import/export and desktop-pinned icons that can be dragged around or unpinned.',
   'Added a Windows-style image viewer for imported pictures and a top Dynamic Island showing media, battery, and connection status.',
   'Added a toggleable Pet Buddy with 10 animals, cute random messages, and an animal picker in Settings.',
-  'Updated Recommended Sites: removed Google and ChatGPT shortcuts, added DuckDuckGo and Brave Search, plus Canva, Photopea, Scratch, and Steam.'
+  'Updated Recommended Sites: removed Google and ChatGPT shortcuts, added DuckDuckGo and Brave Search, plus Canva, Photopea, Scratch, and Steam.',
+  'Added DOGEUB OS Studio: desktop dashboard, live clock and optional weather, five workspaces and modes, school task planner, gaming launchpad, Doge AI local preview, command terminal, theme presets, world clocks, DogeDrop text sharing, browser diagnostics, achievements, and a boot-screen preview.'
 ];
 
 const PatchLogs = () => {
