@@ -42,9 +42,9 @@ const Clock = memo(function Clock() {
   }, []);
 
   return (
-    <div className="flex flex-col justify-center items-center sm:items-start text-center sm:text-left">
-      <div className="text-3xl font-semibold tabular-nums">{timeFormat.format(now)}</div>
-      <div className="text-sm opacity-70 mt-1">{dateFormat.format(now)}</div>
+    <div className="flex min-w-0 w-full flex-col justify-center items-center text-center sm:items-start sm:text-left">
+      <div className="max-w-full whitespace-nowrap text-2xl font-semibold tabular-nums sm:text-3xl">{timeFormat.format(now)}</div>
+      <div className="mt-1 max-w-full text-xs leading-relaxed opacity-70 sm:text-sm">{dateFormat.format(now)}</div>
     </div>
   );
 });
@@ -85,13 +85,12 @@ const Weather = memo(function Weather() {
   if (weather) {
     body = (
       <>
-        <div className="flex items-baseline gap-2">
-          <span className="text-3xl font-semibold">{Math.round(weather.temperature_2m)}°F</span>
+        <div className="flex max-w-full flex-wrap items-baseline justify-center gap-x-2 gap-y-1 sm:justify-end">
+          <span className="text-2xl font-semibold tabular-nums sm:text-3xl">{Math.round(weather.temperature_2m)}°F</span>
           <span className="text-sm opacity-80">{describeWeather(weather.weather_code)}</span>
         </div>
-        <div className="text-xs opacity-70 mt-1">
-          Feels like {Math.round(weather.apparent_temperature)}°F · Humidity{' '}
-          {Math.round(weather.relative_humidity_2m)}% · Wind {Math.round(weather.wind_speed_10m)} mph
+        <div className="mt-1 max-w-full text-xs leading-relaxed opacity-70">
+          Feels like {Math.round(weather.apparent_temperature)}°F · Humidity {Math.round(weather.relative_humidity_2m)}% · Wind {Math.round(weather.wind_speed_10m)} mph
         </div>
       </>
     );
@@ -102,7 +101,7 @@ const Weather = memo(function Weather() {
   }
 
   return (
-    <div className="flex flex-col justify-center items-center sm:items-end text-center sm:text-right">
+    <div className="flex min-w-0 w-full flex-col justify-center items-center text-center sm:items-end sm:text-right">
       <div className="text-xs uppercase tracking-wide opacity-70 mb-1">Jersey City, NJ</div>
       {body}
     </div>
@@ -113,11 +112,11 @@ const Widgets = memo(function Widgets({ cls }) {
   const { options } = useOptions();
 
   return (
-    <div className={clsx('w-full px-4 flex justify-center', cls || 'mt-[16rem]')}>
+    <div className={clsx('w-full min-w-0 flex justify-center', cls || 'mt-[16rem]')}>
       <div
         className={clsx(
-          'w-full max-w-[40rem] rounded-[14px] shadow-xl px-5 py-4 bg-white/5 backdrop-blur',
-          'flex flex-col sm:flex-row sm:justify-between items-center gap-4',
+          'w-full min-w-0 rounded-[14px] shadow-xl px-4 py-4 sm:px-5 bg-white/5 backdrop-blur',
+          'grid grid-cols-1 items-center gap-4 sm:grid-cols-2 sm:gap-6',
           theme[`searchBarColor`],
           theme[`theme-${options.theme || 'default'}`],
         )}
