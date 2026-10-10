@@ -5,6 +5,12 @@ import { addFile } from '../utils/fileStore';
 
 const stamp = () => new Date().toISOString().replace(/[:.]/g, '-');
 
+// Keep capture resources alive when React Router unmounts this page during navigation.
+let activeStream = null;
+let activeRecorder = null;
+let activeChunks = [];
+let activeRecording = false;
+
 export default function Capture() {
   const navigate = useNavigate();
   const videoRef = useRef(null);
@@ -24,9 +30,18 @@ export default function Capture() {
     }
   }, [stream]);
 
-  useEffect(() => () => {
-    if (recorderRef.current?.state === 'recording') recorderRef.current.stop();
-    streamRef.current?.getTracks().forEach((track) => track.stop());
+  useEffect(() => {
+    // Restore an in-progress capture when the user returns from another DogeUB section.
+    if (activeStream && activeStream.getVideoTracks().some((track) => track.readyState === 'live')) {
+      streamRef.current = activeStream;
+      setStream(activeStream);
+      setRecording(activeRecording);
+      setStatus(activeRecording ? 'Recording screen…' : 'Screen shared. Use Screenshot or Start recording below.');
+    }
+    return () => {
+      // Do not stop the recorder or stream here: route changes must not cancel recordings.
+      // Explicit Stop & save / Stop sharing controls are responsible for ending capture.
+    };
   }, []);
 
   const startCapture = async () => {
@@ -39,9 +54,12 @@ export default function Capture() {
     try {
       const next = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 30 }, audio: true });
       streamRef.current = next;
+      activeStream = next;
       setStream(next);
       setStatus('Screen shared. Use Screenshot or Start recording below.');
       next.getVideoTracks()[0]?.addEventListener('ended', () => {
+        activeStream = null;
+        activeRecording = false;
         setStream(null);
         setRecording(false);
         setStatus('Screen sharing stopped.');
@@ -83,16 +101,19 @@ export default function Capture() {
       setError('Screen recording is not supported in this browser.');
       return;
     }
-    chunksRef.current = [];
+    activeChunks = [];
     try {
       const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       recorderRef.current = recorder;
-      recorder.ondataavailable = (event) => { if (event.data?.size) chunksRef.current.push(event.data); };
+      activeRecorder = recorder;
+      recorder.ondataavailable = (event) => { if (event.data?.size) activeChunks.push(event.data); };
       recorder.onerror = () => setError('Recording failed. Try sharing the screen again.');
       recorder.onstop = async () => {
-        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || 'video/webm' });
+        const blob = new Blob(activeChunks, { type: recorder.mimeType || 'video/webm' });
         if (!blob.size) {
           setError('No recording data was captured.');
+          activeRecording = false;
+          activeRecorder = null;
           setRecording(false);
           return;
         }
@@ -104,11 +125,14 @@ export default function Capture() {
         } catch (e) {
           setError(e?.message || 'Could not save recording.');
         } finally {
+          activeRecording = false;
+          activeRecorder = null;
+          activeChunks = [];
           setRecording(false);
-          chunksRef.current = [];
         }
       };
       recorder.start(1000);
+      activeRecording = true;
       setRecording(true);
       setStatus('Recording screen…');
       setError('');
@@ -119,7 +143,8 @@ export default function Capture() {
   };
 
   const stopRecording = () => {
-    if (recorderRef.current?.state === 'recording') recorderRef.current.stop();
+    const recorder = activeRecorder || recorderRef.current;
+    if (recorder?.state === 'recording') recorder.stop();
   };
 
   useEffect(() => {
@@ -141,11 +166,17 @@ export default function Capture() {
   }, [recording, stream]);
 
   const stopCapture = () => {
-    if (recorderRef.current?.state === 'recording') recorderRef.current.stop();
-    streamRef.current?.getTracks().forEach((track) => track.stop());
+    // Finalize the recording before stopping the shared stream so the WebM can be saved.
+    const recorder = activeRecorder || recorderRef.current;
+    if (recorder?.state === 'recording') recorder.stop();
+    const currentStream = activeStream || streamRef.current;
+    currentStream?.getTracks().forEach((track) => track.stop());
+    activeStream = null;
+    activeRecording = false;
     streamRef.current = null;
     setStream(null);
-    setStatus('Screen sharing stopped.');
+    setRecording(false);
+    setStatus('Screen sharing stopped. Any recording is being saved.');
   };
 
   return (
