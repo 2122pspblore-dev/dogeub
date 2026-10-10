@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { getCachedSpecs, getDeviceSpecs, specsToText } from '../utils/deviceSpecs';
 import {
   AppWindow, BatteryFull, Globe, Home, Search, Settings, BatteryCharging,
-  Wifi, WifiOff, Music2, X, Youtube, BookOpen, Grid3X3, Power, ChevronUp, Cpu, LockKeyhole, Sparkles, Smile, FolderOpen, Keyboard, Zap, Activity, Command
+  Wifi, WifiOff, Music2, X, Youtube, BookOpen, Grid3X3, Power, ChevronUp, Cpu, LockKeyhole, Sparkles, Smile, FolderOpen, Keyboard, Zap, Command
 } from 'lucide-react';
 
 const apps = [
@@ -14,10 +14,9 @@ const apps = [
   { name: 'DogeFiler', description: 'Import, organize, preview and export files', icon: FolderOpen, path: '/files' },
   { name: 'Doge Shortcuts', description: 'Browse all DogeUB keyboard shortcuts', icon: Keyboard, path: '/shortcuts' },
   { name: 'Settings', description: 'Customize DogeUB', icon: Settings, path: '/settings' },
-  { name: 'Task Manager', description: 'Browser performance and activity', icon: Activity, path: '/task-manager' },
   { name: 'Quick Launcher', description: 'Search apps with Ctrl + Shift + P', icon: Command, launcher: true },
   { name: 'Doge Hub', description: 'Control center, files, widgets, notes and themes', icon: AppWindow, hub: true },
-  { name: 'OS Studio', description: 'Workspaces, modes, themes, terminal, and diagnostics', icon: Sparkles, studio: true },
+  { name: 'Doge Nexus', description: 'Workspaces, modes, themes, terminal, and diagnostics', icon: Sparkles, studio: true },
   { name: 'Startup / Shutdown', description: 'Preview the DOGEUB OS power animations', icon: Power, studio: true, tab: 'power' },
 ];
 
@@ -239,7 +238,7 @@ export default function Taskbar() {
       return;
     }
     if (app.studio) {
-      window.dispatchEvent(new CustomEvent('dogeub-open-os-studio', { detail: { tab: app.tab || 'desktop' } }));
+      window.dispatchEvent(new CustomEvent('dogeub-open-nexus', { detail: { tab: app.tab || 'desktop' } }));
       setStartOpen(false);
       setSearchOpen(false);
       return;
@@ -334,7 +333,7 @@ export default function Taskbar() {
       {powerConfirm && (
         <div role="dialog" aria-modal="true" aria-labelledby="power-confirm-title" className="fixed bottom-[4.6rem] left-1/2 z-[11002] w-[min(92vw,340px)] -translate-x-1/2 rounded-2xl border border-white/15 bg-[#172033]/[.98] p-5 text-white shadow-2xl backdrop-blur-2xl">
           <div className="mb-3 flex items-center gap-3"><span className="rounded-xl bg-red-500/20 p-2 text-red-300"><Power size={20} /></span><div><h2 id="power-confirm-title" className="text-sm font-semibold">Close DogeUB?</h2><p className="mt-1 text-xs text-white/60">DogeUB will shut down and lock. Your password will be required to unlock it again.</p></div></div>
-          <div className="flex justify-end gap-2"><button onClick={() => setPowerConfirm(false)} className="rounded-lg px-3 py-2 text-xs hover:bg-white/10">Cancel</button><button onClick={() => { setPowerConfirm(false); window.dispatchEvent(new CustomEvent('dogeub-open-os-studio', { detail: { tab: 'power', preview: 'shutdown' } })); }} className="rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold hover:bg-red-500">Shut down & lock</button></div>
+          <div className="flex justify-end gap-2"><button onClick={() => setPowerConfirm(false)} className="rounded-lg px-3 py-2 text-xs hover:bg-white/10">Cancel</button><button onClick={() => { setPowerConfirm(false); window.dispatchEvent(new CustomEvent('dogeub-open-nexus', { detail: { tab: 'power', preview: 'shutdown' } })); }} className="rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold hover:bg-red-500">Shut down & lock</button></div>
           
         </div>
       )}

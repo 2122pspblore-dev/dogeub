@@ -12,7 +12,8 @@ import PatchLogs from './components/PatchLogs';
 import LockScreen from './components/LockScreen';
 import DogeHub from './components/DogeHub';
 import PetBuddy from './components/PetBuddy';
-import DogeOSStudio from './components/DogeOSStudio';
+import DogeNexus from './components/DogeNexus';
+import PortalTransitions from './components/PortalTransitions';
 import EmojiWidgets from './components/EmojiWidgets';
 import InteractiveDots from './components/InteractiveDots';
 import QuickLauncher from './components/QuickLauncher';
@@ -206,9 +207,10 @@ const ThemedApp = memo(() => {
       <PanicButton />
       <PatchLogs />
       <Routing pages={pages} />
+      <PortalTransitions />
       <Taskbar />
       <DogeHub />
-      <DogeOSStudio />
+      <DogeNexus />
       <EmojiWidgets />
       <InteractiveDots />
       <QuickLauncher />

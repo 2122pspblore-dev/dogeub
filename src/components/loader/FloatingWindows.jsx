@@ -132,6 +132,11 @@ export default function FloatingWindows() {
     setNextZ(item.z);
     // Move the active browser tab's page into the floating window, then close its source tab.
     setWindows([item]);
+    try {
+      window.dispatchEvent(new CustomEvent('dogeub-portal-transition', {
+        detail: { x: item.x + item.width / 2, y: item.y + item.height / 2 },
+      }));
+    } catch {}
     closeSourceTab();
   };
   const update = (id, patch) => setWindows((items) => items.map((item) => item.id === id ? { ...item, ...patch } : item));
@@ -139,7 +144,14 @@ export default function FloatingWindows() {
     const raw = item.input.trim();
     if (!raw) return;
     const next = process(raw, false, options.prType || 'auto', options.engine || 'https://www.bing.com/search?q=');
-    if (next) update(item.id, { url: next, title: raw.startsWith('http') ? new URL(raw).hostname : raw });
+    if (next) {
+      try {
+        window.dispatchEvent(new CustomEvent('dogeub-portal-transition', {
+          detail: { x: item.x + item.width / 2, y: item.y + item.height / 2 },
+        }));
+      } catch {}
+      update(item.id, { url: next, title: raw.startsWith('http') ? new URL(raw).hostname : raw });
+    }
   };
 
   const beginDrag = (e, item) => {
