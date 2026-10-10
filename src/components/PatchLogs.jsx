@@ -53,11 +53,11 @@ const PATCH_LOGS = [
   'Added a dedicated Startup / Shutdown shortcut to the Start menu so the cinematic previews open directly without hunting through OS Studio.',
   'Connected the Start menu power confirmation to the cinematic shutdown screen; exiting the preview locks DogeUB and requires sign-in.',
   'Added a Files app (nav bar, Start menu, and taskbar): import screenshots, videos, documents, and other files from your computer by button or drag-and-drop, preview them, organize them into folders, and export one file or a .zip of many. Files are saved in this browser only (PR #42).',
-  'Added a configurable desktop workspace with responsive widget placement and support for resizing and rearranging desktop cards.',
-  'Added a Notification Center and Quick Settings panel for browser-supported status, alerts, and common DOGEUB controls.',
-  'Expanded Task Manager with clearer browser-only performance readings, activity filtering, and DOGEUB-local controls.',
-  'Improved Game Launcher with favorites, recently played tracking, play counts, and categories for supported DOGEUB catalog games.',
-  'Polished desktop animations and responsive layout, with clearer labels when browser APIs cannot report real device metrics.',
+  'Feature pack planned: configurable desktop workspace with draggable and resizable widgets.',
+  'Feature pack planned: Notification Center and Quick Settings for browser-supported status, alerts, and common DOGEUB controls.',
+  'Feature pack planned: clearer browser-only Task Manager readings, activity filtering, and DOGEUB-local controls.',
+  'Feature pack planned: Game Launcher favorites, recently played tracking, play counts, and categories.',
+  'Feature pack planned: polished desktop animations and responsive layout with clearer browser-metric labels.',
   'Added a required five-second post-sign-in notice reminding users that DOGEUB is not responsible for off-task classroom use or cheating with its tools.',
 ];
 
