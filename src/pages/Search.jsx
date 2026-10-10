@@ -41,7 +41,7 @@ export default function Loader({ config = {} }) {
 
     // Keep the usual fresh-browser behavior for normal visits to /search.
     loaderStore.getState().clearStore({ showTb: options.showTb ?? true });
-  }, [location.key]);
+  }, [location.key, location.state, options.showTb]);
 
   return (
     <div className="relative flex flex-col w-full h-screen">
