@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   AppWindow, BatteryFull, Globe, Home, Search, Settings, BatteryCharging,
-  Wifi, WifiOff, Music2, X, Youtube, BookOpen, Grid3X3, Power, ChevronUp, Cpu, LockKeyhole
+  Wifi, WifiOff, Music2, X, Youtube, BookOpen, Grid3X3, Power, ChevronUp, Cpu, LockKeyhole, Sparkles
 } from 'lucide-react';
 
 const apps = [
@@ -12,6 +12,7 @@ const apps = [
   { name: 'Docs', description: 'Games and resources', icon: BookOpen, path: '/docs' },
   { name: 'Settings', description: 'Customize DogeUB', icon: Settings, path: '/settings' },
   { name: 'Doge Hub', description: 'Control center, files, widgets, notes and themes', icon: AppWindow, hub: true },
+  { name: 'OS Studio', description: 'Workspaces, modes, themes, terminal, and diagnostics', icon: Sparkles, studio: true },
 ];
 
 function formatClock(date) {
@@ -152,6 +153,12 @@ export default function Taskbar() {
   };
 
   const openApp = (app) => {
+    if (app.studio) {
+      window.dispatchEvent(new CustomEvent('dogeub-open-os-studio', { detail: { tab: 'desktop' } }));
+      setStartOpen(false);
+      setSearchOpen(false);
+      return;
+    }
     if (app.hub) {
       window.dispatchEvent(new CustomEvent('dogeub-open-hub', { detail: { tab: 'control' } }));
       setStartOpen(false);
