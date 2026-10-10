@@ -58,6 +58,8 @@ const PATCH_LOGS = [
   'Connected game launches to the Most Played Games activity widget so game launches can be counted locally.',
   'Clarified Task Manager limitations: its metrics describe the current DOGEUB page and cannot inspect or end Windows processes.',
   'Added a required five-second post-sign-in notice reminding users that DOGEUB is not responsible for off-task classroom use or cheating with its tools.',
+  'Added Doge Messages with global chat, private conversations, unique usernames, custom profile pictures, server-side profanity filtering, reporting, and DogeFiler file attachments.',
+  'Doge Messages stores account and chat data on the server. Configure DOGEUB_DATA_DIR to a persistent writable volume in production so accounts, profile pictures, attachments, and history survive redeploys.',
 ];
 
 const PatchLogs = () => {
