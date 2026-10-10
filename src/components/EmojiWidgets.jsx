@@ -58,7 +58,7 @@ export default function EmojiWidgets() {
     const timer = window.setInterval(() => setNow(new Date()), 1000);
     return () => window.clearInterval(timer);
   }, [open, tab]);
-  const emojis = useMemo(() => GROUPS.flatMap(group => group.emojis.map(emoji => ({ emoji, group: group.name })), []);
+  const emojis = useMemo(() => GROUPS.flatMap(group => group.emojis.map(emoji => ({ emoji, group: group.name }))), []);
   const visibleEmojis = useMemo(() => emojis.filter(item => {
     const matchesSearch = !search || item.emoji.includes(search) || item.group.toLowerCase().includes(search.toLowerCase());
     return matchesSearch && (search || item.group === category);
