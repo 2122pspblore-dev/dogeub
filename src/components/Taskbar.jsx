@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { getCachedSpecs, getDeviceSpecs, specsToText } from '../utils/deviceSpecs';
 import {
   AppWindow, BatteryFull, Globe, Home, Search, Settings, BatteryCharging,
-  Wifi, WifiOff, Music2, X, Youtube, BookOpen, Grid3X3, Power, ChevronUp, Cpu, LockKeyhole, Sparkles, Smile, FolderOpen, Keyboard, Zap
+  Wifi, WifiOff, Music2, X, Youtube, BookOpen, Grid3X3, Power, ChevronUp, Cpu, LockKeyhole, Sparkles, Smile, FolderOpen, Keyboard, Zap, Activity, Command
 } from 'lucide-react';
 
 const apps = [
@@ -14,6 +14,8 @@ const apps = [
   { name: 'DogeFiler', description: 'Import, organize, preview and export files', icon: FolderOpen, path: '/files' },
   { name: 'Doge Shortcuts', description: 'Browse all DogeUB keyboard shortcuts', icon: Keyboard, path: '/shortcuts' },
   { name: 'Settings', description: 'Customize DogeUB', icon: Settings, path: '/settings' },
+  { name: 'Task Manager', description: 'Browser performance and activity', icon: Activity, path: '/task-manager' },
+  { name: 'Quick Launcher', description: 'Search apps with Alt + Space', icon: Command, launcher: true },
   { name: 'Doge Hub', description: 'Control center, files, widgets, notes and themes', icon: AppWindow, hub: true },
   { name: 'OS Studio', description: 'Workspaces, modes, themes, terminal, and diagnostics', icon: Sparkles, studio: true },
   { name: 'Startup / Shutdown', description: 'Preview the DOGEUB OS power animations', icon: Power, studio: true, tab: 'power' },
@@ -230,6 +232,12 @@ export default function Taskbar() {
   };
 
   const openApp = (app) => {
+    if (app.launcher) {
+      window.dispatchEvent(new Event('dogeub-open-quick-launcher'));
+      setStartOpen(false);
+      setSearchOpen(false);
+      return;
+    }
     if (app.studio) {
       window.dispatchEvent(new CustomEvent('dogeub-open-os-studio', { detail: { tab: app.tab || 'desktop' } }));
       setStartOpen(false);
