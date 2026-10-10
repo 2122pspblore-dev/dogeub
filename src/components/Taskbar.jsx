@@ -13,6 +13,7 @@ const apps = [
   { name: 'Settings', description: 'Customize DogeUB', icon: Settings, path: '/settings' },
   { name: 'Doge Hub', description: 'Control center, files, widgets, notes and themes', icon: AppWindow, hub: true },
   { name: 'OS Studio', description: 'Workspaces, modes, themes, terminal, and diagnostics', icon: Sparkles, studio: true },
+  { name: 'Startup / Shutdown', description: 'Preview the DOGEUB OS power animations', icon: Power, studio: true, tab: 'power' },
 ];
 
 function formatClock(date) {
@@ -154,7 +155,7 @@ export default function Taskbar() {
 
   const openApp = (app) => {
     if (app.studio) {
-      window.dispatchEvent(new CustomEvent('dogeub-open-os-studio', { detail: { tab: 'desktop' } }));
+      window.dispatchEvent(new CustomEvent('dogeub-open-os-studio', { detail: { tab: app.tab || 'desktop' } }));
       setStartOpen(false);
       setSearchOpen(false);
       return;
