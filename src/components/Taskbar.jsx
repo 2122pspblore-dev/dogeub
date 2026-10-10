@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { getCachedSpecs, getDeviceSpecs, specsToText } from '../utils/deviceSpecs';
 import {
   AppWindow, BatteryFull, Globe, Home, Search, Settings, BatteryCharging, Camera,
-  Wifi, WifiOff, Music2, X, Youtube, BookOpen, Grid3X3, Power, ChevronUp, Cpu, LockKeyhole, Sparkles, Smile, FolderOpen
+  Wifi, WifiOff, Music2, X, Youtube, BookOpen, Grid3X3, Power, ChevronUp, Cpu, LockKeyhole, Sparkles, Smile, FolderOpen, Keyboard
 } from 'lucide-react';
 
 const apps = [
@@ -13,6 +13,7 @@ const apps = [
   { name: 'Docs', description: 'Games and resources', icon: BookOpen, path: '/docs' },
   { name: 'DogeFiler', description: 'Import, organize, preview and export files', icon: FolderOpen, path: '/files' },
   { name: 'Screen Capture', description: 'Take screenshots and record your screen', icon: Camera, path: '/capture' },
+  { name: 'Doge Shortcuts', description: 'Browse all DogeUB keyboard shortcuts', icon: Keyboard, path: '/shortcuts' },
   { name: 'Settings', description: 'Customize DogeUB', icon: Settings, path: '/settings' },
   { name: 'Doge Hub', description: 'Control center, files, widgets, notes and themes', icon: AppWindow, hub: true },
   { name: 'OS Studio', description: 'Workspaces, modes, themes, terminal, and diagnostics', icon: Sparkles, studio: true },
