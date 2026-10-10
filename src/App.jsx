@@ -201,6 +201,7 @@ const ThemedApp = memo(() => {
 
   return (
     <>
+      <Windows10Startup />
       <PanicButton />
       <PatchLogs />
       <Routing pages={pages} />
