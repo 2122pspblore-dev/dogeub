@@ -20,6 +20,11 @@ const makeWindow = (title = 'New Window', url = 'https://www.bing.com') => ({
 export default function FloatingWindows() {
   const { options } = useOptions();
   const activeTab = loaderStore((state) => state.tabs.find((tab) => tab.active));
+  const tabCount = loaderStore((state) => state.tabs.length);
+  const addTab = loaderStore((state) => state.addTab);
+  const removeTab = loaderStore((state) => state.removeTab);
+  const setActive = loaderStore((state) => state.setActive);
+  const setLastActive = loaderStore((state) => state.setLastActive);
 
   const [windows, setWindows] = useState(() => {
     try {
@@ -103,13 +108,31 @@ export default function FloatingWindows() {
     setNextZ(z);
     setWindows((items) => items.map((item) => item.id === id ? { ...item, z, minimized: false } : item));
   };
+  const closeSourceTab = () => {
+    if (!activeTab?.id) return;
+
+    if (tabCount > 1) {
+      // Keep the neighboring tab selected before removing the tab moved to the floating window.
+      setLastActive(activeTab.id);
+      removeTab(activeTab.id);
+      return;
+    }
+
+    // The tab strip must always have a tab, so replace the last tab with a fresh New Tab.
+    const replacementId = crypto.randomUUID();
+    addTab({ title: 'New Tab', id: replacementId, url: 'tabs://new' });
+    setActive(replacementId);
+    removeTab(activeTab.id);
+  };
+
   const addWindow = (url = 'https://www.bing.com', title) => {
     if (windows.length >= 8) return;
     const item = makeWindow(title || (url.includes('bing.com') ? 'Bing' : 'New Window'), url);
     item.z = nextZ + 1;
     setNextZ(item.z);
-    // Opening a new floating browser replaces the previous floating page/window.
+    // Move the active browser tab's page into the floating window, then close its source tab.
     setWindows([item]);
+    closeSourceTab();
   };
   const update = (id, patch) => setWindows((items) => items.map((item) => item.id === id ? { ...item, ...patch } : item));
   const navigate = (item) => {
