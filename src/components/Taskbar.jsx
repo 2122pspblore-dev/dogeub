@@ -64,10 +64,20 @@ export default function Taskbar() {
   }, []);
 
   useEffect(() => {
-    document.documentElement.classList.toggle('dogeub-gaming-mode', gamingMode);
+    const root = document.documentElement;
+    const style = document.createElement('style');
+    style.dataset.dogeubGamingMode = 'true';
+    style.textContent = gamingMode
+      ? `html.dogeub-gaming-mode *, html.dogeub-gaming-mode *::before, html.dogeub-gaming-mode *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }`
+      : '';
+    root.classList.toggle('dogeub-gaming-mode', gamingMode);
+    document.head.appendChild(style);
     try { window.localStorage.setItem('dogeub-gaming-mode', String(gamingMode)); } catch {}
     window.dispatchEvent(new CustomEvent('dogeub-gaming-mode-change', { detail: { enabled: gamingMode } }));
-    return () => document.documentElement.classList.remove('dogeub-gaming-mode');
+    return () => {
+      root.classList.remove('dogeub-gaming-mode');
+      style.remove();
+    };
   }, [gamingMode]);
 
   useEffect(() => {
