@@ -3,7 +3,7 @@ import { Globe, Gamepad2, ExternalLink } from 'lucide-react';
 import { useOptions } from '../utils/optionsContext';
 
 const SITE_KEY = 'dogeub-popular-sites';
-const GAME_KEY = 'dogeub-most-played-games';
+const GAME_KEY = 'dogeub-games-from-catalog';
 
 function readList(key) {
   try {
@@ -90,7 +90,7 @@ export default function PopularActivityWidgets() {
   return (
     <div className="mx-auto mt-6 grid w-full max-w-[40rem] grid-cols-1 gap-4 px-4 sm:grid-cols-2">
       {(options.popularSitesWidget ?? true) && <ActivityCard title="Most Visited Websites" icon={Globe} items={sites} empty="Open websites from your DOGEUB shortcuts to build your list." onOpen={(item) => { window.dispatchEvent(new CustomEvent('dogeub-open-url', { detail: { url: item.url } })); window.location.assign('/search'); }} />}
-      {(options.mostPlayedGamesWidget ?? true) && <ActivityCard title="Most Played Games" icon={Gamepad2} items={games} empty="Games need to send play activity to DOGEUB before they appear here." onOpen={(item) => { if (item.url) window.location.assign(item.url); }} />}
+      {(options.mostPlayedGamesWidget ?? true) && <ActivityCard title="Games from DOGEUB" icon={Gamepad2} items={games} empty="Open games from DOGEUB’s game catalog and they’ll show up here." onOpen={(item) => { if (item.url) window.location.assign(item.url); }} />}
     </div>
   );
 }
