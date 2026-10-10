@@ -91,6 +91,16 @@ const QuickLinks = ({ cls, nav = true, navigating }) => {
         <div
           key={i}
           className={linkItem}
+          role="button"
+          tabIndex={0}
+          aria-label={`Open ${link.name}`}
+          onKeyDown={(e) => {
+            if (e.target !== e.currentTarget) return;
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              go(link.link);
+            }
+          }}
           draggable
           onDragStart={(e) => {
             draggedIndex.current = i;
@@ -168,7 +178,19 @@ const QuickLinks = ({ cls, nav = true, navigating }) => {
         </div>
       ))}
 
-      <div className={linkItem} onClick={() => setDialog({ add: true, edit: false, index: null })}>
+      <div
+        className={linkItem}
+        role="button"
+        tabIndex={0}
+        aria-label="Add a shortcut"
+        onClick={() => setDialog({ add: true, edit: false, index: null })}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setDialog({ add: true, edit: false, index: null });
+          }
+        }}
+      >
         <div className={linkLogo}>
           <Plus className="w-7 h-7" />
         </div>
