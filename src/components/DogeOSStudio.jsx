@@ -203,8 +203,8 @@ export default function DogeOSStudio() {
 
   if (!open) return null;
   if (bootPreview) return (
-    <div className="fixed inset-0 z-[21000] flex flex-col items-center justify-center overflow-hidden px-5 text-white" style={{ backgroundColor: '#0078d7' }}>
-      <div className="mb-16 flex h-16 w-16 flex-col gap-[3px]" aria-label="Windows-style logo">
+    <div className="fixed inset-0 z-[21000] flex flex-col items-center justify-center overflow-hidden px-5 text-white" style={{ backgroundColor: '#000000' }}>
+      <div className="mb-16 flex h-24 w-24 -skew-y-2 flex-col gap-[4px]" aria-label="Windows 10 logo">
         <div className="flex flex-1 gap-[3px]"><span className="flex-1 bg-white" /><span className="flex-1 bg-white" /></div>
         <div className="flex flex-1 gap-[3px]"><span className="flex-1 bg-white" /><span className="flex-1 bg-white" /></div>
       </div>
@@ -212,7 +212,7 @@ export default function DogeOSStudio() {
       <div className="mb-8 text-xs text-white/90">Starting</div>
       <div className="mb-10 h-6 w-6 animate-spin rounded-full border-2 border-white/35 border-t-white" aria-label="Loading" />
       <button className="rounded-md border border-white/60 px-4 py-2 text-xs text-white hover:bg-white/10" onClick={() => { setBootPreview(false); }}>Skip startup</button>
-      <div className="absolute bottom-7 text-[10px] text-white/70">Windows 10-inspired website preview</div>
+      <div className="absolute bottom-7 text-[10px] text-white/70">Windows 10 startup preview</div>
     </div>
   );
 
