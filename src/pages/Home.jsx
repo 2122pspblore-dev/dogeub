@@ -5,6 +5,7 @@ import QuickLinks from '../components/QuickLinks';
 import Widgets from '../components/Widgets';
 import StudySprint from '../components/StudySprint';
 import PopularActivityWidgets from '../components/PopularActivityWidgets';
+import DesktopPerformanceWidget from '../components/DesktopPerformanceWidget';
 import { memo } from 'react';
 
 const Home = memo(() => {
@@ -13,6 +14,7 @@ const Home = memo(() => {
       <Nav />
       <Search />
       <Widgets />
+      <DesktopPerformanceWidget />
       <QuickLinks cls="w-full max-w-[40rem] mx-auto mt-6" />
       <PopularActivityWidgets />
       <StudySprint />
