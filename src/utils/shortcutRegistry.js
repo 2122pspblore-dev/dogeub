@@ -2,15 +2,6 @@
 // When adding a shortcut to an app, add its description here too.
 const shortcutRegistry = [
   {
-    app: 'Doge Capture',
-    category: 'Capture',
-    keys: ['Ctrl', 'Alt', 'P'],
-    title: 'Take screenshot',
-    description: 'Save a PNG screenshot to DogeFiler → Screenshots.',
-    route: '/capture',
-    note: 'Screen sharing must already be active.',
-  },
-  {
     app: 'Panic Button',
     category: 'Safety',
     keys: ['Ctrl', 'C'],

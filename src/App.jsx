@@ -30,7 +30,6 @@ const importGms = () => import('./pages/Apps2');
 const importSettings = () => import('./pages/Settings');
 const importRecommended = () => import('./pages/Recommended');
 const importFiles = () => import('./pages/Files');
-const importCapture = () => import('./pages/Capture');
 const importShortcuts = () => import('./pages/Shortcuts');
 
 const Home = lazyLoad(importHome);
@@ -39,7 +38,6 @@ const Apps2 = lazyLoad(importGms);
 const Settings = lazyLoad(importSettings);
 const Recommended = lazyLoad(importRecommended);
 const Files = lazyLoad(importFiles);
-const Capture = lazyLoad(importCapture);
 const Shortcuts = lazyLoad(importShortcuts);
 const Player = lazyLoad(() => import('./pages/Player'));
 
@@ -137,7 +135,6 @@ const ThemedApp = memo(() => {
       { path: '/settings', element: <Settings /> },
       { path: '/recommended', element: <Recommended /> },
       { path: '/files', element: <Files /> },
-      { path: '/capture', element: <Capture /> },
       { path: '/shortcuts', element: <Shortcuts /> },
       { path: '/portal/k12/*', element: <NotFound /> },
       { path: '/ham/*', element: <NotFound /> },
