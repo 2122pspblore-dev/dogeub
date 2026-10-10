@@ -15,7 +15,7 @@ const apps = [
   { name: 'Doge Shortcuts', description: 'Browse all DogeUB keyboard shortcuts', icon: Keyboard, path: '/shortcuts' },
   { name: 'Settings', description: 'Customize DogeUB', icon: Settings, path: '/settings' },
   { name: 'Task Manager', description: 'Browser performance and activity', icon: Activity, path: '/task-manager' },
-  { name: 'Quick Launcher', description: 'Search apps with Alt + Space', icon: Command, launcher: true },
+  { name: 'Quick Launcher', description: 'Search apps with Ctrl + Shift + P', icon: Command, launcher: true },
   { name: 'Doge Hub', description: 'Control center, files, widgets, notes and themes', icon: AppWindow, hub: true },
   { name: 'OS Studio', description: 'Workspaces, modes, themes, terminal, and diagnostics', icon: Sparkles, studio: true },
   { name: 'Startup / Shutdown', description: 'Preview the DOGEUB OS power animations', icon: Power, studio: true, tab: 'power' },
