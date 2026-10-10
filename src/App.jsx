@@ -172,7 +172,6 @@ const ThemedApp = memo(() => {
       { path: '/recommended', element: <Recommended /> },
       { path: '/files', element: <Files /> },
       { path: '/shortcuts', element: <Shortcuts /> },
-      { path: '/task-manager', element: lazyLoad(() => import('./pages/TaskManager')) },
       { path: '/portal/k12/*', element: <NotFound /> },
       { path: '/ham/*', element: <NotFound /> },
       { path: '*', element: <NotFound /> },
