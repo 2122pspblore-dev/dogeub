@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   AppWindow,
   ArrowDown,
@@ -28,7 +28,6 @@ const normalizeIndex = (index, length) => length ? ((index % length) + length) %
 
 export default function SectionSwitcher() {
   const navigate = useNavigate();
-  const location = useLocation();
   const tabs = loaderStore((state) => state.tabs);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -61,7 +60,7 @@ export default function SectionSwitcher() {
   const activeIndex = normalizeIndex(selectedIndex, matches.length);
   const activeItem = matches[activeIndex];
 
-  const openItem = (item) => {
+  const openItem = useCallback((item) => {
     if (!item) return;
     setOpen(false);
     setQuery('');
@@ -73,7 +72,7 @@ export default function SectionSwitcher() {
     navigate(item.path, {
       state: item.preserveBrowserTabs ? { dogeubSectionSwitcher: true } : undefined,
     });
-  };
+  }, [navigate]);
 
   useEffect(() => {
     if (open) searchInput.current?.focus();
@@ -110,7 +109,7 @@ export default function SectionSwitcher() {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [open, matches, activeIndex, navigate]);
+  }, [open, matches, activeIndex, openItem]);
 
   if (!open) return null;
 
