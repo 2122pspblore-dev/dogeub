@@ -1,7 +1,7 @@
 import clsx from 'clsx';
 import { useState, useEffect, useRef, useCallback, useMemo, memo, startTransition } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LucideSearch, Earth, ChevronDown } from 'lucide-react';
+import { LucideSearch, Earth, ChevronDown, Sparkles } from 'lucide-react';
 import { GlowWrapper } from '../utils/Glow';
 import { useOptions } from '../utils/optionsContext';
 import { searchConfig } from '../utils/config';
@@ -156,6 +156,7 @@ const SearchContainer = memo(function SearchContainer({ logo = true, cls, nav = 
           <div className="mt-2 select-none text-sm font-extrabold tracking-[0.22em] opacity-90" style={{ fontFamily: "'Space Grotesk', Inter, sans-serif" }}>DOGEUB OS</div>
         </div>
       )}
+      <div className="flex w-full max-w-[58rem] flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-start">
       <GlowWrapper
         glowOptions={{ color: options.glowWrapperColor || '255, 255, 255', size: 70, opacity: 0.2 }}
       >
@@ -277,6 +278,17 @@ const SearchContainer = memo(function SearchContainer({ logo = true, cls, nav = 
           )}
         </div>
       </GlowWrapper>
+      <button
+        type="button"
+        onClick={() => window.dispatchEvent(new Event('dogeub-open-assistant'))}
+        className="group flex min-h-[3.41rem] w-full shrink-0 items-center gap-3 rounded-[14px] border border-cyan-300/25 bg-slate-950/70 px-4 text-left text-white shadow-lg shadow-cyan-950/15 backdrop-blur-xl transition hover:border-cyan-200/60 hover:bg-slate-900/90 sm:mt-0 sm:w-[17rem]"
+        aria-label="Open DogeUB Assistant"
+      >
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-cyan-200/25 bg-cyan-300/10 text-cyan-200 transition group-hover:bg-cyan-300/20"><Sparkles size={18} /></span>
+        <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">DogeUB Assistant</span><span className="mt-0.5 block truncate text-xs text-white/55">tell me settings to change</span></span>
+        <span className="text-cyan-200/70 transition group-hover:translate-x-0.5">→</span>
+      </button>
+      </div>
     </div>
   );
 });
