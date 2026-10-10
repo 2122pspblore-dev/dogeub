@@ -91,12 +91,22 @@ export default function Taskbar() {
       const artist = metadata?.artist || metadata?.album || '';
       setMediaInfo({ title: title || 'Nothing playing', artist, playing: Boolean(media && !media.paused && !media.ended), hasMedia: Boolean(metadata || media) });
     };
+    const handleBrowserMedia = (event) => {
+      const detail = event.detail;
+      if (!detail) return;
+      if (detail.hasMedia) {
+        setMediaInfo({ title: detail.title || 'YouTube video', artist: detail.artist || 'Browser media', playing: Boolean(detail.playing), hasMedia: true });
+      } else {
+        refreshMedia();
+      }
+    };
     refreshMedia();
+    window.addEventListener('dogeub-browser-media', handleBrowserMedia);
     const timer = window.setInterval(refreshMedia, 1800);
     document.addEventListener('play', refreshMedia, true);
     document.addEventListener('pause', refreshMedia, true);
     document.addEventListener('ended', refreshMedia, true);
-    return () => { window.clearInterval(timer); document.removeEventListener('play', refreshMedia, true); document.removeEventListener('pause', refreshMedia, true); document.removeEventListener('ended', refreshMedia, true); };
+    return () => { window.clearInterval(timer); window.removeEventListener('dogeub-browser-media', handleBrowserMedia); document.removeEventListener('play', refreshMedia, true); document.removeEventListener('pause', refreshMedia, true); document.removeEventListener('ended', refreshMedia, true); };
   }, []);
   useEffect(() => {
     setStartOpen(false);
