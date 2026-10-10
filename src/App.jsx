@@ -15,6 +15,7 @@ import PetBuddy from './components/PetBuddy';
 import DogeOSStudio from './components/DogeOSStudio';
 import EmojiWidgets from './components/EmojiWidgets';
 import InteractiveDots from './components/InteractiveDots';
+import QuickLauncher from './components/QuickLauncher';
 import { OptionsProvider, useOptions } from './utils/optionsContext';
 import { initPreload } from './utils/preload';
 import { designConfig as bgDesign } from './utils/config';
@@ -171,6 +172,7 @@ const ThemedApp = memo(() => {
       { path: '/recommended', element: <Recommended /> },
       { path: '/files', element: <Files /> },
       { path: '/shortcuts', element: <Shortcuts /> },
+      { path: '/task-manager', element: lazyLoad(() => import('./pages/TaskManager')) },
       { path: '/portal/k12/*', element: <NotFound /> },
       { path: '/ham/*', element: <NotFound /> },
       { path: '*', element: <NotFound /> },
@@ -210,6 +212,7 @@ const ThemedApp = memo(() => {
       <DogeOSStudio />
       <EmojiWidgets />
       <InteractiveDots />
+      <QuickLauncher />
       <PetBuddy />
       <LockScreen />
       {popunderEnabled && !adKeyPassed ? <Popunder /> : null}
