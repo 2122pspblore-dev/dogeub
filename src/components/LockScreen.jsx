@@ -104,9 +104,13 @@ export default function LockScreen() {
       const key = event.key.toLowerCase();
       // Escape gives users a keyboard shortcut to return focus to the password box.
       if (key === 'escape') {
-        event.preventDefault();
-        event.stopPropagation();
-        window.setTimeout(() => passwordInputRef.current?.focus(), 0);
+        // While locked, Escape returns focus to the password field.
+        // Once unlocked, let DOGEUB overlays and page controls handle Escape normally.
+        if (!unlocked) {
+          event.preventDefault();
+          event.stopPropagation();
+          window.setTimeout(() => passwordInputRef.current?.focus(), 0);
+        }
         return;
       }
       // Ctrl+L is reserved by many browsers for the address bar, so provide
@@ -127,7 +131,7 @@ export default function LockScreen() {
       window.removeEventListener('dogeub-lock', lock);
       document.removeEventListener('keydown', onKeyDown, true);
     };
-  }, []);
+  }, [unlocked]);
 
   const submit = async (event) => {
     event.preventDefault();
