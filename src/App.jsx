@@ -14,6 +14,7 @@ import DogeHub from './components/DogeHub';
 import PetBuddy from './components/PetBuddy';
 import DogeOSStudio from './components/DogeOSStudio';
 import EmojiWidgets from './components/EmojiWidgets';
+import InteractiveDots from './components/InteractiveDots';
 import { OptionsProvider, useOptions } from './utils/optionsContext';
 import { initPreload } from './utils/preload';
 import { designConfig as bgDesign } from './utils/config';
@@ -166,6 +167,7 @@ const ThemedApp = memo(() => {
       <DogeHub />
       <DogeOSStudio />
       <EmojiWidgets />
+      <InteractiveDots />
       <PetBuddy />
       <LockScreen />
       {popunderEnabled && !adKeyPassed ? <Popunder /> : null}
