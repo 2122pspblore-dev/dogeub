@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   AppWindow, BatteryFull, Globe, Home, Search, Settings, BatteryCharging,
-  Wifi, X, Youtube, BookOpen, Grid3X3, Power, ChevronUp, Cpu, LockKeyhole
+  Wifi, WifiOff, Music2, X, Youtube, BookOpen, Grid3X3, Power, ChevronUp, Cpu, LockKeyhole
 } from 'lucide-react';
 
 const apps = [
@@ -34,6 +34,7 @@ export default function Taskbar() {
   const [powerConfirm, setPowerConfirm] = useState(false);
   const [specsOpen, setSpecsOpen] = useState(false);
   const [isShutdown, setIsShutdown] = useState(false);
+  const [mediaInfo, setMediaInfo] = useState({ title: 'Nothing playing', artist: '', playing: false, hasMedia: false });
   const [startBackground, setStartBackground] = useState(() => {
     try { return window.localStorage.getItem('dogeub-site-background') || ''; } catch { return ''; }
   });
@@ -77,6 +78,24 @@ export default function Taskbar() {
     };
   }, []);
 
+  useEffect(() => {
+    const refreshMedia = () => {
+      const session = navigator.mediaSession;
+      const metadata = session?.metadata;
+      const media = Array.from(document.querySelectorAll('audio, video')).find((element) => !element.paused && !element.ended) || Array.from(document.querySelectorAll('audio, video')).find((element) => element.currentSrc || element.src);
+      let sourceTitle = '';
+      if (media?.currentSrc) { try { sourceTitle = new URL(media.currentSrc).pathname.split('/').pop() || 'Media playing'; } catch { sourceTitle = 'Media playing'; } }
+      const title = metadata?.title || media?.getAttribute('aria-label') || media?.title || sourceTitle;
+      const artist = metadata?.artist || metadata?.album || '';
+      setMediaInfo({ title: title || 'Nothing playing', artist, playing: Boolean(media && !media.paused && !media.ended), hasMedia: Boolean(metadata || media) });
+    };
+    refreshMedia();
+    const timer = window.setInterval(refreshMedia, 1800);
+    document.addEventListener('play', refreshMedia, true);
+    document.addEventListener('pause', refreshMedia, true);
+    document.addEventListener('ended', refreshMedia, true);
+    return () => { window.clearInterval(timer); document.removeEventListener('play', refreshMedia, true); document.removeEventListener('pause', refreshMedia, true); document.removeEventListener('ended', refreshMedia, true); };
+  }, []);
   useEffect(() => {
     setStartOpen(false);
     setSearchOpen(false);
@@ -158,6 +177,14 @@ export default function Taskbar() {
 
   return (
     <>
+      <div className="pointer-events-none fixed left-1/2 top-3 z-[11002] -translate-x-1/2">
+        <div className="pointer-events-auto flex max-w-[min(94vw,440px)] items-center gap-2 rounded-full border border-white/10 bg-black/90 px-3 py-2 text-white shadow-lg shadow-black/30 backdrop-blur-xl">
+          <span className={'flex h-7 w-7 shrink-0 items-center justify-center rounded-full ' + (mediaInfo.playing ? 'bg-emerald-400/20 text-emerald-300' : 'bg-white/10 text-white/75')}>{mediaInfo.playing ? <Music2 size={15}/> : <span className="text-[10px] font-bold">D</span>}</span>
+          <div className="min-w-0 flex-1"><div className="max-w-[190px] truncate text-[11px] font-semibold sm:max-w-[250px]">{mediaInfo.title}</div><div className="max-w-[190px] truncate text-[9px] text-white/50 sm:max-w-[250px]">{mediaInfo.artist || (mediaInfo.playing ? 'Now playing' : mediaInfo.hasMedia ? 'Media paused' : 'DogeUB status')}</div></div>
+          <span className="flex shrink-0 items-center gap-1 border-l border-white/10 pl-2" title={network.online ? 'Connected' : 'Offline'}>{network.online ? <Wifi size={14} className="text-emerald-300"/> : <WifiOff size={14} className="text-rose-300"/>}<span className="hidden text-[9px] text-white/60 sm:inline">{network.online ? (network.type !== 'Unavailable' ? network.type.toUpperCase() : 'ONLINE') : 'OFFLINE'}</span></span>
+          <span className="flex shrink-0 items-center gap-1 border-l border-white/10 pl-2" title={battery ? String(battery.level) + '%' + (battery.charging ? ', charging' : '') : 'Battery status unavailable'}>{battery ? (battery.charging ? <BatteryCharging size={15} className="text-emerald-300"/> : <BatteryFull size={15}/>) : <BatteryFull size={15} className="text-white/40"/>}<span className="text-[9px] tabular-nums">{battery ? battery.level + '%' : '—'}</span></span>
+        </div>
+      </div>
       {(startOpen || searchOpen || trayOpen || specsOpen || powerConfirm) && (
         <button
           aria-label="Close taskbar panels"
