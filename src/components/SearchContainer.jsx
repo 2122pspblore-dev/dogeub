@@ -120,7 +120,7 @@ const SearchContainer = memo(function SearchContainer({ logo = true, cls, nav = 
       {logo && (
         <div className="flex flex-col items-center">
           <Logo options="w-[15.8rem] h-30" />
-          <div className="mt-2 text-sm tracking-wide opacity-80 select-none">Advik Kumar</div>
+          <div className="mt-2 select-none text-sm font-extrabold tracking-[0.22em] opacity-90" style={{ fontFamily: "'Space Grotesk', Inter, sans-serif" }}>DOGEUB OS</div>
         </div>
       )}
       <GlowWrapper
