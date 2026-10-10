@@ -60,9 +60,9 @@ function Windows10Startup() {
     <div
       role="status"
       aria-label="Starting DOGEUB"
-      className="flex flex-col items-center justify-center text-white" style={{ position: "fixed", inset: 0, zIndex: 2147483647, backgroundColor: "#0078d7" }}
+      className="flex flex-col items-center justify-center text-white" style={{ position: "fixed", inset: 0, zIndex: 2147483647, backgroundColor: "#000000" }}
     >
-      <div className="mb-12 flex h-16 w-16 flex-col gap-[3px]">
+      <div className="mb-16 flex h-24 w-24 -skew-y-2 flex-col gap-[4px]">
         <div className="flex flex-1 gap-[3px]">
           <span className="flex-1 bg-white" />
           <span className="flex-1 bg-white" />
