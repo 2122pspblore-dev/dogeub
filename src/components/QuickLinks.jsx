@@ -44,6 +44,7 @@ const QuickLinks = ({ cls, nav = true, navigating }) => {
   });
 
   const go = (url) => {
+    try { window.dispatchEvent(new CustomEvent('dogeub-site-visited', { detail: { url } })); } catch {}
     if (nav) {
       navigate("/search", {
         state: {
