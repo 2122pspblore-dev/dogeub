@@ -40,6 +40,35 @@ export default function Taskbar() {
   const [specsOpen, setSpecsOpen] = useState(false);
   const [specs, setSpecs] = useState(getCachedSpecs);
   const [specsCopied, setSpecsCopied] = useState(false);
+  const [gamingMode, setGamingMode] = useState(() => {
+    try { return window.localStorage.getItem('dogeub-gaming-mode') === 'true'; } catch { return false; }
+  });
+  const [fps, setFps] = useState(0);
+
+  useEffect(() => {
+    let frameId;
+    let frames = 0;
+    let lastSample = performance.now();
+    const measure = (timestamp) => {
+      frames += 1;
+      const elapsed = timestamp - lastSample;
+      if (elapsed >= 500) {
+        setFps(Math.round((frames * 1000) / elapsed));
+        frames = 0;
+        lastSample = timestamp;
+      }
+      frameId = window.requestAnimationFrame(measure);
+    };
+    frameId = window.requestAnimationFrame(measure);
+    return () => window.cancelAnimationFrame(frameId);
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dogeub-gaming-mode', gamingMode);
+    try { window.localStorage.setItem('dogeub-gaming-mode', String(gamingMode)); } catch {}
+    window.dispatchEvent(new CustomEvent('dogeub-gaming-mode-change', { detail: { enabled: gamingMode } }));
+    return () => document.documentElement.classList.remove('dogeub-gaming-mode');
+  }, [gamingMode]);
 
   useEffect(() => {
     if (!specsOpen) return undefined;
@@ -222,12 +251,16 @@ export default function Taskbar() {
 
   return (
     <>
-      <div className="pointer-events-none fixed left-1/2 top-3 z-[11002] -translate-x-1/2">
-        <div className="pointer-events-auto flex max-w-[min(94vw,440px)] items-center gap-2 rounded-full border border-white/10 bg-black/90 px-3 py-2 text-white shadow-lg shadow-black/30 backdrop-blur-xl">
+      <div className="pointer-events-none fixed left-1/2 top-3 z-[11002] flex w-max max-w-[calc(100vw-12px)] -translate-x-1/2 items-center gap-2">
+        <div className="pointer-events-auto flex min-w-0 max-w-[min(76vw,440px)] items-center gap-2 rounded-full border border-white/10 bg-black/95 px-3 py-2 text-white shadow-lg shadow-black/30 backdrop-blur-xl">
           <span className={'flex h-7 w-7 shrink-0 items-center justify-center rounded-full ' + (mediaInfo.playing ? 'bg-emerald-400/20 text-emerald-300' : 'bg-white/10 text-white/75')}>{mediaInfo.playing ? <Music2 size={15}/> : <span className="text-[10px] font-bold">D</span>}</span>
-          <div className="min-w-0 flex-1"><div className="max-w-[190px] truncate text-[11px] font-semibold sm:max-w-[250px]">{mediaInfo.title}</div><div className="max-w-[190px] truncate text-[9px] text-white/50 sm:max-w-[250px]">{mediaInfo.artist || (mediaInfo.playing ? 'Now playing' : mediaInfo.hasMedia ? 'Media paused' : 'DogeUB status')}</div></div>
+          <div className="min-w-0 flex-1"><div className="max-w-[120px] truncate text-[11px] font-semibold sm:max-w-[250px]">{mediaInfo.title}</div><div className="max-w-[120px] truncate text-[9px] text-white/50 sm:max-w-[250px]">{mediaInfo.artist || (mediaInfo.playing ? 'Now playing' : mediaInfo.hasMedia ? 'Media paused' : 'DogeUB status')}</div></div>
           <span className="flex shrink-0 items-center gap-1 border-l border-white/10 pl-2" title={network.online ? 'Connected' : 'Offline'}>{network.online ? <Wifi size={14} className="text-emerald-300"/> : <WifiOff size={14} className="text-rose-300"/>}<span className="hidden text-[9px] text-white/60 sm:inline">{network.online ? (network.type !== 'Unavailable' ? network.type.toUpperCase() : 'ONLINE') : 'OFFLINE'}</span></span>
           <span className="flex shrink-0 items-center gap-1 border-l border-white/10 pl-2" title={battery ? String(battery.level) + '%' + (battery.charging ? ', charging' : '') : 'Battery status unavailable'}>{battery ? (battery.charging ? <BatteryCharging size={15} className="text-emerald-300"/> : <BatteryFull size={15}/>) : <BatteryFull size={15} className="text-white/40"/>}<span className="text-[9px] tabular-nums">{battery ? battery.level + '%' : '—'}</span></span>
+        </div>
+        <div className="pointer-events-auto flex shrink-0 items-center gap-1 rounded-full border border-white/10 bg-black/95 p-1 text-white shadow-lg shadow-black/30 backdrop-blur-xl">
+          <span title="Approximate browser animation frame rate" className="rounded-full px-2 py-1 text-[10px] font-bold tabular-nums text-emerald-300">{fps} FPS</span>
+          <button type="button" aria-pressed={gamingMode} title={gamingMode ? 'Turn Gaming Mode off' : 'Turn Gaming Mode on'} onClick={() => setGamingMode((enabled) => !enabled)} className={'rounded-full px-2.5 py-1.5 text-[10px] font-bold transition ' + (gamingMode ? 'bg-emerald-400 text-black' : 'bg-white/10 text-white/80 hover:bg-white/20')}><span className="inline-flex items-center gap-1"><Zap size={12}/><span className="hidden sm:inline">Game</span>{gamingMode ? ' ON' : ''}</span></button>
         </div>
       </div>
       {(startOpen || searchOpen || trayOpen || specsOpen || powerConfirm) && (
