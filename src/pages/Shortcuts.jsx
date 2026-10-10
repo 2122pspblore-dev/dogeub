@@ -24,7 +24,7 @@ export default function Shortcuts() {
         <button onClick={() => navigate(-1)} className="mb-5 inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10"><ArrowLeft size={16} /> Back</button>
         <header className="mb-7 flex flex-wrap items-center gap-4">
           <div className="rounded-2xl bg-violet-400/15 p-3 text-violet-300"><Keyboard size={30} /></div>
-          <div><h1 className="text-3xl font-bold tracking-tight">Doge Shortcuts</h1><p className="mt-1 text-sm text-white/60">Every DogeUB keyboard shortcut, in one place.</p></div>
+          <div><h1 className="text-3xl font-bold tracking-tight">Doge Shortcuts</h1><p className="mt-1 text-sm text-white/60">Global, app-specific, and contextual controls. Check notes for shared shortcuts and focus requirements.</p></div>
         </header>
         <div className="mb-5 flex flex-col gap-3 sm:flex-row">
           <label className="flex flex-1 items-center gap-2 rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2.5"><Search size={17} className="text-white/40" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search shortcuts or apps…" className="w-full bg-transparent text-sm outline-none placeholder:text-white/35" /></label>
