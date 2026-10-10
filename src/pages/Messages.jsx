@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   AlertTriangle, ArrowLeft, Check, FileText, Image, LogOut, MessageCircle,
@@ -126,7 +126,6 @@ export default function Messages() {
       const next = data.messages || [];
       setMessages((previous) => {
         if (previous.length === next.length && previous.at(-1)?.id === next.at(-1)?.id) return previous;
-        if (next.length > previous.length) shouldAutoScroll.current = true;
         return next;
       });
       setAppError("");
@@ -352,11 +351,6 @@ export default function Messages() {
     ? "Everyone signed in can see messages here."
     : "Private between you and " + (selectedPeer?.username || "this user") + ".";
   const previewAvatar = avatarDraft ? avatarDraft : clearAvatar ? null : session?.avatarUrl;
-  const selectedConversation = useMemo(
-    () => conversations.find((conversation) => conversation.user?.id === selectedPeer?.id),
-    [conversations, selectedPeer]
-  );
-
   if (sessionLoading) {
     return <main className="min-h-screen px-4 pb-28 pt-16 text-white"><div className="mx-auto flex max-w-md items-center justify-center gap-3 rounded-3xl border border-white/10 bg-slate-950/70 p-10"><Spinner /><span className="text-sm text-white/60">Connecting to DOGEUB Messages…</span></div></main>;
   }
