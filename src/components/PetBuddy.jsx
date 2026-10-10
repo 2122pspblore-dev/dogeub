@@ -21,7 +21,33 @@ export default function PetBuddy() {
   const { options } = useOptions();
   const [message, setMessage] = useState('');
   const [bubbleOpen, setBubbleOpen] = useState(true);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
   const animal = ANIMALS[options.petBuddyAnimal] || ANIMALS.cat;
+
+  useEffect(() => {
+    if (!options.petBuddyEnabled) return undefined;
+    const margin = 12;
+    const widgetWidth = Math.min(window.innerWidth * 0.88, 270);
+    const widgetHeight = 150;
+    const moveToRandomSpot = () => {
+      const maxX = Math.max(margin, window.innerWidth - widgetWidth - margin);
+      const maxY = Math.max(margin, window.innerHeight - widgetHeight - margin);
+      setPosition({
+        x: margin + Math.random() * Math.max(0, maxX - margin),
+        y: margin + Math.random() * Math.max(0, maxY - margin),
+      });
+    };
+    setPosition({
+      x: Math.max(margin, window.innerWidth - widgetWidth - margin),
+      y: Math.max(margin, window.innerHeight - widgetHeight - 90),
+    });
+    const timer = window.setInterval(moveToRandomSpot, 4200);
+    window.addEventListener('resize', moveToRandomSpot);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('resize', moveToRandomSpot);
+    };
+  }, [options.petBuddyEnabled]);
 
   useEffect(() => {
     if (!options.petBuddyEnabled) return undefined;
@@ -47,7 +73,11 @@ export default function PetBuddy() {
   };
 
   return (
-    <div className="fixed bottom-[5.4rem] right-4 z-[10990] flex max-w-[min(88vw,270px)] flex-col items-end gap-2" aria-label="DogeUB Pet Buddy">
+    <div
+      className="fixed z-[10990] flex max-w-[min(88vw,270px)] flex-col items-end gap-2"
+      style={{ left: `${position.x}px`, top: `${position.y}px`, transition: 'left 1.8s ease-in-out, top 1.8s ease-in-out' }}
+      aria-label="DogeUB Pet Buddy"
+    >
       {bubbleOpen && message && (
         <div className="relative rounded-2xl border border-pink-200/70 bg-white px-4 py-3 text-sm text-slate-700 shadow-xl shadow-pink-950/10">
           <div className="mb-1 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-pink-500"><Heart size={11} fill="currentColor" /> {animal.name}</div>
