@@ -26,7 +26,7 @@ export default function TaskManager() {
   return <main className="min-h-screen px-4 pb-24 pt-20 text-white">
     <Nav />
     <div className="mx-auto max-w-5xl">
-      <div className="mb-6 flex flex-wrap items-center gap-3"><span className="rounded-2xl bg-cyan-400/15 p-3 text-cyan-200"><Activity size={25}/></span><div><h1 className="text-3xl font-bold">Task Manager</h1><p className="text-sm text-white/55">DOGEUB browser activity · not Windows Task Manager</p></div><button onClick={() => { setRows([{ id: 'page', name: 'DOGEUB current tab', type: 'Browser tab', status: 'Running' }]); setQuery(''); }} className="ml-auto inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10"><RefreshCw size={15}/> Refresh</button></div>
+      <div className="mb-6 flex flex-wrap items-center gap-3"><span className="rounded-2xl bg-cyan-400/15 p-3 text-cyan-200"><Activity size={25}/></span><div><h1 className="text-3xl font-bold">Task Manager</h1><p className="text-sm text-white/55">DOGEUB-only browser activity · Windows processes are not exposed to websites</p></div><button onClick={() => { setRows([{ id: 'page', name: 'DOGEUB current tab', type: 'Browser tab', status: 'Running' }]); setQuery(''); }} className="ml-auto inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10"><RefreshCw size={15}/> Refresh</button></div>
       <div className="mb-5 grid gap-3 sm:grid-cols-3">
         {[{label:'Page frame rate',value:fps+' FPS',icon:Gauge},{label:'JavaScript heap',value:memory === null ? 'Unavailable' : memory+' MB',icon:MemoryStick},{label:'Visible entries',value:String(rows.length),icon:AppWindow}].map(({label,value,icon:Icon})=><div key={label} className="rounded-2xl border border-white/10 bg-slate-950/65 p-4"><Icon className="mb-3 text-cyan-300" size={19}/><div className="text-2xl font-bold">{value}</div><div className="mt-1 text-xs text-white/50">{label}</div></div>)}
       </div>
@@ -36,7 +36,7 @@ export default function TaskManager() {
         {filtered.map((row)=><div key={row.id} className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 border-b border-white/5 px-4 py-4 last:border-0"><div className="min-w-0"><div className="truncate text-sm font-medium">{row.name}</div><div className="mt-1 text-xs text-white/45">{row.type}</div></div><span className={'text-xs '+(row.status==='Running'?'text-emerald-300':'text-white/35')}>{row.status}</span><button disabled={row.status!=='Running'} onClick={()=>endTask(row.id)} title="Mark this DOGEUB entry ended" className="rounded-lg border border-white/10 p-2 text-white/70 hover:bg-rose-400/15 hover:text-rose-200 disabled:opacity-30"><X size={15}/></button></div>)}
         {filtered.length===0&&<p className="p-6 text-center text-sm text-white/45">No matching entries.</p>}
       </div>
-      <p className="mt-4 text-xs leading-5 text-white/45">Browsers do not expose system-wide processes or allow websites to terminate other apps. The End action only marks this local DOGEUB entry as ended; it does not close Windows apps or browser tabs.</p>
+      <p className="mt-4 text-xs leading-5 text-white/45">Browsers do not expose system-wide processes or allow websites to terminate other apps. The End action only marks this local DOGEUB entry as ended. Browsers do not let websites inspect or terminate Windows apps or other tabs.</p>
     </div>
   </main>;
 }
