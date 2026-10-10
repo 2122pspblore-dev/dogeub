@@ -81,7 +81,12 @@ export default function Taskbar() {
   }, []);
 
   useEffect(() => {
+    let browserMedia = null;
     const refreshMedia = () => {
+      if (browserMedia) {
+        setMediaInfo({ title: browserMedia.title || 'YouTube video', artist: browserMedia.artist || 'Browser media', playing: Boolean(browserMedia.playing), hasMedia: true });
+        return;
+      }
       const session = navigator.mediaSession;
       const metadata = session?.metadata;
       const media = Array.from(document.querySelectorAll('audio, video')).find((element) => !element.paused && !element.ended) || Array.from(document.querySelectorAll('audio, video')).find((element) => element.currentSrc || element.src);
@@ -94,6 +99,7 @@ export default function Taskbar() {
     const handleBrowserMedia = (event) => {
       const detail = event.detail;
       if (!detail) return;
+      browserMedia = detail.hasMedia ? detail : null;
       if (detail.hasMedia) {
         setMediaInfo({ title: detail.title || 'YouTube video', artist: detail.artist || 'Browser media', playing: Boolean(detail.playing), hasMedia: true });
       } else {
