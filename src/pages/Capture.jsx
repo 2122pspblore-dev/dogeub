@@ -122,6 +122,24 @@ export default function Capture() {
     if (recorderRef.current?.state === 'recording') recorderRef.current.stop();
   };
 
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      if (!event.altKey || !event.shiftKey || event.ctrlKey || event.metaKey) return;
+      if (event.target instanceof HTMLElement && /INPUT|TEXTAREA|SELECT/.test(event.target.tagName)) return;
+      const key = event.key.toLowerCase();
+      if (key === 's') {
+        event.preventDefault();
+        screenshot();
+      } else if (key === 'r') {
+        event.preventDefault();
+        if (recording) stopRecording();
+        else startRecording();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [recording, stream]);
+
   const stopCapture = () => {
     if (recorderRef.current?.state === 'recording') recorderRef.current.stop();
     streamRef.current?.getTracks().forEach((track) => track.stop());
@@ -136,8 +154,9 @@ export default function Capture() {
         <button onClick={() => navigate(-1)} className="mb-5 inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10"><ArrowLeft size={16} /> Back</button>
         <div className="mb-6 flex flex-wrap items-center gap-3">
           <div className="rounded-2xl bg-sky-400/15 p-3 text-sky-300"><Camera size={28} /></div>
-          <div><h1 className="text-3xl font-bold tracking-tight">Doge Capture</h1><p className="mt-1 text-sm text-white/60">Screenshots and screen recording, built into DogeUB</p></div>
+          <div><h1 className="text-3xl font-bold tracking-tight">Doge Capture</h1><p className="mt-1 text-sm text-white/60">Screenshots and screen recording, built into DogeUB · keyboard shortcuts</p></div>
         </div>
+        <div className="mb-4 flex flex-wrap gap-2 text-xs text-white/70"><span className="rounded-lg border border-white/10 bg-white/5 px-3 py-2"><kbd className="font-semibold text-white">Alt + Shift + S</kbd> Screenshot</span><span className="rounded-lg border border-white/10 bg-white/5 px-3 py-2"><kbd className="font-semibold text-white">Alt + Shift + R</kbd> Start/stop recording</span></div>
         <section className="overflow-hidden rounded-3xl border border-white/10 bg-slate-950/60 shadow-2xl">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
             <div className="flex items-center gap-2 text-sm text-white/70"><Monitor size={17} /> {status}</div>
