@@ -46,6 +46,41 @@ initPreload('/docs', importGms);
 initPreload('/settings', importSettings);
 initPreload('/', importHome);
 
+function Windows10Startup() {
+  const [visible, setVisible] = useState(true);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setVisible(false), 5000);
+    return () => window.clearTimeout(timeout);
+  }, []);
+
+  if (!visible) return null;
+
+  return (
+    <div
+      role="status"
+      aria-label="Starting DOGEUB"
+      className="fixed inset-0 z-[99999] flex flex-col items-center justify-center bg-[#0078d7] text-white"
+    >
+      <div className="mb-12 flex h-16 w-16 flex-col gap-[3px]">
+        <div className="flex flex-1 gap-[3px]">
+          <span className="flex-1 bg-white" />
+          <span className="flex-1 bg-white" />
+        </div>
+        <div className="flex flex-1 gap-[3px]">
+          <span className="flex-1 bg-white" />
+          <span className="flex-1 bg-white" />
+        </div>
+      </div>
+      <div className="mb-3 text-sm font-normal tracking-wide">DOGEUB</div>
+      <div className="mb-3 text-xs text-white/90">Starting Windows</div>
+      <div className="flex h-8 items-center justify-center" aria-hidden="true">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-white/35 border-t-white" />
+      </div>
+    </div>
+  );
+}
+
 function useTracking() {
   const location = useLocation();
 
