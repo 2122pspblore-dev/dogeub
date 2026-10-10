@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Search, Keyboard, Camera, ExternalLink, Info } from 'lucide-react';
+import { ArrowLeft, Search, Keyboard, ExternalLink, Info } from 'lucide-react';
 import shortcutRegistry from '../utils/shortcutRegistry';
 
 const categories = ['All shortcuts', ...new Set(shortcutRegistry.map((item) => item.category))];
@@ -42,7 +42,6 @@ export default function Shortcuts() {
           ))}
         </div>
         {shortcuts.length === 0 && <div className="rounded-2xl border border-dashed border-white/15 px-5 py-12 text-center text-sm text-white/50">No shortcuts match that search.</div>}
-        <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-white/55"><Camera size={16} className="mr-2 inline text-violet-300" /> Browser-based shortcuts only work while the relevant DogeUB app is open. The browser may reserve some key combinations.</div>
       </div>
     </main>
   );
