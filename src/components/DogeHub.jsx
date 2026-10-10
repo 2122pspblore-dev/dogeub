@@ -71,6 +71,7 @@ export default function DogeHub() {
   const [snap, setSnap] = useState('side-by-side');
   const [panels, setPanels] = useState(['Notes', 'Browser']);
   const [toast, setToast] = useState('');
+  const [draggingDesktop, setDraggingDesktop] = useState(null);
 
   useEffect(() => {
     const onOpen = (event) => {
@@ -180,11 +181,54 @@ export default function DogeHub() {
   };
   const openNote = (note) => { setSelectedNote(note.id); setNoteTitle(note.title); setNoteBody(note.body); setActive('notes'); };
   const createFile = () => {
-    const item = { id: makeId(), name: 'New note.txt', folder: folder === 'All files' || folder === 'Recycle Bin' ? 'Documents' : folder, type: 'Text file', content: '', deleted: false };
+    const item = { id: makeId(), name: 'New note.txt', folder: folder === 'All files' || folder === 'Recycle Bin' ? 'Documents' : folder, type: 'Text file', content: '', deleted: false, desktopPinned: true, desktopPosition: { x: 24 + (files.length % 5) * 92, y: 72 + (files.length % 4) * 100 } };
     setFiles((old) => [item, ...old]);
     setSelectedFile(item.id);
     setFileContent('');
     setFolder(item.folder);
+  };
+  const importFiles = async (event) => {
+    const chosen = Array.from(event.target.files || []);
+    if (!chosen.length) return;
+    const imported = [];
+    for (const file of chosen) {
+      try {
+        const isText = file.type.startsWith('text/') || /\\.(txt|md|json|csv|html|css|js|xml|log)$/i.test(file.name);
+        const content = isText ? await file.text() : await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+        imported.push({
+          id: makeId(), name: file.name, folder: 'Imported', type: file.type || 'File',
+          content, fileKind: isText ? 'text' : 'binary', size: file.size, deleted: false,
+          desktopPinned: true,
+          desktopPosition: { x: 24 + ((files.length + imported.length) % 5) * 92, y: 72 + ((files.length + imported.length) % 4) * 100 },
+        });
+      } catch {}
+    }
+    if (imported.length) {
+      setFiles((old) => [...imported, ...old]);
+      setFolder('Imported');
+      setSelectedFile(imported[0].id);
+      setFileContent(typeof imported[0].content === 'string' && imported[0].fileKind === 'text' ? imported[0].content : '');
+      setToast('Imported ' + imported.length + ' file' + (imported.length === 1 ? '' : 's') + ' and pinned to desktop');
+    } else setToast('Could not import those files');
+    event.target.value = '';
+  };
+  const exportFile = (item) => {
+    try {
+      const blob = item.fileKind === 'binary'
+        ? fetch(item.content).then((response) => response.blob())
+        : Promise.resolve(new Blob([item.content || ''], { type: item.type || 'text/plain;charset=utf-8' }));
+      Promise.resolve(blob).then((value) => {
+        const url = URL.createObjectURL(value);
+        const link = document.createElement('a');
+        link.href = url; link.download = item.name || 'download'; link.click();
+        URL.revokeObjectURL(url);
+      });
+    } catch { setToast('Could not export this file'); }
   };
   const saveFile = () => {
     if (!selectedFile) return;
@@ -207,7 +251,29 @@ export default function DogeHub() {
     setTaskInput('');
   };
 
-  if (!open) return null;
+  const desktopFiles = files.filter((item) => item.desktopPinned && !item.deleted);
+  if (!open) return (
+    <div className="fixed inset-0 z-[1] pointer-events-none" aria-label="DogeUB desktop files">
+      <div className="pointer-events-auto absolute inset-0" onDragOver={(event) => event.preventDefault()} onDrop={(event) => {
+        event.preventDefault();
+        const id = event.dataTransfer.getData('text/dogeub-file');
+        if (id) setFiles((old) => old.map((item) => item.id === id ? { ...item, desktopPinned: true, desktopPosition: { x: Math.max(8, event.clientX - 35), y: Math.max(48, event.clientY - 35) } } : item));
+      }}>
+        {desktopFiles.map((item) => {
+          const position = item.desktopPosition || { x: 24, y: 72 };
+          return <div key={item.id} draggable onDragStart={(event) => { event.dataTransfer.setData('text/dogeub-file', item.id); event.dataTransfer.effectAllowed = 'move'; setDraggingDesktop(item.id); }}
+            onDragEnd={(event) => { const x = Math.max(8, event.clientX - 35); const y = Math.max(48, event.clientY - 35); setFiles((old) => old.map((file) => file.id === item.id ? { ...file, desktopPosition: { x, y } } : file)); setDraggingDesktop(null); }}
+            onDoubleClick={() => { setSelectedFile(item.id); setFileContent(item.fileKind === 'text' || !item.fileKind ? item.content : ''); setActive('files'); setOpen(true); }}
+            className={'absolute flex w-[76px] cursor-grab flex-col items-center gap-1 rounded-lg p-2 text-center text-white drop-shadow-lg hover:bg-white/15 active:cursor-grabbing ' + (draggingDesktop === item.id ? 'opacity-50' : '')}
+            style={{ left: position.x, top: position.y, touchAction: 'none' }} title={item.name}>
+            {item.fileKind === 'binary' && item.type?.startsWith('image/') ? <img src={item.content} alt="" className="h-9 w-9 rounded object-cover" /> : <FileText size={32} />}
+            <span className="w-full break-words text-[11px] leading-tight">{item.name}</span>
+            <button title="Remove from desktop" onClick={(event) => { event.stopPropagation(); setFiles((old) => old.map((file) => file.id === item.id ? { ...file, desktopPinned: false } : file)); }} className="pointer-events-auto rounded bg-black/60 px-1.5 py-0.5 text-[9px] hover:bg-red-600">Remove</button>
+          </div>;
+        })}
+      </div>
+    </div>
+  );
   const dark = theme.mode === 'dark';
   const shell = dark ? 'bg-[#101827]/95 text-white' : 'bg-slate-100/95 text-slate-900';
   const surface = dark ? 'border-white/10 bg-white/[.045]' : 'border-slate-300 bg-white/80';
@@ -266,11 +332,11 @@ export default function DogeHub() {
             </div>}
 
             {active === 'files' && <div className="flex h-full min-h-[380px] flex-col gap-3">
-              <div className="flex flex-wrap items-center justify-between gap-2"><div><h2 className="text-lg font-bold">Doge Files</h2><p className={'text-xs ' + muted}>Text files stored in this browser, not your Windows drive.</p></div><button className={buttonBase + ' border-transparent text-white'} style={accentStyle} onClick={createFile}><Plus size={14} className="mr-1 inline" />New file</button></div>
+              <div className="flex flex-wrap items-center justify-between gap-2"><div><h2 className="text-lg font-bold">Doge Files</h2><p className={'text-xs ' + muted}>Import files from your PC; new/imported files are pinned to the DogeUB desktop.</p></div><div className="flex flex-wrap gap-2"><label className={buttonBase + ' cursor-pointer border-transparent text-white'} style={accentStyle}><Plus size={14} className="mr-1 inline" />Import from PC<input type="file" multiple className="hidden" onChange={importFiles} /></label><button className={softButton} onClick={createFile}><Plus size={14} className="mr-1 inline" />New file</button></div></div>
               <div className="flex flex-wrap gap-2">{folders.map((name) => <button key={name} onClick={() => { setFolder(name); setSelectedFile(null); }} className={'rounded-lg border px-3 py-2 text-xs ' + (folder === name ? 'border-transparent text-white' : surface)} style={folder === name ? accentStyle : undefined}>{name}</button>)}</div>
               <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[minmax(190px,.8fr)_minmax(0,1.4fr)]">
                 <div className={'flex min-h-[190px] flex-col overflow-hidden rounded-xl border ' + surface}><div className="border-b border-inherit p-2"><div className="flex items-center gap-2 rounded-lg bg-black/10 px-2"><Search size={14} /><input value={fileQuery} onChange={(event) => setFileQuery(event.target.value)} placeholder="Find files…" className="min-w-0 flex-1 bg-transparent py-2 text-xs outline-none" /></div></div><div className="flex-1 overflow-y-auto p-2">{visibleFiles.map((item) => <button key={item.id} onClick={() => { setSelectedFile(item.id); setFileContent(item.content); }} className={'mb-1 flex w-full items-center gap-2 rounded-lg p-2 text-left text-xs ' + (selectedFile === item.id ? 'bg-sky-500/20' : 'hover:bg-white/5')}><FileText size={16} className="shrink-0" /><span className="min-w-0 flex-1 truncate">{item.name}</span></button>)}{visibleFiles.length === 0 && <p className={'p-3 text-xs ' + muted}>No files here yet.</p>}</div></div>
-                <div className={'flex min-h-[260px] flex-col rounded-xl border p-3 ' + surface}>{selectedFile && files.some((item) => item.id === selectedFile) ? <><div className="mb-2 flex flex-wrap items-center justify-between gap-2"><input aria-label="Selected file name" value={files.find((item) => item.id === selectedFile)?.name || ''} onChange={(event) => setFiles((old) => old.map((item) => item.id === selectedFile ? { ...item, name: event.target.value } : item))} className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none" /><div className="flex gap-1">{files.find((item) => item.id === selectedFile)?.deleted ? <button title="Restore" className={softButton} onClick={() => restoreFile(files.find((item) => item.id === selectedFile))}><RotateCcw size={14} /></button> : <button title="Move to recycle bin" className={softButton} onClick={() => trashFile(files.find((item) => item.id === selectedFile))}><Trash2 size={14} /></button>}<button title="Permanently delete" className={softButton} onClick={() => permanentlyDelete(files.find((item) => item.id === selectedFile))}><X size={14} /></button><button className={buttonBase + ' border-transparent text-white'} style={accentStyle} onClick={saveFile}>Save</button></div></div><textarea aria-label="File contents" value={fileContent} onChange={(event) => setFileContent(event.target.value)} className={'min-h-0 flex-1 resize-none rounded-lg border p-3 text-xs leading-5 outline-none ' + (dark ? 'border-white/10 bg-black/15' : 'border-slate-200 bg-white')} placeholder="Write something…" />{!files.find((item) => item.id === selectedFile)?.deleted && <button className={'mt-2 self-start ' + softButton} onClick={() => renameFile(files.find((item) => item.id === selectedFile))}>Rename file</button>}</> : <div className={'flex flex-1 flex-col items-center justify-center text-center ' + muted}><Folder size={32} /><p className="mt-2 text-sm">Select a file to edit</p><p className="mt-1 text-xs">Or create a new text file.</p></div>}</div>
+                <div className={'flex min-h-[260px] flex-col rounded-xl border p-3 ' + surface}>{selectedFile && files.some((item) => item.id === selectedFile) ? <><div className="mb-2 flex flex-wrap items-center justify-between gap-2"><input aria-label="Selected file name" value={files.find((item) => item.id === selectedFile)?.name || ''} onChange={(event) => setFiles((old) => old.map((item) => item.id === selectedFile ? { ...item, name: event.target.value } : item))} className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none" /><div className="flex gap-1">{files.find((item) => item.id === selectedFile)?.deleted ? <button title="Restore" className={softButton} onClick={() => restoreFile(files.find((item) => item.id === selectedFile))}><RotateCcw size={14} /></button> : <button title="Move to recycle bin" className={softButton} onClick={() => trashFile(files.find((item) => item.id === selectedFile))}><Trash2 size={14} /></button>}<button title="Download file" className={softButton} onClick={() => exportFile(files.find((item) => item.id === selectedFile))}>Export</button><button title="Remove from desktop" className={softButton} onClick={() => setFiles((old) => old.map((item) => item.id === selectedFile ? { ...item, desktopPinned: false } : item))}>Unpin</button><button title="Permanently delete" className={softButton} onClick={() => permanentlyDelete(files.find((item) => item.id === selectedFile))}><X size={14} /></button><button className={buttonBase + ' border-transparent text-white'} style={accentStyle} onClick={saveFile}>Save</button></div></div><textarea aria-label="File contents" value={fileContent} onChange={(event) => setFileContent(event.target.value)} className={'min-h-0 flex-1 resize-none rounded-lg border p-3 text-xs leading-5 outline-none ' + (dark ? 'border-white/10 bg-black/15' : 'border-slate-200 bg-white')} placeholder="Write something…" />{!files.find((item) => item.id === selectedFile)?.deleted && <button className={'mt-2 self-start ' + softButton} onClick={() => renameFile(files.find((item) => item.id === selectedFile))}>Rename file</button>}</> : <div className={'flex flex-1 flex-col items-center justify-center text-center ' + muted}><Folder size={32} /><p className="mt-2 text-sm">Select a file to edit</p><p className="mt-1 text-xs">Or create a new text file.</p></div>}</div>
               </div>
             </div>}
 
