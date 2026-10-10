@@ -26,8 +26,13 @@ export default function DogeAssistant() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [messages, open]);
 
-  useEffect(() => () => {
-    recognitionRef.current?.stop?.();
+  useEffect(() => {
+    const openAssistant = () => setOpen(true);
+    window.addEventListener('dogeub-open-assistant', openAssistant);
+    return () => {
+      window.removeEventListener('dogeub-open-assistant', openAssistant);
+      recognitionRef.current?.stop?.();
+    };
   }, []);
 
   const say = (text) => {
