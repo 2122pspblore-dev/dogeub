@@ -45,7 +45,8 @@ const PATCH_LOGS = [
   'Added Doge Hub with a control center, local text-file manager and recycle bin, widgets board, multitasking workspace, sticky notes, and theme customization.',
   'Reduced Doge Hub background work while closed and lowered blur effects to improve performance on slower devices.',
   'Added PC file import/export and desktop-pinned icons that can be dragged around or unpinned.',
-  'Added a Windows-style image viewer for imported pictures and a top Dynamic Island showing media, battery, and connection status.'
+  'Added a Windows-style image viewer for imported pictures and a top Dynamic Island showing media, battery, and connection status.',
+  'Added a toggleable Pet Buddy with 10 animals, cute random messages, and an animal picker in Settings.'
 ];
 
 const PatchLogs = () => {
