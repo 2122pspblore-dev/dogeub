@@ -12,7 +12,7 @@ export const isPatchLogsEnabled = () => {
   }
 };
 
-const PATCH_DATE = '2026-10-11';
+const PATCH_DATE = '2026-10-10';
 
 const PATCH_LOGS = [
   'Added homescreen widgets: weather and clock (merged in PR #4).',
@@ -53,11 +53,10 @@ const PATCH_LOGS = [
   'Added a dedicated Startup / Shutdown shortcut to the Start menu so the cinematic previews open directly without hunting through OS Studio.',
   'Connected the Start menu power confirmation to the cinematic shutdown screen; exiting the preview locks DogeUB and requires sign-in.',
   'Added a Files app (nav bar, Start menu, and taskbar): import screenshots, videos, documents, and other files from your computer by button or drag-and-drop, preview them, organize them into folders, and export one file or a .zip of many. Files are saved in this browser only (PR #42).',
-  'Feature pack planned: configurable desktop workspace with draggable and resizable widgets.',
-  'Feature pack planned: Notification Center and Quick Settings for browser-supported status, alerts, and common DOGEUB controls.',
-  'Feature pack planned: clearer browser-only Task Manager readings, activity filtering, and DOGEUB-local controls.',
-  'Feature pack planned: Game Launcher favorites, recently played tracking, play counts, and categories.',
-  'Feature pack planned: polished desktop animations and responsive layout with clearer browser-metric labels.',
+  'Improved Quick Launcher access with Ctrl + K while keeping Alt + Space and Ctrl + Shift + P shortcuts.',
+  'Added recent-tool history to Quick Launcher, stored locally in the browser.',
+  'Connected game launches to the Most Played Games activity widget so game launches can be counted locally.',
+  'Clarified Task Manager limitations: its metrics describe the current DOGEUB page and cannot inspect or end Windows processes.',
   'Added a required five-second post-sign-in notice reminding users that DOGEUB is not responsible for off-task classroom use or cheating with its tools.',
 ];
 
