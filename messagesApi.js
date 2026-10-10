@@ -207,6 +207,8 @@ export default async function registerMessagesRoutes(app) {
     if (findUsername(username)) return sendError(reply, 409, "That username is already taken.");
     const salt = randomBytes(16).toString("base64url");
     const passwordHash = (await scrypt(password, salt, 64)).toString("base64url");
+    // Re-check after async password hashing so simultaneous registrations cannot claim the same username.
+    if (findUsername(username)) return sendError(reply, 409, "That username is already taken.");
     const user = {
       id: randomUUID(), username, normalizedUsername: normalizeUsername(username),
       passwordSalt: salt, passwordHash, avatarFile: null, avatarType: null,
@@ -409,6 +411,12 @@ export default async function registerMessagesRoutes(app) {
     const bytes = Buffer.from(body.base64, "base64");
     if (!bytes.length || bytes.length > MAX_ATTACHMENT_BYTES) return sendError(reply, 413, "Attachments must be between 1 byte and 4 MB.");
     if (Number(body.size) !== bytes.length) return sendError(reply, 400, "The attachment size did not match the uploaded data.");
+    const accountStorageBytes = database.attachments
+      .filter((item) => item.ownerId === user.id)
+      .reduce((total, item) => total + item.size, 0);
+    if (accountStorageBytes + bytes.length > 50 * 1024 * 1024) {
+      return sendError(reply, 413, "Your Messages attachment storage has reached its 50 MB limit. Old attachments still count toward this limit.");
+    }
     const id = randomUUID();
     const diskName = id + "." + MIME_EXTENSIONS[type];
     try {
