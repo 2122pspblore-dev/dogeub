@@ -9,6 +9,7 @@ import { createServer } from "node:http";
 import { logging, server as wisp } from "@mercuryworkshop/wisp-js/server";
 import { createBareServer } from "@tomphttp/bare-server-node";
 import { MasqrMiddleware } from "./masqr.js";
+import registerMessagesRoutes from "./messagesApi.js";
 
 dotenv.config();
 
@@ -116,6 +117,8 @@ app.get("/return", async (req, reply) =>
     : reply.code(401).send({ error: "query parameter?" })
 );
 
+
+await registerMessagesRoutes(app);
 
 const dogeAiRequests = new Map();
 app.post("/api/doge-ai", async (req, reply) => {
