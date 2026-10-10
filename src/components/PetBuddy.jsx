@@ -21,6 +21,15 @@ export default function PetBuddy() {
   const { options } = useOptions();
   const [message, setMessage] = useState('');
   const [bubbleOpen, setBubbleOpen] = useState(true);
+  const [gamingMode, setGamingMode] = useState(() => {
+    try { return window.localStorage.getItem('dogeub-gaming-mode') === 'true'; } catch { return false; }
+  });
+
+  useEffect(() => {
+    const handleModeChange = (event) => setGamingMode(Boolean(event.detail?.enabled));
+    window.addEventListener('dogeub-gaming-mode-change', handleModeChange);
+    return () => window.removeEventListener('dogeub-gaming-mode-change', handleModeChange);
+  }, []);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const animal = ANIMALS[options.petBuddyAnimal] || ANIMALS.cat;
 
@@ -64,7 +73,7 @@ export default function PetBuddy() {
     return () => window.clearInterval(timer);
   }, [options.petBuddyEnabled, options.petBuddyAnimal, animal]);
 
-  if (!options.petBuddyEnabled) return null;
+  if (!options.petBuddyEnabled || gamingMode) return null;
 
   const sayHi = () => {
     const lines = animal.lines || DEFAULT_LINES;

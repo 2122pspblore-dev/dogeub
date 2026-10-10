@@ -417,6 +417,10 @@ export default function Taskbar() {
           <button aria-label="Quick settings" title="Quick settings" onClick={() => { setTrayOpen((v) => !v); setSpecsOpen(false); setStartOpen(false); setSearchOpen(false); }} className="flex items-center gap-1 rounded-lg p-2 hover:bg-white/10">
             <Wifi size={15} className="hidden sm:block" /><ChevronUp size={13} className="hidden md:block" />
           </button>
+          <div className="hidden items-center rounded-lg border border-white/10 bg-black/20 p-0.5 sm:flex" role="group" aria-label="Performance mode">
+            <button type="button" aria-pressed={!gamingMode} onClick={() => setGamingMode(false)} title="Normal mode: standard visual effects" className={`rounded-md px-2 py-1.5 text-[10px] font-semibold transition ${!gamingMode ? 'bg-white/15 text-white' : 'text-white/55 hover:text-white'}`}>Normal</button>
+            <button type="button" aria-pressed={gamingMode} onClick={() => setGamingMode(true)} title="Gaming mode: reduce animations and transitions" className={`rounded-md px-2 py-1.5 text-[10px] font-semibold transition ${gamingMode ? 'bg-emerald-400 text-black' : 'text-white/55 hover:text-white'}`}>Gaming</button>
+          </div>
           <button title={`${clock.time}, ${clock.date}`} onClick={() => { setTrayOpen((v) => !v); setSpecsOpen(false); setStartOpen(false); setSearchOpen(false); }} className="hidden min-w-[76px] flex-col items-end leading-tight sm:flex">
             <span className="text-xs">{clock.time}</span><span className="mt-0.5 text-[10px] text-white/65">{clock.date}</span>
           </button>
