@@ -7,6 +7,7 @@ import {
   Files,
   Gamepad2,
   Globe,
+  MessagesSquare,
   Search,
   Settings,
   Sparkles,
@@ -21,6 +22,7 @@ const SECTIONS = [
   { id: 'recommended', name: 'Recommended', detail: 'Discover recommended sites and tools', icon: Compass, path: '/recommended' },
   { id: 'files', name: 'Files', detail: 'Open your DOGEUB file manager', icon: Files, path: '/files' },
   { id: 'settings', name: 'Settings', detail: 'Customize DOGEUB', icon: Settings, path: '/settings' },
+  { id: 'messages', name: 'Messages', detail: 'Global chat and private conversations', icon: MessagesSquare, path: '/messages' },
   { id: 'browser-tabs', name: 'Browser Tabs', detail: 'Open the built-in browser and keep your tabs', icon: Globe, path: '/search', preserveBrowserTabs: true },
 ];
 
