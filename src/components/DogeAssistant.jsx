@@ -47,12 +47,108 @@ export default function DogeAssistant() {
     setStatus('Done');
   };
 
-  const handleCommand = (raw) => {
+  const handleCommand = async (raw) => {
     const text = raw.trim();
     const lower = text.toLowerCase().replace(/[’']/g, '');
     if (!text) return;
     setMessages((old) => [...old, { role: 'user', text }]);
     setInput('');
+    setStatus('Thinking…');
+
+    // Prefer the real AI endpoint. If it is not configured or temporarily unavailable,
+    // retain the built-in local command parser below as a working fallback.
+    try {
+      const history = [...messages, { role: 'user', text }].slice(-12).map((item) => ({
+        role: item.role === 'assistant' ? 'assistant' : 'user',
+        content: String(item.text || '').slice(0, 2000),
+      }));
+      const response = await fetch('/api/doge-ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: history }),
+      });
+      if (response.ok) {
+        const result = await response.json();
+        const allowed = new Set(['set_theme', 'set_background', 'toggle_pet_buddy', 'toggle_tabs_bar', 'set_compact_header', 'set_apps_per_page', 'set_search_engine', 'navigate', 'open_website', 'search_web', 'show_settings', 'reset_appearance', 'go_back', 'reload_page']);
+        let executed = 0;
+        for (const action of (Array.isArray(result.actions) ? result.actions : []).slice(0, 8)) {
+          if (!allowed.has(action?.type)) continue;
+          switch (action.type) {
+            case 'set_theme': {
+              const wanted = themeAliases[String(action.value || '').toLowerCase()] || action.value;
+              const selected = themeConfig.find((item) => item.option.toLowerCase() === String(wanted || '').toLowerCase());
+              if (selected) { updateOption(selected.value); executed++; }
+              break;
+            }
+            case 'set_background': {
+              const colors = { 'midnight blue': '#111827', 'pure black': '#050505', navy: '#0b1730', purple: '#24123d', green: '#10251b', rose: '#301321' };
+              const color = colors[String(action.value || '').toLowerCase()];
+              if (color) { updateOption({ bgColor: color, bgDesign: 'None' }); executed++; }
+              break;
+            }
+            case 'toggle_pet_buddy': updateOption({ petBuddyEnabled: action.enabled === true }); executed++; break;
+            case 'toggle_tabs_bar': updateOption({ showTb: action.enabled === true }); executed++; break;
+            case 'set_compact_header': updateOption({ shrinkHeader: action.enabled === true }); executed++; break;
+            case 'set_apps_per_page': {
+              const n = Number(action.number);
+              if ([10, 20, 30, 40, 50, 999].includes(n)) { updateOption({ itemsPerPage: n }); executed++; }
+              break;
+            }
+            case 'set_search_engine': {
+              const selected = searchConfig.find((item) => item.option.toLowerCase() === String(action.value || '').toLowerCase());
+              if (selected) { updateOption(selected.value); executed++; }
+              break;
+            }
+            case 'navigate': {
+              const destinations = { home: '/', browser: '/search', settings: '/settings', apps: '/materials', docs: '/docs', recommended: '/recommended' };
+              const destination = String(action.value || '').toLowerCase();
+              if (destinations[destination]) { setOpen(false); navigate(destinations[destination]); executed++; }
+              else if (destination === 'doge hub' || destination === 'os studio') {
+                window.dispatchEvent(new CustomEvent(destination === 'doge hub' ? 'dogeub-open-hub' : 'dogeub-open-os-studio', { detail: { tab: destination === 'doge hub' ? 'control' : 'desktop' } }));
+                executed++;
+              }
+              break;
+            }
+            case 'open_website': {
+              let target = String(action.value || '').trim();
+              if (!/^https?:\/\//i.test(target)) target = 'https://' + target;
+              try {
+                const parsed = new URL(target);
+                if (['http:', 'https:'].includes(parsed.protocol) && parsed.hostname.includes('.')) {
+                  setOpen(false); navigate('/search', { state: { url: parsed.href } }); executed++;
+                }
+              } catch {}
+              break;
+            }
+            case 'search_web': {
+              const query = String(action.value || '').trim();
+              if (query) { setOpen(false); navigate('/search', { state: { url: query } }); executed++; }
+              break;
+            }
+            case 'show_settings': {
+              const currentTheme = themeConfig.find((item) => item.value.theme === options.theme)?.option || options.theme || 'Midnight';
+              const engine = searchConfig.find((item) => item.value.engine === options.engine)?.option || options.engineName || 'Default';
+              const detail = 'Current settings — Theme: ' + currentTheme + '; Search engine: ' + engine + '; Pet Buddy: ' + (options.petBuddyEnabled === false ? 'Off' : 'On') + '; Tabs bar: ' + (options.showTb === false ? 'Hidden' : 'Visible') + '; Compact header: ' + (options.shrinkHeader ? 'On' : 'Off') + '; Apps per page: ' + (options.itemsPerPage === 999 ? 'All' : options.itemsPerPage || 'Default') + '.';
+              setMessages((old) => [...old, { role: 'assistant', text: detail }]); executed++;
+              break;
+            }
+            case 'reset_appearance': {
+              if (window.confirm('Reset DogeUB appearance and layout preferences to defaults? This will not delete notes or files.')) {
+                updateOption({ theme: 'default', type: 'dark', bgColor: '#111827', siteTextColor: '#a0b0c8', bgDesign: 'None', petBuddyEnabled: true, showTb: true, shrinkHeader: false, itemsPerPage: 20 }); executed++;
+              }
+              break;
+            }
+            case 'go_back': window.history.back(); executed++; break;
+            case 'reload_page': window.location.reload(); executed++; break;
+          }
+        }
+        if (result.reply) setMessages((old) => [...old, { role: 'assistant', text: String(result.reply).slice(0, 1500) }]);
+        setStatus(executed ? 'Done · ' + executed + ' action' + (executed === 1 ? '' : 's') : 'Ready');
+        return;
+      }
+    } catch {
+      // Offline, not configured, or AI provider unavailable: use local commands below.
+    }
     setStatus('Working…');
 
     if (/^(help|commands|what can you do|show commands|capabilities)$/.test(lower)) {
