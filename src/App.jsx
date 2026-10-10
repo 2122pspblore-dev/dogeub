@@ -13,6 +13,7 @@ import LockScreen from './components/LockScreen';
 import DogeHub from './components/DogeHub';
 import PetBuddy from './components/PetBuddy';
 import DogeOSStudio from './components/DogeOSStudio';
+import DogeAssistant from './components/DogeAssistant';
 import EmojiWidgets from './components/EmojiWidgets';
 import InteractiveDots from './components/InteractiveDots';
 import { OptionsProvider, useOptions } from './utils/optionsContext';
@@ -166,6 +167,7 @@ const ThemedApp = memo(() => {
       <Taskbar />
       <DogeHub />
       <DogeOSStudio />
+      <DogeAssistant />
       <EmojiWidgets />
       <InteractiveDots />
       <PetBuddy />
