@@ -5,7 +5,7 @@ import { Activity, AppWindow, ArrowRight, Command, FileText, Globe, Home, Search
 const ITEMS = [
   { name: 'Home', detail: 'Open homepage', icon: Home, run: (navigate) => navigate('/') },
   { name: 'Search the web', detail: 'Search or enter a URL', icon: Globe, run: (navigate, query) => navigate('/search', { state: { url: /^https?:\/\//i.test(query) ? query : 'https://www.bing.com/search?q=' + encodeURIComponent(query || '') } }) },
-  { name: 'Task Manager', detail: 'Browser performance and entries', icon: Activity, run: (navigate) => navigate('/task-manager') },
+  { name: 'Task Manager', detail: 'Browser performance and entries', icon: Activity, run: () => { window.location.assign('/task-manager'); } },
   { name: 'Apps & games', detail: 'Browse the catalog', icon: AppWindow, run: (navigate) => navigate('/materials') },
   { name: 'Settings', detail: 'Customize DOGEUB', icon: Settings, run: (navigate) => navigate('/settings') },
   { name: 'Shortcuts', detail: 'Keyboard shortcuts', icon: FileText, run: (navigate) => navigate('/shortcuts') },
@@ -29,7 +29,7 @@ export default function QuickLauncher() {
   }, []);
   useEffect(() => { if (open) input.current?.focus(); }, [open]);
   const matches = ITEMS.filter((item) => (item.name + ' ' + item.detail).toLowerCase().includes(query.toLowerCase()));
-  const launch = (item) => { item.run(navigate, query.trim()); setOpen(false); };
+  const launch = (item) => { setOpen(false); item.run(navigate, query.trim()); };
   return <>{!open && <button type="button" aria-label="Open Quick Launcher" title="Quick Launcher (Ctrl + Shift + P)" onClick={() => { setOpen(true); setQuery(''); }} className="fixed bottom-20 right-4 z-[12000] flex h-12 w-12 items-center justify-center rounded-2xl border border-cyan-300/30 bg-slate-950/90 text-cyan-200 shadow-lg shadow-cyan-950/40 backdrop-blur-xl hover:bg-cyan-400/15"><Command size={20}/></button>}{open && <div className="fixed inset-0 z-[13000] flex items-start justify-center bg-black/45 px-3 pt-[16vh] backdrop-blur-sm" onMouseDown={(e)=>{if(e.target===e.currentTarget)setOpen(false);}}>
     <section role="dialog" aria-modal="true" aria-label="Quick Launcher" className="w-full max-w-xl overflow-hidden rounded-2xl border border-white/15 bg-[#101827]/95 text-white shadow-2xl shadow-cyan-950/40">
       <div className="flex items-center gap-3 border-b border-white/10 px-4 py-4"><Zap className="text-cyan-300" size={20}/><input ref={input} value={query} onChange={(e)=>setQuery(e.target.value)} onKeyDown={(e)=>{if(e.key==='Enter'){if(matches[0])launch(matches[0]);else ITEMS[1].run(navigate,query.trim());setOpen(false);}}} placeholder="Search apps, settings, or the web…" className="min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-white/35"/><kbd className="rounded bg-white/10 px-2 py-1 text-[10px] text-white/45">ESC</kbd></div>

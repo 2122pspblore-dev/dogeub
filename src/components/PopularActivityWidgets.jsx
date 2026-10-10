@@ -46,7 +46,7 @@ function ActivityCard({ title, icon: Icon, items, empty, onOpen }) {
   );
 }
 
-export default function PopularActivityWidgets() {
+export default function PopularActivityWidgets({ only = null } = {}) {
   const { options } = useOptions();
   const [sites, setSites] = useState(() => readList(SITE_KEY));
   const [games, setGames] = useState(() => readList(GAME_KEY));
@@ -87,10 +87,14 @@ export default function PopularActivityWidgets() {
   }, []);
 
   if (!(options.popularSitesWidget ?? true) && !(options.mostPlayedGamesWidget ?? true)) return null;
+  const sitesCard = (options.popularSitesWidget ?? true) && <ActivityCard title="Most Visited Websites" icon={Globe} items={sites} empty="Open websites from your DOGEUB shortcuts to build your list." onOpen={(item) => { window.dispatchEvent(new CustomEvent('dogeub-open-url', { detail: { url: item.url } })); window.location.assign('/search'); }} />;
+  const gamesCard = (options.mostPlayedGamesWidget ?? true) && <ActivityCard title="Most Played Games" icon={Gamepad2} items={games} empty="Open games from DOGEUB’s game catalog and they’ll show up here." onOpen={(item) => { if (item.url) window.location.assign(item.url); }} />;
+  if (only === 'sites') return sitesCard ? <div className="w-full min-w-0">{sitesCard}</div> : null;
+  if (only === 'games') return gamesCard ? <div className="w-full min-w-0">{gamesCard}</div> : null;
   return (
     <div className="mx-auto mt-6 grid w-full max-w-[40rem] grid-cols-1 gap-4 px-4 sm:grid-cols-2">
-      {(options.popularSitesWidget ?? true) && <ActivityCard title="Most Visited Websites" icon={Globe} items={sites} empty="Open websites from your DOGEUB shortcuts to build your list." onOpen={(item) => { window.dispatchEvent(new CustomEvent('dogeub-open-url', { detail: { url: item.url } })); window.location.assign('/search'); }} />}
-      {(options.mostPlayedGamesWidget ?? true) && <ActivityCard title="Games from DOGEUB" icon={Gamepad2} items={games} empty="Open games from DOGEUB’s game catalog and they’ll show up here." onOpen={(item) => { if (item.url) window.location.assign(item.url); }} />}
+      {sitesCard}
+      {gamesCard}
     </div>
   );
 }
