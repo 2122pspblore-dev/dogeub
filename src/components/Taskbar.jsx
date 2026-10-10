@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   AppWindow, BatteryFull, Globe, Home, Search, Settings, BatteryCharging,
-  Wifi, WifiOff, Music2, X, Youtube, BookOpen, Grid3X3, Power, ChevronUp, Cpu, LockKeyhole, Sparkles, Smile
+  Wifi, WifiOff, Music2, X, Youtube, BookOpen, Grid3X3, Power, ChevronUp, Cpu, LockKeyhole, Sparkles, Smile, FolderOpen
 } from 'lucide-react';
 
 const apps = [
@@ -10,6 +10,7 @@ const apps = [
   { name: 'Browser', description: 'Browse the web', icon: Globe, path: '/search' },
   { name: 'Apps', description: 'Explore apps', icon: Grid3X3, path: '/materials' },
   { name: 'Docs', description: 'Games and resources', icon: BookOpen, path: '/docs' },
+  { name: 'Files', description: 'Import, view and export screenshots, videos and documents', icon: FolderOpen, path: '/files' },
   { name: 'Settings', description: 'Customize DogeUB', icon: Settings, path: '/settings' },
   { name: 'Doge Hub', description: 'Control center, files, widgets, notes and themes', icon: AppWindow, hub: true },
   { name: 'OS Studio', description: 'Workspaces, modes, themes, terminal, and diagnostics', icon: Sparkles, studio: true },
@@ -337,6 +338,7 @@ export default function Taskbar() {
             { name: 'Home', icon: Home, path: '/' },
             { name: 'Browser', icon: Globe, path: '/search' },
             { name: 'Apps', icon: Grid3X3, path: '/materials' },
+            { name: 'Files', icon: FolderOpen, path: '/files' },
             { name: 'Doge Hub', icon: AppWindow, hub: true },
             { name: 'YouTube', icon: Youtube, path: '/search', url: 'https://www.youtube.com' },
           ].map((app) => {

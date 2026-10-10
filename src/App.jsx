@@ -29,12 +29,14 @@ const importApps = () => import('./pages/Apps');
 const importGms = () => import('./pages/Apps2');
 const importSettings = () => import('./pages/Settings');
 const importRecommended = () => import('./pages/Recommended');
+const importFiles = () => import('./pages/Files');
 
 const Home = lazyLoad(importHome);
 const Apps = lazyLoad(importApps);
 const Apps2 = lazyLoad(importGms);
 const Settings = lazyLoad(importSettings);
 const Recommended = lazyLoad(importRecommended);
+const Files = lazyLoad(importFiles);
 const Player = lazyLoad(() => import('./pages/Player'));
 
 initPreload('/materials', importApps);
@@ -130,6 +132,7 @@ const ThemedApp = memo(() => {
       { path: '/search', element: <Search />},
       { path: '/settings', element: <Settings /> },
       { path: '/recommended', element: <Recommended /> },
+      { path: '/files', element: <Files /> },
       { path: '/portal/k12/*', element: <NotFound /> },
       { path: '/ham/*', element: <NotFound /> },
       { path: '*', element: <NotFound /> },
