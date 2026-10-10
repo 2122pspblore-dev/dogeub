@@ -56,7 +56,10 @@ export default function DogeOSStudio() {
 
   useEffect(() => {
     const listener = (event) => {
-      setTab(event.detail?.tab || 'desktop');
+      const detail = event.detail || {};
+      setTab(detail.tab || 'desktop');
+      setBootPreview(detail.preview === 'startup');
+      setShutdownPreview(detail.preview === 'shutdown');
       setOpen(true);
     };
     window.addEventListener('dogeub-open-os-studio', listener);
@@ -200,7 +203,7 @@ export default function DogeOSStudio() {
 
   if (!open) return null;
   if (bootPreview || shutdownPreview) return (
-    <div className="fixed inset-0 z-[12000] flex flex-col items-center justify-center overflow-hidden bg-[#02040a] px-5 text-white" style={{ backgroundImage: 'radial-gradient(ellipse at 50% 42%, ' + theme.glow + ', transparent 42%), radial-gradient(ellipse at 80% 100%, rgba(124,58,237,.12), transparent 38%)' }}>
+    <div className="fixed inset-0 z-[21000] flex flex-col items-center justify-center overflow-hidden bg-[#02040a] px-5 text-white" style={{ backgroundImage: 'radial-gradient(ellipse at 50% 42%, ' + theme.glow + ', transparent 42%), radial-gradient(ellipse at 80% 100%, rgba(124,58,237,.12), transparent 38%)' }}>
       <style>{`
         @keyframes dogeub-orbit { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         @keyframes dogeub-reverse { from { transform: rotate(360deg); } to { transform: rotate(0deg); } }
@@ -233,7 +236,7 @@ export default function DogeOSStudio() {
         <div className="mt-3 flex items-center justify-center gap-2 text-[9px] uppercase tracking-[.2em] text-white/25"><span className="h-1 w-1 rounded-full" style={{ backgroundColor: theme.accent }} /> {shutdownPreview ? 'Session safely ended · see you soon' : 'Interface online · all systems aesthetic'}</div>
       </div>
       <div className="absolute bottom-7 flex flex-col items-center gap-3">
-        <button className="rounded-full border border-white/15 bg-white/[.04] px-5 py-2.5 text-xs font-medium text-white/65 backdrop-blur-xl transition hover:border-white/30 hover:bg-white/10 hover:text-white" onClick={() => { setBootPreview(false); setShutdownPreview(false); }}>{shutdownPreview ? 'Return to DOGEUB OS' : 'Enter DOGEUB OS'}</button>
+        <button className="rounded-full border border-white/15 bg-white/[.04] px-5 py-2.5 text-xs font-medium text-white/65 backdrop-blur-xl transition hover:border-white/30 hover:bg-white/10 hover:text-white" onClick={() => { const wasShutdown = shutdownPreview; setBootPreview(false); setShutdownPreview(false); if (wasShutdown) window.dispatchEvent(new Event('dogeub-lock')); }}>{shutdownPreview ? 'Return to DOGEUB OS' : 'Enter DOGEUB OS'}</button>
         <span className="text-[9px] uppercase tracking-[.25em] text-white/20">Concept experience · browser simulation</span>
       </div>
     </div>
