@@ -234,6 +234,10 @@ export default defineConfig(({ command }) => {
     },
     server: {
       proxy: {
+        '/api/messages': {
+          target: process.env.DOGEUB_API_PROXY || 'http://localhost:2345',
+          changeOrigin: true,
+        },
         '/assets/img': {
           target: 'https://dogeub-assets.pages.dev',
           changeOrigin: true,
