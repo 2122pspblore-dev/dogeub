@@ -6,7 +6,7 @@ import { useState, useEffect, useRef } from 'react';
 import LinkDialog from './NewQuickLink';
 import EditLinkDialog from './EditQuickLink';
 
-const QuickLinks = ({ cls, nav = true, navigating }) => {
+const QuickLinks = ({ cls, nav = true, navigating, compact = false }) => {
   const { options, updateOption } = useOptions();
   const navigate = useNavigate();
   const [fallback, setFallback] = useState({});
@@ -78,6 +78,34 @@ const QuickLinks = ({ cls, nav = true, navigating }) => {
   useEffect(() => {
     setFallback({});
   }, [quickLinks]);
+
+  if (compact) {
+    return (
+      <div className={clsx('flex shrink-0 items-center justify-center gap-1 sm:gap-2', cls)}>
+        {quickLinks.map((link, i) => (
+          <button
+            key={link.link + '-' + i}
+            type="button"
+            title={link.name}
+            aria-label={`Open ${link.name}`}
+            onClick={() => go(link.link)}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 transition hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300 sm:h-11 sm:w-11"
+          >
+            {fallback[i] ? <Globe className="h-5 w-5" /> : <img src={link.icon} alt="" className="h-5 w-5 object-contain" loading="lazy" onError={() => setFallback((p) => ({ ...p, [i]: true }))} />}
+          </button>
+        ))}
+        <button
+          type="button"
+          title="Add a shortcut"
+          aria-label="Add a shortcut"
+          onClick={() => setDialog({ add: true, edit: false, index: null })}
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-dashed border-white/20 bg-white/[.03] transition hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300 sm:h-11 sm:w-11"
+        ><Plus className="h-5 w-5" /></button>
+        <LinkDialog state={dialog.add} set={(v) => setDialog({ ...dialog, add: v })} update={(form) => setQuickLinks([...quickLinks, form])} />
+        <EditLinkDialog state={dialog.edit} set={(v) => setDialog({ ...dialog, edit: v })} initialData={dialog.index != null ? quickLinks[dialog.index] : null} update={(form) => { const updated = [...quickLinks]; updated[dialog.index] = form; setQuickLinks(updated); }} />
+      </div>
+    );
+  }
 
   const linkItem = clsx(
     'flex flex-col items-center justify-center relative group w-20 h-[5.5rem] rounded-md border-transparent cursor-pointer duration-200 ease-in-out',

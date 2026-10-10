@@ -1,7 +1,6 @@
 import Nav from '../layouts/Nav';
 import Search from '../components/SearchContainer';
 import Footer from '../components/Footer';
-import QuickLinks from '../components/QuickLinks';
 import Widgets from '../components/Widgets';
 import PopularActivityWidgets from '../components/PopularActivityWidgets';
 import DesktopPerformanceWidget from '../components/DesktopPerformanceWidget';
@@ -22,7 +21,6 @@ const Home = memo(() => {
       <div className="mx-auto mt-5 w-full max-w-7xl px-4">
         <DesktopPerformanceWidget />
       </div>
-      <QuickLinks cls="mx-auto mt-6 w-full max-w-[40rem] px-4" />
       <Footer />
     </>
   );
