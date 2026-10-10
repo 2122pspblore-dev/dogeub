@@ -2,6 +2,15 @@
 // When adding a shortcut to an app, add its description here too.
 const shortcutRegistry = [
   {
+    app: 'DOGEUB Section Switcher',
+    category: 'Navigation',
+    keys: ['Alt', 'Shift', 'C'],
+    title: 'Switch sections and browser tabs',
+    description: 'Opens a searchable switcher for Apps, Games, Recommended, Files, Settings, and individual built-in browser tabs.',
+    route: '/',
+    note: 'Use the arrow keys to move, Enter to open a destination, and Escape to close.',
+  },
+  {
     app: 'Panic Button',
     category: 'Safety',
     keys: ['Ctrl', 'C'],

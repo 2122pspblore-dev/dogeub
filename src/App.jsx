@@ -17,6 +17,7 @@ import PortalTransitions from './components/PortalTransitions';
 import EmojiWidgets from './components/EmojiWidgets';
 import InteractiveDots from './components/InteractiveDots';
 import QuickLauncher from './components/QuickLauncher';
+import SectionSwitcher from './components/SectionSwitcher';
 import { OptionsProvider, useOptions } from './utils/optionsContext';
 import { initPreload } from './utils/preload';
 import { designConfig as bgDesign } from './utils/config';
@@ -214,6 +215,7 @@ const ThemedApp = memo(() => {
       <EmojiWidgets />
       <InteractiveDots />
       <QuickLauncher />
+      <SectionSwitcher />
       <PetBuddy />
       <LockScreen />
       {popunderEnabled && !adKeyPassed ? <Popunder /> : null}

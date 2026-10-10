@@ -7,8 +7,10 @@ import loaderStore from '/src/utils/hooks/loader/useLoaderStore';
 import { process } from '/src/utils/hooks/loader/utils';
 import { useOptions } from '../utils/optionsContext';
 import { useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 
 export default function Loader({ config = {} }) {
+  const location = useLocation();
   const { url, ui = true, zoom, alerts = false } = config;
   const { options } = useOptions();
   const tabs = loaderStore((state) => state.tabs);
@@ -29,8 +31,17 @@ export default function Loader({ config = {} }) {
   }, [url, tabs, updateUrl, options.prType]);
 
   useEffect(() => {
+    // The section switcher passes this state when returning to the browser so its tabs survive route changes.
+    if (location.state?.dogeubSectionSwitcher) {
+      if (location.state.browserTabId) {
+        loaderStore.getState().setActive(location.state.browserTabId);
+      }
+      return;
+    }
+
+    // Keep the usual fresh-browser behavior for normal visits to /search.
     loaderStore.getState().clearStore({ showTb: options.showTb ?? true });
-  }, []);
+  }, [location.key, location.state, options.showTb]);
 
   return (
     <div className="relative flex flex-col w-full h-screen">
