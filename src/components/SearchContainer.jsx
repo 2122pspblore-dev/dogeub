@@ -14,6 +14,8 @@ const QUICK_ENGINES = ['Bing', 'DuckDuckGo', 'Brave', 'Yahoo', 'Startpage', 'Eco
 const SearchContainer = memo(function SearchContainer({ logo = true, cls, nav = true, navigating }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
+  const [activeResult, setActiveResult] = useState(-1);
+  const inputRef = useRef(null);
   const debounceRef = useRef(null);
   const latestQuery = useRef('');
   const navigate = useNavigate();
@@ -63,6 +65,7 @@ const SearchContainer = memo(function SearchContainer({ logo = true, cls, nav = 
     (e) => {
       const newQuery = e.target.value;
       setQuery(newQuery);
+      setActiveResult(-1);
 
       if (debounceRef.current) clearTimeout(debounceRef.current);
       if (!newQuery.trim()) {
@@ -78,12 +81,30 @@ const SearchContainer = memo(function SearchContainer({ logo = true, cls, nav = 
 
   const handleKeyDown = useCallback(
     (e) => {
+      if (e.key === 'ArrowDown' && results.length > 0 && !pickerOpen) {
+        e.preventDefault();
+        setActiveResult((current) => (current + 1) % results.length);
+        return;
+      }
+      if (e.key === 'ArrowUp' && results.length > 0 && !pickerOpen) {
+        e.preventDefault();
+        setActiveResult((current) => current <= 0 ? results.length - 1 : current - 1);
+        return;
+      }
+      if (e.key === 'Escape') {
+        setActiveResult(-1);
+        setResults([]);
+        setPickerOpen(false);
+        return;
+      }
       if (e.key !== 'Enter') return;
-      const trimmed = query.trim();
+      const trimmed = activeResult >= 0 && results[activeResult]
+        ? results[activeResult].phrase
+        : query.trim();
       if (!trimmed) return;
       go(trimmed);
     },
-    [query, go],
+    [query, go, results, activeResult, pickerOpen],
   );
 
   const handleResultClick = useCallback(
@@ -92,6 +113,18 @@ const SearchContainer = memo(function SearchContainer({ logo = true, cls, nav = 
     },
     [go],
   );
+
+  useEffect(() => {
+    const handleGlobalShortcut = (event) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        inputRef.current?.focus();
+        inputRef.current?.select();
+      }
+    };
+    window.addEventListener('keydown', handleGlobalShortcut);
+    return () => window.removeEventListener('keydown', handleGlobalShortcut);
+  }, []);
 
   useEffect(() => {
     return () => debounceRef.current && clearTimeout(debounceRef.current);
@@ -157,6 +190,7 @@ const SearchContainer = memo(function SearchContainer({ logo = true, cls, nav = 
             </button>
 
             <input
+              ref={inputRef}
               type="text"
               placeholder={placeholder}
               className="flex-1 bg-transparent outline-hidden text-[16.5px] leading-[20px] placeholder:font-[Inter] placeholder:font-medium"
@@ -211,7 +245,14 @@ const SearchContainer = memo(function SearchContainer({ logo = true, cls, nav = 
               {results.map((result) => (
                 <div
                   key={result.phrase}
-                  className="rounded-[9px] w-full h-11 hover:bg-[#d4d4d418] cursor-pointer duration-100 ease-in px-3 pl-2.5 flex items-center"
+                  role="option"
+                  aria-selected={activeResult === results.indexOf(result)}
+                  tabIndex={-1}
+                  className={clsx(
+                    'rounded-[9px] w-full h-11 cursor-pointer duration-100 ease-in px-3 pl-2.5 flex items-center',
+                    activeResult === results.indexOf(result) ? 'bg-[#d4d4d424]' : 'hover:bg-[#d4d4d418]',
+                  )}
+                  onMouseEnter={() => setActiveResult(results.indexOf(result))}
                   onClick={() => handleResultClick(result.phrase)}
                 >
                   <svg
