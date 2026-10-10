@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { Bot, Mic, MicOff, Send, X, Sparkles, Settings2, Palette, Moon, Sun, PawPrint, AppWindow, ExternalLink } from 'lucide-react';
+import { Bot, Mic, MicOff, Send, X, Sparkles, Settings2, Palette, Moon, Sun, PawPrint, AppWindow, Home, Search, RotateCcw, ChevronRight, Command, SlidersHorizontal } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useOptions } from '../utils/optionsContext';
-import { themeConfig } from '../utils/config';
+import { themeConfig, searchConfig } from '../utils/config';
 
 const themeAliases = {
   midnight: 'Midnight', default: 'Midnight', mocha: 'Mocha', brown: 'Mocha',
@@ -10,6 +10,13 @@ const themeAliases = {
   stellar: 'Stellar', space: 'Stellar', pink: 'Hot Pink', 'hot pink': 'Hot Pink',
   light: 'Light', bright: 'Light', paper: 'Paper', beige: 'Paper',
 };
+const themesHelp = 'Midnight, Mocha, Forest, Dark, Stellar, Hot Pink, Light, or Paper';
+const quickActions = [
+  { label: 'Make it dark', command: 'make it dark', icon: Moon },
+  { label: 'Forest theme', command: 'switch to Forest theme', icon: Palette },
+  { label: 'Open Settings', command: 'open settings', icon: SlidersHorizontal },
+  { label: 'Show my settings', command: 'show my settings', icon: Settings2 },
+];
 
 export default function DogeAssistant() {
   const { options, updateOption } = useOptions();
@@ -17,8 +24,8 @@ export default function DogeAssistant() {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState('');
   const [listening, setListening] = useState(false);
-  const [messages, setMessages] = useState([{ role: 'assistant', text: 'Hey! I’m Doge, your OS assistant. Tell me what you want to change—like “make it dark”, “switch to Forest theme”, or “turn off Pet Buddy”.' }]);
-  const [status, setStatus] = useState('Ready to help');
+  const [messages, setMessages] = useState([{ role: 'assistant', text: 'Yo! I’m Doge, your DogeUB control center. Tell me what you want to do in plain English: change the look, tweak settings, open a page, search the web, or launch a DogeUB tool. I’ll tell you when something needs to be done manually.' }]);
+  const [status, setStatus] = useState('Ready');
   const bottomRef = useRef(null);
   const recognitionRef = useRef(null);
 
@@ -26,8 +33,13 @@ export default function DogeAssistant() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [messages, open]);
 
-  useEffect(() => () => {
-    recognitionRef.current?.stop?.();
+  useEffect(() => {
+    const openAssistant = () => setOpen(true);
+    window.addEventListener('dogeub-open-assistant', openAssistant);
+    return () => {
+      window.removeEventListener('dogeub-open-assistant', openAssistant);
+      recognitionRef.current?.stop?.();
+    };
   }, []);
 
   const say = (text) => {
@@ -37,32 +49,68 @@ export default function DogeAssistant() {
 
   const handleCommand = (raw) => {
     const text = raw.trim();
-    const lower = text.toLowerCase();
+    const lower = text.toLowerCase().replace(/[’']/g, '');
     if (!text) return;
     setMessages((old) => [...old, { role: 'user', text }]);
     setInput('');
     setStatus('Working…');
 
-    const themeRequest = lower.match(/(?:theme|look|style|color|colour)(?: to| like|:)?\s+(midnight|default|mocha|brown|forest|green|dark|black|stellar|space|pink|hot pink|light|bright|paper|beige)/)
-      || lower.match(/^(midnight|default|mocha|brown|forest|green|dark|black|stellar|space|pink|hot pink|light|bright|paper|beige)(?: theme)?$/);
-    if (themeRequest) {
-      const wanted = themeAliases[themeRequest[1]];
-      const selected = themeConfig.find((item) => item.option.toLowerCase() === wanted.toLowerCase());
-      if (selected) {
-        updateOption(selected.value);
-        say('Done — I switched your site to the ' + selected.option + ' theme.');
-      } else say('I couldn’t find that theme. Try Midnight, Mocha, Forest, Dark, Stellar, Hot Pink, Light, or Paper.');
+    if (/^(help|commands|what can you do|show commands|capabilities)$/.test(lower)) {
+      say('Here’s what I can do right now:\n\n• Appearance: switch themes, change background color, toggle compact header\n• Layout: show/hide the tabs bar and Pet Buddy; choose how many apps appear per page\n• Search: change the search engine or search for something\n• Navigation: Home, Browser, Apps, Docs, Recommended, Settings\n• Tools: open Doge Hub or OS Studio\n• Utilities: show current settings, reset DogeUB appearance preferences, go back, or reload\n\nI can only control features exposed by this DogeUB browser app. I can’t control your actual Windows PC or operate every website.');
       return;
     }
 
-    if (/\b(light mode|make it light|bright mode|switch to light)\b/.test(lower)) {
-      const selected = themeConfig.find((item) => item.option === 'Light');
-      updateOption(selected.value); say('Light theme enabled.'); return;
+    if (/\b(show|list|what are|check|view)\b/.test(lower) && /settings|preferences|configuration/.test(lower)) {
+      const currentTheme = themeConfig.find((item) => item.value.theme === options.theme)?.option || options.theme || 'Midnight';
+      const engine = searchConfig.find((item) => item.value.engine === options.engine)?.option || options.engineName || 'Default';
+      say('Your current DogeUB settings:\n• Theme: ' + currentTheme + '\n• Search engine: ' + engine + '\n• Pet Buddy: ' + (options.petBuddyEnabled === false ? 'Off' : 'On/default') + '\n• Tabs bar: ' + (options.showTb === false ? 'Hidden' : 'Visible/default') + '\n• Compact header: ' + (options.shrinkHeader ? 'On' : 'Off') + '\n• Apps per page: ' + (options.itemsPerPage === 999 ? 'All' : options.itemsPerPage || 'Default') + '\n\nSay something like “turn Pet Buddy off” or “show 30 apps per page” to change them.');
+      return;
     }
-    if (/\b(dark mode|make it dark|darken|switch to dark|night mode)\b/.test(lower)) {
-      const selected = themeConfig.find((item) => item.option === 'Dark');
-      updateOption(selected.value); say('Dark theme enabled.'); return;
+
+    if (/\b(reset|restore|default)\b/.test(lower) && /settings|preferences|appearance|theme/.test(lower)) {
+      if (!window.confirm('Reset DogeUB appearance and layout preferences to defaults? This will not delete your notes or files.')) {
+        say('No changes made.');
+        return;
+      }
+      updateOption({ theme: 'default', type: 'dark', bgColor: '#111827', siteTextColor: '#a0b0c8', bgDesign: 'None', petBuddyEnabled: true, showTb: true, shrinkHeader: false, itemsPerPage: 20 });
+      say('Appearance and layout preferences reset to the DogeUB defaults. Other saved data was left alone.');
+      return;
     }
+
+    const themeMatch = lower.match(/(?:theme|look|style|switch to|change to|make it|set it to)\s+(midnight|default|mocha|brown|forest|green|dark|black|stellar|space|pink|hot pink|light|bright|paper|beige)(?:\s+theme)?/) || lower.match(/^(midnight|default|mocha|brown|forest|green|dark|black|stellar|space|pink|hot pink|light|bright|paper|beige)(?:\s+theme)?$/);
+    if (themeMatch) {
+      const wanted = themeAliases[themeMatch[1]];
+      const selected = themeConfig.find((item) => item.option.toLowerCase() === wanted.toLowerCase());
+      if (selected) {
+        updateOption(selected.value);
+        say('Done — switched to the ' + selected.option + ' theme.');
+      } else say('I couldn’t find that theme. Try: ' + themesHelp + '.');
+      return;
+    }
+
+    if (/\b(background|page background)\b/.test(lower)) {
+      const colors = [
+        { name: 'midnight blue', color: '#111827' }, { name: 'pure black', color: '#050505' },
+        { name: 'navy', color: '#0b1730' }, { name: 'purple', color: '#24123d' },
+        { name: 'green', color: '#10251b' }, { name: 'rose', color: '#301321' },
+      ];
+      const chosen = colors.find((item) => lower.includes(item.name));
+      if (chosen) {
+        updateOption({ bgColor: chosen.color, bgDesign: 'None' });
+        say('Background changed to ' + chosen.name + '.');
+      } else say('Try “background navy”, “background purple”, “background green”, “background rose”, “background pure black”, or “background midnight blue”.');
+      return;
+    }
+
+    if (/\b(search engine|search provider)\b/.test(lower) && /change|switch|use|set/.test(lower)) {
+      const chosen = searchConfig.find((item) => lower.includes(item.option.toLowerCase()));
+      if (chosen) {
+        updateOption(chosen.value);
+        say('Search engine changed to ' + chosen.option + '.');
+      } else say('Available search engines include ' + searchConfig.slice(0, 8).map((item) => item.option).join(', ') + '. Try “use DuckDuckGo search engine”.');
+      return;
+    }
+
     if (/pet buddy/.test(lower) && /off|hide|disable|turn off|remove/.test(lower)) {
       updateOption({ petBuddyEnabled: false }); say('Pet Buddy is turned off.'); return;
     }
@@ -76,49 +124,51 @@ export default function DogeAssistant() {
       updateOption({ showTb: true }); say('The tabs bar is enabled.'); return;
     }
     if (/\b(compact header|shrink header)\b/.test(lower)) {
-      const enabled = !/off|disable|turn off/.test(lower);
-      updateOption({ shrinkHeader: enabled }); say('Compact app header ' + (enabled ? 'enabled.' : 'disabled.')); return;
+      const enabled = !/off|disable|turn off|normal/.test(lower);
+      updateOption({ shrinkHeader: enabled }); say('Compact header ' + (enabled ? 'enabled.' : 'disabled.')); return;
     }
-    if (/\b(apps per page|items per page)\b/.test(lower)) {
+    if (/\b(apps per page|items per page|show .* apps)\b/.test(lower)) {
       const amount = lower.match(/\b(10|20|30|40|50|all)\b/);
       if (!amount) { say('Try “show 30 apps per page” or “show all apps”.'); return; }
       const value = amount[1] === 'all' ? 999 : Number(amount[1]);
-      updateOption({ itemsPerPage: value }); say('Apps per page set to ' + (amount[1] === 'all' ? 'all' : value) + '.'); return;
+      updateOption({ itemsPerPage: value }); say('Apps per page set to ' + (value === 999 ? 'all' : value) + '.'); return;
     }
-    if (/\b(open|go to|show)\b/.test(lower) && /settings/.test(lower)) {
-      setOpen(false); navigate('/settings'); return;
+
+    const goMatch = lower.match(/\b(?:open|go to|navigate to|take me to|launch|show)\s+(home|homepage|browser|search|settings|apps|materials|docs|documents|recommended|recommendations)\b/);
+    if (goMatch) {
+      const destinations = { home: '/', homepage: '/', browser: '/search', search: '/search', settings: '/settings', apps: '/materials', materials: '/materials', docs: '/docs', documents: '/docs', recommended: '/recommended', recommendations: '/recommended' };
+      setOpen(false); navigate(destinations[goMatch[1]]); return;
+    }
+    if (/\b(back|go back|previous page)\b/.test(lower)) { window.history.back(); say('Going back one page.'); return; }
+    if (/\b(reload|refresh)\b/.test(lower) && /page|site|dogeub|browser|this/.test(lower)) {
+      say('Refreshing DogeUB…'); window.setTimeout(() => window.location.reload(), 150); return;
     }
     if (/\b(open|launch|show)\b/.test(lower) && /os studio|studio/.test(lower)) {
       window.dispatchEvent(new CustomEvent('dogeub-open-os-studio', { detail: { tab: 'desktop' } }));
-      say('Opening OS Studio.'); return;
+      say('Sent the open request to OS Studio. If it did not appear, that tool may not be available on this page.'); return;
     }
-    if (/\b(open|launch|show)\b/.test(lower) && /doge hub|hub/.test(lower)) {
+    if (/\b(open|launch|show)\b/.test(lower) && /doge hub|hub|control center/.test(lower)) {
       window.dispatchEvent(new CustomEvent('dogeub-open-hub', { detail: { tab: 'control' } }));
-      say('Opening Doge Hub.'); return;
+      say('Doge Hub opened.'); return;
     }
-    if (/\b(open|go to|launch)\b/.test(lower) && /home/.test(lower)) {
-      setOpen(false); navigate('/'); return;
+    if (/\b(search|look up|find)\b/.test(lower) && !/settings|engine|provider/.test(lower)) {
+      const query = text.replace(/^.*?\b(search|look up|find)\b\s*/i, '').trim();
+      if (query) { setOpen(false); navigate('/search', { state: { url: query } }); return; }
     }
-    if (/\b(open|go to|launch)\b/.test(lower) && /browser|search/.test(lower)) {
-      setOpen(false); navigate('/search'); return;
+    if (/\b(clear chat|clear conversation|new chat)\b/.test(lower)) {
+      setMessages([{ role: 'assistant', text: 'Fresh start! What do you want to do in DogeUB?' }]); setStatus('Ready'); return;
     }
     if (/\b(help|what can you do|commands)\b/.test(lower)) {
-      say('I can switch themes (try “Forest theme” or “make it dark”), toggle Pet Buddy or the tabs bar, set apps per page, open Settings/OS Studio/Doge Hub, and navigate Home or Browser. Voice input works if your browser supports speech recognition.'); return;
+      say('Try: “show my settings”, “switch to Stellar theme”, “background purple”, “use DuckDuckGo search engine”, “turn Pet Buddy off”, “hide the tabs bar”, “show 30 apps per page”, “open Apps”, “open Settings”, “search Roblox”, or “open Doge Hub”.');
+      return;
     }
-    say('I’m not sure how to do that yet. Try “switch to Forest theme”, “turn Pet Buddy off”, “show 30 apps per page”, or “open OS Studio”.');
+    say('I don’t have a command for that yet. Try “help” to see what I can control. I won’t pretend an action worked if DogeUB doesn’t expose it.');
   };
 
   const startVoice = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      setStatus('Voice input is not supported in this browser. Try typing instead.');
-      return;
-    }
-    if (listening) {
-      recognitionRef.current?.stop?.();
-      setListening(false);
-      return;
-    }
+    if (!SpeechRecognition) { setStatus('Voice input is not supported in this browser. Try typing.'); return; }
+    if (listening) { recognitionRef.current?.stop?.(); setListening(false); return; }
     const recognition = new SpeechRecognition();
     recognition.lang = navigator.language || 'en-US';
     recognition.interimResults = false;
@@ -131,7 +181,7 @@ export default function DogeAssistant() {
       if (transcript) handleCommand(transcript);
       else setStatus('Didn’t catch that—try again.');
     };
-    recognition.onerror = () => { setListening(false); setStatus('Voice input stopped. Check microphone permission or type your command.'); };
+    recognition.onerror = () => { setListening(false); setStatus('Voice input stopped. Check microphone permission or type.'); };
     recognition.onend = () => setListening(false);
     try { recognition.start(); } catch { setListening(false); setStatus('Could not start voice input.'); }
   };
@@ -139,29 +189,28 @@ export default function DogeAssistant() {
   return (
     <div className="fixed bottom-20 right-4 z-[12000] flex flex-col items-end gap-3 sm:bottom-6 sm:right-6">
       {open && (
-        <section className="flex h-[min(70vh,540px)] w-[min(92vw,370px)] flex-col overflow-hidden rounded-3xl border border-cyan-300/20 bg-[#0b1020]/95 text-white shadow-2xl shadow-cyan-950/40 backdrop-blur-2xl">
+        <section className="flex h-[min(76vh,650px)] w-[min(94vw,410px)] flex-col overflow-hidden rounded-3xl border border-cyan-300/25 bg-[#0b1020]/[.97] text-white shadow-2xl shadow-cyan-950/40 backdrop-blur-2xl">
           <header className="flex items-center gap-3 border-b border-white/10 bg-gradient-to-r from-cyan-400/10 to-violet-400/10 p-4">
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-cyan-200/30 bg-cyan-300/10 text-cyan-200"><Bot size={24}/></div>
-            <div className="min-w-0 flex-1"><div className="font-semibold tracking-wide">Doge Assistant</div><div className="text-xs text-white/50">OS controls · {status}</div></div>
+            <div className="min-w-0 flex-1"><div className="font-semibold tracking-wide">Doge Assistant <span className="ml-1 rounded-full bg-emerald-300/10 px-2 py-0.5 text-[9px] uppercase tracking-wider text-emerald-200">Control mode</span></div><div className="text-xs text-white/50">DogeUB tools · {status}</div></div>
             <button onClick={() => setOpen(false)} aria-label="Close Doge Assistant" className="rounded-xl p-2 text-white/60 hover:bg-white/10 hover:text-white"><X size={18}/></button>
           </header>
-          <div className="flex flex-wrap gap-2 border-b border-white/10 p-3">
-            {[
-              { label: 'Dark theme', icon: Moon, command: 'make it dark' },
-              { label: 'Forest theme', icon: Palette, command: 'switch to Forest theme' },
-              { label: 'OS Studio', icon: AppWindow, command: 'open OS Studio' },
-            ].map((item) => <button key={item.label} onClick={() => handleCommand(item.command)} className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[.05] px-3 py-2 text-xs text-white/80 transition hover:border-cyan-300/40 hover:bg-cyan-300/10"><item.icon size={13}/>{item.label}</button>)}
+          <div className="border-b border-white/10 p-3">
+            <div className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[.16em] text-white/40"><Command size={12}/> Quick actions</div>
+            <div className="flex flex-wrap gap-2">
+              {quickActions.map((item) => <button key={item.label} onClick={() => handleCommand(item.command)} className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[.05] px-3 py-2 text-xs text-white/80 transition hover:border-cyan-300/40 hover:bg-cyan-300/10"><item.icon size={13}/>{item.label}</button>)}
+            </div>
           </div>
           <div className="flex-1 space-y-3 overflow-y-auto p-4">
-            {messages.map((message, index) => <div key={index} className={'flex ' + (message.role === 'user' ? 'justify-end' : 'justify-start')}><div className={'max-w-[88%] whitespace-pre-wrap rounded-2xl px-3.5 py-3 text-sm leading-relaxed ' + (message.role === 'user' ? 'rounded-br-md bg-cyan-300/15 text-cyan-50' : 'rounded-bl-md border border-white/10 bg-white/[.055] text-white/85')}>{message.text}</div></div>)}
+            {messages.map((message, index) => <div key={index} className={'flex ' + (message.role === 'user' ? 'justify-end' : 'justify-start')}><div className={'max-w-[90%] whitespace-pre-wrap rounded-2xl px-3.5 py-3 text-sm leading-relaxed ' + (message.role === 'user' ? 'rounded-br-md bg-cyan-300/15 text-cyan-50' : 'rounded-bl-md border border-white/10 bg-white/[.055] text-white/85')}>{message.text}</div></div>)}
             <div ref={bottomRef}/>
           </div>
           <form onSubmit={(event) => { event.preventDefault(); handleCommand(input); }} className="flex items-center gap-2 border-t border-white/10 bg-black/20 p-3">
             <button type="button" onClick={startVoice} title={listening ? 'Stop listening' : 'Use voice'} aria-label={listening ? 'Stop listening' : 'Use voice'} className={'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ' + (listening ? 'border-rose-300/40 bg-rose-400/15 text-rose-200' : 'border-white/10 bg-white/[.05] text-white/70 hover:text-cyan-200')}>{listening ? <MicOff size={17}/> : <Mic size={17}/>}</button>
-            <input value={input} onChange={(event) => setInput(event.target.value)} placeholder="Tell Doge what to change…" aria-label="Message Doge Assistant" className="h-10 min-w-0 flex-1 rounded-xl border border-white/10 bg-white/[.06] px-3 text-sm text-white outline-none placeholder:text-white/35 focus:border-cyan-300/50" />
+            <input value={input} onChange={(event) => setInput(event.target.value)} placeholder="Tell Doge what to do…" aria-label="Message Doge Assistant" className="h-10 min-w-0 flex-1 rounded-xl border border-white/10 bg-white/[.06] px-3 text-sm text-white outline-none placeholder:text-white/35 focus:border-cyan-300/50" />
             <button type="submit" aria-label="Send command" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cyan-300 text-slate-950 transition hover:bg-cyan-200"><Send size={16}/></button>
           </form>
-          <div className="flex items-center justify-center gap-1.5 pb-2 text-[10px] text-white/35"><Settings2 size={11}/> Changes apply to this DogeUB browser profile</div>
+          <div className="flex items-center justify-center gap-1.5 pb-2 text-[10px] text-white/35"><Settings2 size={11}/> Controls only affect DogeUB in this browser</div>
         </section>
       )}
       <button onClick={() => setOpen((value) => !value)} aria-label={open ? 'Close Doge Assistant' : 'Open Doge Assistant'} title="Doge Assistant" className="group relative flex h-14 w-14 items-center justify-center rounded-2xl border border-cyan-200/40 bg-[#0c1425] text-cyan-200 shadow-xl shadow-cyan-950/40 transition hover:-translate-y-0.5 hover:border-cyan-100/70 hover:text-white">
