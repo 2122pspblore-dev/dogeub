@@ -165,6 +165,20 @@ export const customizeConfig = ({ options, updateOption }) => ({
     type: 'switch',
     action: (b) => setTimeout(() => updateOption({ shrinkHeader: b }), 100),
   },
+  8: {
+    name: 'Popular Websites Widget',
+    desc: 'Show a homepage widget ranking websites you open from your DOGEUB shortcuts.',
+    value: options.popularSitesWidget ?? true,
+    type: 'switch',
+    action: (b) => updateOption({ popularSitesWidget: b }),
+  },
+  10: {
+    name: 'Most Played Games Widget',
+    desc: 'Show a homepage widget for games launched through DOGEUB when game activity tracking is available.',
+    value: options.mostPlayedGamesWidget ?? true,
+    type: 'switch',
+    action: (b) => updateOption({ mostPlayedGamesWidget: b }),
+  },
   9: {
     name: 'Pet Buddy',
     desc: 'Show a tiny animated animal buddy that pops up with random cute messages.',
