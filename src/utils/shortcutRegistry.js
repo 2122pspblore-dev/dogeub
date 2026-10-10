@@ -240,6 +240,15 @@ const shortcutRegistry = [
     note: 'Ignored while typing in an input, textarea, or editable area, or when text is selected, so normal copying still works.',
   },
   {
+    app: 'Homepage Quick Links',
+    category: 'Home',
+    keys: ['Shift', 'Click'],
+    title: 'Remove a quick link',
+    description: 'Hold Shift while clicking a quick link to remove it from the homepage list.',
+    route: '/',
+    note: 'This is a mouse-and-key modifier gesture, not a standalone key chord.',
+  },
+  {
     app: 'DogeFiler',
     category: 'Files',
     keys: ['Esc'],
