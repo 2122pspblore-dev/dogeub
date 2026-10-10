@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Activity, AppWindow, ArrowRight, Award, BookOpen, Check, ChevronRight,
-  Clock3, CloudSun, Command, Copy, Download, Gamepad2, Globe2, GraduationCap,
-  LayoutDashboard, Palette, Plus, Power, Search, Send, Settings2, Sparkles,
+  Clock3, CloudSun, Copy, Download, Gamepad2, Globe2, GraduationCap,
+  LayoutDashboard, Palette, Plus, Power, Send, Sparkles,
   Terminal, Trash2, Trophy, Upload, Wifi, X, Zap
 } from 'lucide-react';
 
