@@ -394,6 +394,14 @@ export default async function registerMessagesRoutes(app) {
   });
 
 
+  app.get("/api/messages/public-profile/:username", async (request, reply) => {
+    const target = findUsername(String(request.params?.username || ""));
+    if (!target) return sendError(reply, 404, "That DOGEUB profile was not found.");
+    const viewer = currentUser(request);
+    if (viewer && hasBlockBetween(viewer.id, target.id)) return sendError(reply, 404, "That DOGEUB profile was not found.");
+    return reply.send({ user: publicUser(target), isSelf: viewer?.id === target.id, isFriend: Boolean(viewer && areFriends(viewer.id, target.id)) });
+  });
+
   app.post("/api/messages/presence", async (request, reply) => {
     const user = requireUser(request, reply);
     if (!user) return;
