@@ -297,7 +297,7 @@ export default function LockScreen() {
                 <button type="button" onClick={() => { setAuthMode('login'); setError(''); }} className={'rounded-lg px-3 py-2 text-xs font-semibold transition ' + (authMode === 'login' ? 'bg-sky-400/20 text-sky-100' : 'text-white/40 hover:text-white')}>Already have an account</button>
               </div>
               <label className="block text-xs font-medium text-white/70" htmlFor="dogeub-os-username">Your DOGEUB OS username
-                <input id="dogeub-os-username" autoComplete="username" value={usernameDraft} onChange={(event) => setUsernameDraft(event.target.value)} disabled={authMode === 'login'} required minLength={3} maxLength={20} pattern="[A-Za-z0-9_]{3,20}" placeholder="e.g. CoolGamer42" className="mt-2 block w-full rounded-xl border border-white/15 bg-black/25 px-3 py-3 text-sm outline-none placeholder:text-white/30 focus:border-sky-400 disabled:opacity-50" />
+                <input id="dogeub-os-username" autoComplete="username" value={usernameDraft} onChange={(event) => setUsernameDraft(event.target.value)} required minLength={3} maxLength={20} pattern="[A-Za-z0-9_]{3,20}" placeholder="e.g. CoolGamer42" className="mt-2 block w-full rounded-xl border border-white/15 bg-black/25 px-3 py-3 text-sm outline-none placeholder:text-white/30 focus:border-sky-400 disabled:opacity-50" />
               </label>
               <p className="text-[10px] leading-4 text-white/35">{authMode === 'register' ? '3–20 letters, numbers, or underscores. This username must be unique across DOGEUB Messages.' : 'Sign in using the username associated with your DOGEUB account.'}</p>
             </>
