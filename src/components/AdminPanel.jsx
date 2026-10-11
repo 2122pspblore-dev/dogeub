@@ -89,7 +89,7 @@ export default function AdminPanel() {
     setLoading(true); setError(''); setNeedsAdminSetup(false);
     try {
       const result = await adminRequest('/api/messages/admin/overview');
-      setOverview(result.stats || {});
+      setOverview({ ...(result.stats || {}), admin: result.admin || null });
       setAnnouncement(result.siteSettings?.announcement || '');
       setAnnouncementEnabled(Boolean(result.siteSettings?.announcementEnabled));
       setRegistrationPaused(Boolean(result.siteSettings?.registrationPaused));
