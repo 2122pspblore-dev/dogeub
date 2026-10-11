@@ -628,20 +628,32 @@ export default async function registerMessagesRoutes(app) {
     const admin = requireAdmin(request, reply);
     if (!admin) return;
     const query = String(request.query?.q || "").trim().slice(0, 40).toLowerCase();
-    const users = database.users
+    const matchingUsers = database.users
       .filter((user) => !query || String(user.username || "").toLowerCase().includes(query))
-      .sort((a, b) => (Number(b.createdAt) || 0) - (Number(a.createdAt) || 0))
-      .slice(0, 200)
-      .map((user) => ({
-        ...publicUser(user),
-        isSuspended: Boolean(user.isSuspended),
-        suspensionReason: String(user.suspensionReason || "").slice(0, 200),
-        suspendedAt: user.suspendedAt || null,
-        messageCount: database.messages.filter((item) => item.senderId === user.id).length,
-        reportCount: database.reports.filter((item) => database.messages.some((message) => message.id === item.messageId && message.senderId === user.id)).length,
-        isProtectedAdmin: isAdminUser(user)
-      }));
-    return reply.send({ users, totalMatches: database.users.filter((user) => !query || String(user.username || "").toLowerCase().includes(query)).length });
+      .sort((a, b) => (Number(b.createdAt) || 0) - (Number(a.createdAt) || 0));
+    const selectedUsers = matchingUsers.slice(0, 200);
+    const selectedIds = new Set(selectedUsers.map((user) => user.id));
+    const messageCounts = new Map();
+    const messageOwners = new Map();
+    for (const message of database.messages) {
+      messageOwners.set(message.id, message.senderId);
+      if (selectedIds.has(message.senderId)) messageCounts.set(message.senderId, (messageCounts.get(message.senderId) || 0) + 1);
+    }
+    const reportCounts = new Map();
+    for (const report of database.reports) {
+      const ownerId = messageOwners.get(report.messageId);
+      if (ownerId && selectedIds.has(ownerId)) reportCounts.set(ownerId, (reportCounts.get(ownerId) || 0) + 1);
+    }
+    const users = selectedUsers.map((user) => ({
+      ...publicUser(user),
+      isSuspended: Boolean(user.isSuspended),
+      suspensionReason: String(user.suspensionReason || "").slice(0, 200),
+      suspendedAt: user.suspendedAt || null,
+      messageCount: messageCounts.get(user.id) || 0,
+      reportCount: reportCounts.get(user.id) || 0,
+      isProtectedAdmin: isAdminUser(user)
+    }));
+    return reply.send({ users, totalMatches: matchingUsers.length });
   });
 
   app.post("/api/messages/admin/users/status", async (request, reply) => {
