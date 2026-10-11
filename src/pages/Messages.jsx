@@ -819,12 +819,12 @@ export default function Messages() {
             </div>
 
             <div className="p-6 sm:p-10">
-              {!osUsername && <div className="mb-6 flex rounded-xl border border-white/10 bg-black/20 p-1">
+              <div className="mb-6 flex rounded-xl border border-white/10 bg-black/20 p-1">
                 <button type="button" onClick={() => { setAuthMode("register"); setAppError(""); }} className={"flex-1 rounded-lg px-3 py-2.5 text-sm font-semibold transition " + (authMode === "register" ? "bg-white/10 text-white" : "text-white/40 hover:text-white")}>Create account</button>
                 <button type="button" onClick={() => { setAuthMode("login"); setAppError(""); }} className={"flex-1 rounded-lg px-3 py-2.5 text-sm font-semibold transition " + (authMode === "login" ? "bg-white/10 text-white" : "text-white/40 hover:text-white")}>Sign in</button>
-              </div>}
-              <h2 className="text-2xl font-bold">{osUsername ? "Sign in as @" + osUsername : authMode === "register" ? "Join the chat" : "Welcome back"}</h2>
-              <p className="mt-2 text-sm leading-6 text-white/45">{osUsername ? "Your DOGEUB Messages account uses the same unique username as your DOGEUB OS profile." : authMode === "register" ? "Create your DOGEUB OS and Messages identity." : "Sign in with your existing DOGEUB Messages account."}</p>
+              </div>
+              <h2 className="text-2xl font-bold">{authMode === "register" ? (osUsername ? "Create account for @" + osUsername : "Join the chat") : osUsername ? "Sign in as @" + osUsername : "Welcome back"}</h2>
+              <p className="mt-2 text-sm leading-6 text-white/45">{authMode === "register" ? "Create a DOGEUB Messages account using the DOGEUB OS username shown above." : osUsername ? "Your DOGEUB Messages account uses the same unique username as your DOGEUB OS profile." : "Sign in with your existing DOGEUB Messages account."}</p>
               <form onSubmit={handleAuth} className="mt-7 space-y-4">
                 <label className="block"><span className="mb-2 block text-xs font-semibold uppercase tracking-wider text-white/45">DOGEUB OS username</span><input autoComplete="username" value={osUsername || authUsername} readOnly={Boolean(osUsername)} onChange={(event) => setAuthUsername(event.target.value)} required minLength={3} maxLength={20} pattern="[A-Za-z0-9_]{3,20}" placeholder="e.g. doge_fan" className="w-full rounded-xl border border-white/10 bg-white/[.04] px-4 py-3 text-sm outline-none transition placeholder:text-white/25 focus:border-cyan-100/35 focus:bg-white/[.07] read-only:text-cyan-100" />{osUsername && <span className="mt-2 block text-[10px] text-cyan-100/55">Synced with DOGEUB OS. Change it in your profile to update both.</span>}</label>
                 <label className="block"><span className="mb-2 block text-xs font-semibold uppercase tracking-wider text-white/45">Password</span><input type="password" autoComplete={authMode === "register" ? "new-password" : "current-password"} value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} required minLength={8} maxLength={128} placeholder="At least 8 characters" className="w-full rounded-xl border border-white/10 bg-white/[.04] px-4 py-3 text-sm outline-none transition placeholder:text-white/25 focus:border-cyan-100/35 focus:bg-white/[.07]" /></label>
