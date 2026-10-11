@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, MessageCircle, UserPlus, Users, UserRound } from 'lucide-react';
+import { ArrowLeft, MessageCircle, UserPlus, UserRound } from 'lucide-react';
 import Nav from '../layouts/Nav';
 
 async function api(path, options = {}) {
