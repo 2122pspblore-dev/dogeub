@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { getCachedSpecs, getDeviceSpecs, specsToText } from '../utils/deviceSpecs';
 import {
   AppWindow, BatteryFull, Globe, Home, Search, Settings, BatteryCharging,
-  Wifi, WifiOff, Music2, X, Youtube, BookOpen, Grid3X3, Power, ChevronUp, Cpu, LockKeyhole, Sparkles, Smile, FolderOpen, Keyboard, Zap, Command, MessagesSquare
+  Wifi, WifiOff, Music2, X, Youtube, BookOpen, Grid3X3, Power, ChevronUp, Cpu, LockKeyhole, Sparkles, Smile, FolderOpen, Keyboard, Zap, Command, MessagesSquare, ShieldCheck
 } from 'lucide-react';
 
 const apps = [
@@ -15,6 +15,7 @@ const apps = [
   { name: 'Doge Messages', description: 'Global chat and private messages', icon: MessagesSquare, path: '/messages' },
   { name: 'Doge Shortcuts', description: 'Browse all DogeUB keyboard shortcuts', icon: Keyboard, path: '/shortcuts' },
   { name: 'Settings', description: 'Customize DogeUB', icon: Settings, path: '/settings' },
+  { name: 'Admin Panel', description: 'Administrator control center', icon: ShieldCheck, adminPanel: true },
   { name: 'Quick Launcher', description: 'Search apps with Ctrl + Shift + P', icon: Command, launcher: true },
   { name: 'Doge Hub', description: 'Control center, files, widgets, notes and themes', icon: AppWindow, hub: true },
   { name: 'Doge Nexus', description: 'Workspaces, modes, themes, terminal, and diagnostics', icon: Sparkles, studio: true },
@@ -252,6 +253,12 @@ export default function Taskbar() {
   const openApp = (app) => {
     if (app.launcher) {
       window.dispatchEvent(new Event('dogeub-open-quick-launcher'));
+      setStartOpen(false);
+      setSearchOpen(false);
+      return;
+    }
+    if (app.adminPanel) {
+      window.dispatchEvent(new Event('dogeub-open-admin-panel'));
       setStartOpen(false);
       setSearchOpen(false);
       return;
