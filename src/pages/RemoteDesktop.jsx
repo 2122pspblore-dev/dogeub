@@ -1,6 +1,28 @@
 import { useEffect, useRef, useState } from 'react';
-import { Monitor, Copy, PhoneOff, ShieldCheck } from 'lucide-react';
+import { Monitor, Copy, PhoneOff, ShieldCheck, MessageCircle, Send, Search, Users } from 'lucide-react';
 import Nav from '../layouts/Nav';
+
+async function messagesApi(path, options = {}) {
+  const response = await fetch(path, {
+    credentials: 'same-origin',
+    ...options,
+    headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...(options.headers || {}) },
+  });
+  let data = {};
+  try { data = await response.json(); } catch {}
+  if (!response.ok) throw new Error(data.error || 'Dogeub Messages could not complete that request.');
+  return data;
+}
+
+async function ensureRemoteMessagesSession() {
+  let data = await messagesApi('/api/messages/session');
+  if (data.user) return data.user;
+  let username = '';
+  try { username = String(window.localStorage.getItem('dogeub-os-username-v1') || '').trim(); } catch {}
+  if (!username) throw new Error('Set up your Dogeub OS username before searching users or sending invites.');
+  data = await messagesApi('/api/messages/os-session', { method: 'POST', body: JSON.stringify({ username }) });
+  return data.user;
+}
 
 const makeShortPeerId = () => {
   const alphabet = 'abcdefghjkmnpqrstuvwxyz23456789';
@@ -19,6 +41,10 @@ export default function RemoteDesktop() {
   const [connected, setConnected] = useState(false), [status, setStatus] = useState('Not connected');
   const [error, setError] = useState('');
   const [controlReady, setControlReady] = useState(false), [controlEnabled, setControlEnabled] = useState(false);
+  const [chatMessages, setChatMessages] = useState([]), [chatDraft, setChatDraft] = useState('');
+  const [inviteSearch, setInviteSearch] = useState(''), [inviteResults, setInviteResults] = useState([]);
+  const [inviteBusy, setInviteBusy] = useState(false), [sendingInviteTo, setSendingInviteTo] = useState('');
+  const [inviteNotice, setInviteNotice] = useState('');
 
   const stop = () => {
     stoppingRef.current = true;
@@ -33,6 +59,7 @@ export default function RemoteDesktop() {
     if (localVideo.current) localVideo.current.srcObject = null;
     if (remoteVideo.current) remoteVideo.current.srcObject = null;
     setMode('idle'); setPeerId(''); setIncoming(false); setConnected(false);
+    setChatMessages([]); setChatDraft(''); setInviteSearch(''); setInviteResults([]); setInviteNotice('');
     setError(''); setStatus('Disconnected — session ended');
   };
 
@@ -92,6 +119,10 @@ export default function RemoteDesktop() {
         }
         requestRef.current = connection;
         connection.on('data', data => {
+          if (data?.type === 'remote-chat' && typeof data.text === 'string') {
+            setChatMessages(previous => [...previous.slice(-99), { id: String(data.id || Date.now()), sender: String(data.sender || 'Viewer').slice(0, 40), text: data.text.slice(0, 500), at: Number(data.at) || Date.now() }]);
+            return;
+          }
           if (!controlEnabledRef.current || !controlSocketRef.current || controlSocketRef.current.readyState !== WebSocket.OPEN) return;
           if (data && ['pointer','click','mouse-down','mouse-up','scroll','key-down','key-up','type-text'].includes(data.type)) controlSocketRef.current.send(JSON.stringify(data));
         });
@@ -151,6 +182,11 @@ export default function RemoteDesktop() {
         return;
       }
       requestRef.current = connection;
+      connection.on('data', data => {
+        if (data?.type === 'remote-chat' && typeof data.text === 'string') {
+          setChatMessages(previous => [...previous.slice(-99), { id: String(data.id || Date.now()), sender: String(data.sender || 'Host').slice(0, 40), text: data.text.slice(0, 500), at: Number(data.at) || Date.now() }]);
+        }
+      });
       connection.on('open', () => {
         if (requestRef.current === connection) setStatus('Request sent — waiting for host approval');
       });
@@ -224,6 +260,50 @@ export default function RemoteDesktop() {
       socket.onclose = () => { controlEnabledRef.current = false; setControlEnabled(false); setControlReady(false); };
     } catch { setError('Could not connect to the local host agent.'); }
   };
+  const sendChat = event => {
+    event.preventDefault();
+    const text = chatDraft.trim().slice(0, 500);
+    const connection = requestRef.current;
+    if (!text || !connected || !connection?.open) return;
+    let username = '';
+    try { username = String(window.localStorage.getItem('dogeub-os-username-v1') || '').trim(); } catch {}
+    const payload = { type: 'remote-chat', id: String(Date.now()) + '-' + Math.random().toString(36).slice(2, 8), sender: username ? '@' + username : (mode === 'host' ? 'Host' : 'Viewer'), text, at: Date.now() };
+    try {
+      connection.send(payload);
+      setChatMessages(previous => [...previous.slice(-99), payload]);
+      setChatDraft('');
+    } catch { setError('Message could not be sent. Check that the connection is still active.'); }
+  };
+
+  const sendInvite = async user => {
+    if (!peerId || mode !== 'host') return;
+    setSendingInviteTo(user.id);
+    setInviteNotice('');
+    try {
+      const account = await ensureRemoteMessagesSession();
+      const text = 'Remote Desktop invite from @' + account.username + '.\nConnection code: ' + peerId + '\nOpen ' + window.location.origin + '/remote-desktop and enter the code. The host must approve the connection.';
+      await messagesApi('/api/messages/messages', { method: 'POST', body: JSON.stringify({ channel: 'dm', recipientId: user.id, text }) });
+      setInviteNotice('Invite sent to @' + user.username + '.');
+    } catch (err) { setInviteNotice(err.message || 'Could not send that invite.'); }
+    finally { setSendingInviteTo(''); }
+  };
+
+  useEffect(() => {
+    const query = inviteSearch.trim();
+    if (mode !== 'host' || !peerId || query.length < 2) { setInviteResults([]); return undefined; }
+    let alive = true;
+    const timer = window.setTimeout(async () => {
+      setInviteBusy(true);
+      try {
+        await ensureRemoteMessagesSession();
+        const data = await messagesApi('/api/messages/users?q=' + encodeURIComponent(query));
+        if (alive) setInviteResults((data.users || []).filter(user => user?.id));
+      } catch (err) { if (alive) setInviteNotice(err.message || 'Could not search Dogeub users.'); }
+      finally { if (alive) setInviteBusy(false); }
+    }, 250);
+    return () => { alive = false; window.clearTimeout(timer); };
+  }, [inviteSearch, mode, peerId]);
+
   const sendInput = payload => { const connection = requestRef.current; if (mode === 'viewer' && connected && connection?.open) { try { connection.send(payload); } catch { /* Connection may be closing. */ } } };
   const handleScreenPointer = event => { if (mode !== 'viewer' || !connected) return; const rect = event.currentTarget.getBoundingClientRect(); if (!rect.width || !rect.height) return; sendInput({ type: 'pointer', x: Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)), y: Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height)) }); };
   const handleScreenKeyDown = event => { if (mode !== 'viewer' || !connected || event.repeat) return; if (event.key.length === 1 && !event.ctrlKey && !event.altKey && !event.metaKey) { sendInput({ type: 'type-text', text: event.key }); return; } sendInput({ type: 'key-down', key: event.key === ' ' ? 'Space' : event.key }); };
@@ -268,6 +348,19 @@ export default function RemoteDesktop() {
           {mode === 'host' && <section className={panel}><h2 className="font-semibold">Connection code</h2><div className="my-3 flex items-center gap-2 rounded-xl bg-black/30 p-3"><code className="flex-1 break-all text-sm text-cyan-100">{peerId || 'Creating code…'}</code><button onClick={copy} disabled={!peerId} aria-label="Copy code" className="rounded-lg p-2 hover:bg-white/10 disabled:opacity-40"><Copy size={16}/></button></div>
             {incoming && <div className="rounded-xl border border-amber-200/20 p-3"><p className="text-sm">Someone wants to view your screen.</p><div className="mt-3 grid grid-cols-2 gap-2"><button onClick={approve} className="rounded-lg bg-emerald-200 p-2 text-sm font-bold text-slate-950">Approve</button><button onClick={decline} className="rounded-lg border border-white/15 p-2 text-sm">Decline</button></div></div>}
             {connected && <div className="mt-4 rounded-xl border border-white/10 p-3"><h3 className="font-semibold">Remote control</h3><p className="my-2 text-xs text-slate-400">OS-level input requires the optional host agent installed on this computer.</p><div className="text-xs text-slate-400">{controlReady ? 'Host agent armed' : 'Host agent not connected'}</div><button onClick={enableControl} className={button + ' mt-3 border border-emerald-300/30 hover:bg-emerald-300/10'}>Enable mouse + keyboard control</button>{controlEnabled && <button onClick={() => { controlSocketRef.current?.send(JSON.stringify({type:'disarm'})); controlSocketRef.current?.close(); controlSocketRef.current = null; controlEnabledRef.current = false; setControlEnabled(false); setControlReady(false); }} className={button + ' mt-2 border border-rose-300/30'}>Disable remote control</button>}</div>}
+          </section>}
+          {mode === 'host' && peerId && <section className={panel}>
+            <div className="flex items-center gap-2"><Users size={17} className="text-cyan-200"/><h2 className="font-semibold">Invite a Dogeub user</h2></div>
+            <p className="my-2 text-xs text-slate-400">Search for a Dogeub username and send your current connection code in a private message.</p>
+            <div className="relative"><Search size={15} className="absolute left-3 top-3.5 text-slate-500"/><input value={inviteSearch} onChange={event => setInviteSearch(event.target.value)} placeholder="Search usernames…" className="w-full rounded-xl border border-white/10 bg-black/30 py-3 pl-9 pr-3 text-sm outline-none focus:border-cyan-200/50"/></div>
+            {inviteBusy && <p className="mt-2 text-xs text-slate-400">Searching Dogeub users…</p>}
+            {inviteResults.length > 0 && <div className="mt-2 max-h-48 space-y-2 overflow-y-auto">{inviteResults.map(user => <div key={user.id} className="flex items-center justify-between gap-3 rounded-xl border border-white/10 p-3"><span className="truncate text-sm">@{user.username}</span><button onClick={() => sendInvite(user)} disabled={Boolean(sendingInviteTo)} className="shrink-0 rounded-lg bg-cyan-200 px-3 py-2 text-xs font-bold text-slate-950 disabled:opacity-50">{sendingInviteTo === user.id ? 'Sending…' : 'Send code'}</button></div>)}</div>}
+            {inviteNotice && <p role="status" className="mt-3 break-words text-xs text-cyan-100">{inviteNotice}</p>}
+          </section>}
+          {connected && <section className={panel}>
+            <div className="flex items-center gap-2"><MessageCircle size={17} className="text-cyan-200"/><h2 className="font-semibold">Session chat</h2><span className="ml-auto text-[10px] text-slate-500">Private to this connection</span></div>
+            <div role="log" aria-label="Remote desktop chat messages" className="mt-3 max-h-56 min-h-20 space-y-2 overflow-y-auto rounded-xl bg-black/25 p-3">{chatMessages.length === 0 ? <p className="text-xs text-slate-500">No messages yet. Say hi!</p> : chatMessages.map(message => <div key={message.id} className="rounded-lg bg-white/[.04] px-3 py-2"><p className="text-[10px] font-semibold text-cyan-200">{message.sender}</p><p className="mt-1 break-words text-sm text-slate-200">{message.text}</p></div>)}</div>
+            <form onSubmit={sendChat} className="mt-3 flex gap-2"><input value={chatDraft} onChange={event => setChatDraft(event.target.value.slice(0, 500))} maxLength={500} placeholder="Message the other person…" className="min-w-0 flex-1 rounded-xl border border-white/10 bg-black/30 px-3 py-3 text-sm outline-none focus:border-cyan-200/50"/><button type="submit" disabled={!chatDraft.trim()} aria-label="Send chat message" className="rounded-xl bg-cyan-200 px-4 text-slate-950 disabled:opacity-40"><Send size={16}/></button></form>
           </section>}
           {mode === 'viewer' && <section className={panel}><p className="text-sm text-slate-300">Request sent. The host must approve before the screen appears. After connecting, click the screen to focus it; input requires host approval.</p><button onClick={stop} className={button + ' mt-3 border border-white/15'}>Cancel request</button></section>}
           {error && <p role="alert" className="rounded-xl border border-rose-300/20 bg-rose-300/10 p-3 text-sm text-rose-100">{error}</p>}
