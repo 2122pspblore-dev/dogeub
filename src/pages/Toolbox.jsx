@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, Copy, Download, FileJson, Image, QrCode, Type, Palette, Wrench } from 'lucide-react';
+import { Copy, Download, FileJson, Image, QrCode, Type, Palette } from 'lucide-react';
 import Nav from '../layouts/Nav';
 
 const TOOLS = [
