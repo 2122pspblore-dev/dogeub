@@ -313,26 +313,38 @@ export default async function registerMessagesRoutes(app) {
     return true;
   };
 
-  app.post("/api/messages/guest", async (request, reply) => {
+  app.post("/api/messages/os-session", async (request, reply) => {
     const ip = request.ip || "unknown";
-    if (!allowRate("guest:" + ip, 20, 60 * 60 * 1000)) return sendError(reply, 429, "Too many guest sessions from this connection. Try again later.");
-    const username = "Guest_" + randomBytes(4).toString("hex").slice(0, 8);
-    const user = {
-      id: randomUUID(), username, normalizedUsername: normalizeUsername(username),
-      passwordSalt: "", passwordHash: "", avatarFile: null, avatarType: null,
-      avatarUpdatedAt: 0, createdAt: Date.now(), bio: "", statusMessage: "",
-      bannerColor: "#172554", lastSeenAt: Date.now(), isGuest: true
-    };
-    database.users.push(user);
-    try { await persist(); } catch {
-      database.users = database.users.filter((item) => item.id !== user.id);
-      return sendError(reply, 500, "Could not start a guest Messages session. Try again.");
+    if (!allowRate("os-session:" + ip, 30, 60 * 60 * 1000)) {
+      return sendError(reply, 429, "Too many Messages session attempts. Try again later.");
     }
+    const username = String(request.body?.username || "").trim();
+    const usernameError = validateUsername(username);
+    if (usernameError) return sendError(reply, 400, usernameError);
+
+    let user = findUsername(username);
+    if (user && user.passwordHash) {
+      return sendError(reply, 409, "This username already has a protected Messages account. Sign in to that account once before using automatic OS sign-in.");
+    }
+    if (!user) {
+      user = {
+        id: randomUUID(), username, normalizedUsername: normalizeUsername(username),
+        passwordSalt: "", passwordHash: "", avatarFile: null, avatarType: null,
+        avatarUpdatedAt: 0, createdAt: Date.now(), bio: "", statusMessage: "",
+        bannerColor: "#172554", lastSeenAt: Date.now(), isGuest: false, osLinked: true
+      };
+      database.users.push(user);
+      try { await persist(); } catch {
+        database.users = database.users.filter((item) => item.id !== user.id);
+        return sendError(reply, 500, "Your DOGEUB Messages profile could not be saved. Try again.");
+      }
+    }
+    user.lastSeenAt = Date.now();
     setSession(reply, user.id);
-    return reply.code(201).send({ user: publicUser(user), guest: true });
+    return reply.send({ user: publicUser(user), osLinked: true });
   });
 
-  app.get("/api/messages/session", async (request, reply) => {
+    app.get("/api/messages/session", async (request, reply) => {
     const user = currentUser(request);
     return reply.send({ user: user?.isSuspended ? null : publicUser(user) });
   });
