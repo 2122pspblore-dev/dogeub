@@ -363,7 +363,8 @@ export default async function registerMessagesRoutes(app) {
 
   app.get("/api/public/site-status", async (request, reply) => {
     const username = String(request.query?.username || "").trim().toLowerCase();
-    const matchedUser = username ? findUsername(username) : null;
+    const sessionUser = currentUser(request);
+    const matchedUser = sessionUser?.isSuspended ? sessionUser : (username ? findUsername(username) : null);
     const settings = database.adminSettings;
     return reply.send({
       gamesDisabled: settings.gamesDisabled === true,
