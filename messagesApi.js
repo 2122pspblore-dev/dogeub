@@ -81,9 +81,15 @@ export default async function registerMessagesRoutes(app) {
   if (!Array.isArray(database.readStates)) database.readStates = [];
   if (!Array.isArray(database.reactions)) database.reactions = [];
   if (!Array.isArray(database.mutes)) database.mutes = [];
+  const makeInviteCode = () => {
+    let code;
+    do { code = randomBytes(4).toString("hex").toUpperCase(); }
+    while (database.groups.some((group) => group.inviteCode === code));
+    return code;
+  };
   let legacyInviteCodesChanged = false;
   for (const group of database.groups) {
-    if (!group.inviteCode) { group.inviteCode = randomBytes(4).toString("hex").toUpperCase(); legacyInviteCodesChanged = true; }
+    if (!group.inviteCode) { group.inviteCode = makeInviteCode(); legacyInviteCodesChanged = true; }
   }
   const typingSessions = new Map();
   let sessionSecret = process.env.DOGEUB_CHAT_SECRET || process.env.SESSION_SECRET || "";
@@ -419,7 +425,7 @@ export default async function registerMessagesRoutes(app) {
     let group = database.groups.find((candidate) => candidate.normalizedName === normalizedName || candidate.inviteCode?.toLowerCase() === normalizedName);
     let created = false;
     if (!group) {
-      group = { id: randomUUID(), name, normalizedName, createdBy: user.id, inviteCode: randomBytes(4).toString("hex").toUpperCase(), createdAt: Date.now() };
+      group = { id: randomUUID(), name, normalizedName, createdBy: user.id, inviteCode: makeInviteCode(), createdAt: Date.now() };
       database.groups.push(group);
       created = true;
     }
@@ -507,7 +513,11 @@ export default async function registerMessagesRoutes(app) {
     } else {
       return sendError(reply, 400, "Unknown message channel.");
     }
-    return reply.send({ messages: messages.slice(-100).map((message) => messageForClient(message, user.id)) });
+    const recentMessages = messages.slice(-100);
+    const retainedPins = messages.filter((message) => message.pinned).slice(-50);
+    const visibleMessages = [...new Map([...retainedPins, ...recentMessages].map((message) => [message.id, message])).values()]
+      .sort((a, b) => a.createdAt - b.createdAt);
+    return reply.send({ messages: visibleMessages.map((message) => messageForClient(message, user.id)) });
   });
 
   app.post("/api/messages/messages", async (request, reply) => {
@@ -875,7 +885,7 @@ export default async function registerMessagesRoutes(app) {
       if (!targetId || targetId === user.id || !isGroupMember(groupId, targetId)) return sendError(reply, 400, "Choose another member to remove.");
       database.groupMembers = database.groupMembers.filter((item) => !(item.groupId === groupId && item.userId === targetId));
     } else if (action === "invite-code") {
-      group.inviteCode = randomBytes(4).toString("hex").toUpperCase();
+      group.inviteCode = makeInviteCode();
     } else return sendError(reply, 400, "Unknown group management action.");
     try { await persist(); } catch { return sendError(reply, 500, "Group changes could not be saved."); }
     return reply.send({ group: publicGroup(group, user.id), ok: true });
