@@ -53,11 +53,21 @@ const censorProfanity = (value) => String(value || "").replace(PROFANITY_REGEX, 
 
 function publicUser(user) {
   if (!user) return null;
+  const age = Date.now() - (Number(user.lastSeenAt) || 0);
+  const presence = age < 90_000 ? "online" : age < 5 * 60_000 ? "away" : "offline";
+  const moderators = String(process.env.DOGEUB_MODERATOR_USERNAMES || "")
+    .split(",").map((value) => value.trim().toLowerCase()).filter(Boolean);
   return {
     id: user.id,
     username: user.username,
     avatarUrl: user.avatarFile ? "/api/messages/avatars/" + user.id + "?v=" + (user.avatarUpdatedAt || 0) : null,
-    createdAt: user.createdAt
+    createdAt: user.createdAt,
+    bio: String(user.bio || "").slice(0, 200),
+    statusMessage: String(user.statusMessage || "").slice(0, 80),
+    bannerColor: /^#[0-9a-f]{6}$/i.test(user.bannerColor || "") ? user.bannerColor : "#172554",
+    presence,
+    lastSeenAt: presence === "online" ? null : (Number(user.lastSeenAt) || null),
+    isModerator: moderators.includes(String(user.normalizedUsername || user.username || "").toLowerCase())
   };
 }
 
@@ -69,7 +79,7 @@ export default async function registerMessagesRoutes(app) {
   const secretPath = join(dataDirectory, "session-secret");
   await Promise.all([makeDirectory(attachmentDirectory), makeDirectory(avatarDirectory)]);
 
-  let database = { users: [], messages: [], attachments: [], reports: [], groups: [], groupMembers: [], readStates: [], reactions: [], mutes: [] };
+  let database = { users: [], messages: [], attachments: [], reports: [], groups: [], groupMembers: [], readStates: [], reactions: [], mutes: [], friendRequests: [], friendships: [], blocks: [], notifications: [] };
   try {
     const loaded = JSON.parse(await readFile(statePath, "utf8"));
     if (Array.isArray(loaded.users) && Array.isArray(loaded.messages) && Array.isArray(loaded.attachments)) {
@@ -81,6 +91,10 @@ export default async function registerMessagesRoutes(app) {
   if (!Array.isArray(database.readStates)) database.readStates = [];
   if (!Array.isArray(database.reactions)) database.reactions = [];
   if (!Array.isArray(database.mutes)) database.mutes = [];
+  if (!Array.isArray(database.friendRequests)) database.friendRequests = [];
+  if (!Array.isArray(database.friendships)) database.friendships = [];
+  if (!Array.isArray(database.blocks)) database.blocks = [];
+  if (!Array.isArray(database.notifications)) database.notifications = [];
   const makeInviteCode = () => {
     let code;
     do { code = randomBytes(4).toString("hex").toUpperCase(); }
@@ -236,6 +250,18 @@ export default async function registerMessagesRoutes(app) {
     return null;
   };
   const findUsername = (username) => database.users.find((user) => user.normalizedUsername === normalizeUsername(username));
+  const hasBlockBetween = (firstId, secondId) => database.blocks.some((item) =>
+    (item.blockerId === firstId && item.blockedId === secondId) ||
+    (item.blockerId === secondId && item.blockedId === firstId)
+  );
+  const notifyUser = (recipientId, type, title, body, actorId = null, metadata = {}) => {
+    const item = { id: randomUUID(), recipientId, type, title: String(title || "").slice(0, 100), body: String(body || "").slice(0, 240), actorId, metadata, createdAt: Date.now(), readAt: null };
+    database.notifications.push(item);
+    if (database.notifications.length > 10000) database.notifications.splice(0, database.notifications.length - 10000);
+    return item;
+  };
+  const friendKey = (firstId, secondId) => [firstId, secondId].sort().join(":");
+  const areFriends = (firstId, secondId) => database.friendships.some((item) => item.key === friendKey(firstId, secondId));
   const validateMessageRate = (request, reply, user) => {
     if (!allowRate("message:" + userBucket(request, user), 12, 15000)) {
       sendError(reply, 429, "You're sending messages too quickly. Take a moment and try again.");
@@ -262,7 +288,7 @@ export default async function registerMessagesRoutes(app) {
     const user = {
       id: randomUUID(), username, normalizedUsername: normalizeUsername(username),
       passwordSalt: salt, passwordHash, avatarFile: null, avatarType: null,
-      avatarUpdatedAt: 0, createdAt: Date.now()
+      avatarUpdatedAt: 0, createdAt: Date.now(), bio: "", statusMessage: "", bannerColor: "#172554", lastSeenAt: Date.now()
     };
     database.users.push(user);
     try {
@@ -297,6 +323,9 @@ export default async function registerMessagesRoutes(app) {
     const user = requireUser(request, reply);
     if (!user) return;
     const changes = request.body || {};
+    if (Object.prototype.hasOwnProperty.call(changes, "bio") && String(changes.bio || "").length > 200) return sendError(reply, 400, "Profile bios must be 200 characters or fewer.");
+    if (Object.prototype.hasOwnProperty.call(changes, "statusMessage") && String(changes.statusMessage || "").length > 80) return sendError(reply, 400, "Status messages must be 80 characters or fewer.");
+    if (Object.prototype.hasOwnProperty.call(changes, "bannerColor") && !/^#[0-9a-f]{6}$/i.test(String(changes.bannerColor || ""))) return sendError(reply, 400, "Choose a valid six-digit hex banner color.");
     const oldUsername = user.username;
     const oldNormalizedUsername = user.normalizedUsername;
     if (Object.prototype.hasOwnProperty.call(changes, "username")) {
@@ -337,6 +366,10 @@ export default async function registerMessagesRoutes(app) {
       user.avatarUpdatedAt = Date.now();
     }
 
+    if (Object.prototype.hasOwnProperty.call(changes, "bio")) user.bio = String(changes.bio || "").trim();
+    if (Object.prototype.hasOwnProperty.call(changes, "statusMessage")) user.statusMessage = String(changes.statusMessage || "").trim();
+    if (Object.prototype.hasOwnProperty.call(changes, "bannerColor")) user.bannerColor = String(changes.bannerColor);
+    user.lastSeenAt = Date.now();
     try {
       await persist();
     } catch {
@@ -353,11 +386,201 @@ export default async function registerMessagesRoutes(app) {
     const query = String(request.query?.q || "").trim().slice(0, 30).toLowerCase();
     if (!query) return reply.send({ users: [] });
     const users = database.users
-      .filter((candidate) => candidate.id !== user.id && candidate.normalizedUsername.includes(query))
+      .filter((candidate) => candidate.id !== user.id && candidate.normalizedUsername.includes(query) && !hasBlockBetween(user.id, candidate.id))
       .sort((a, b) => a.normalizedUsername.localeCompare(b.normalizedUsername))
       .slice(0, 20)
       .map(publicUser);
     return reply.send({ users });
+  });
+
+
+  app.post("/api/messages/presence", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    user.lastSeenAt = request.body?.hidden === true ? Date.now() - 10 * 60_000 : Date.now();
+    return reply.send({ user: publicUser(user) });
+  });
+
+  app.get("/api/messages/social", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    const friendIds = new Set(database.friendships
+      .filter((item) => item.userIds?.includes(user.id))
+      .flatMap((item) => item.userIds || [])
+      .filter((id) => id !== user.id));
+    const incoming = database.friendRequests.filter((item) => item.toUserId === user.id && item.status === "pending")
+      .map((item) => ({ id: item.id, createdAt: item.createdAt, user: publicUser(database.users.find((candidate) => candidate.id === item.fromUserId)) }))
+      .filter((item) => item.user);
+    const outgoing = database.friendRequests.filter((item) => item.fromUserId === user.id && item.status === "pending")
+      .map((item) => ({ id: item.id, createdAt: item.createdAt, user: publicUser(database.users.find((candidate) => candidate.id === item.toUserId)) }))
+      .filter((item) => item.user);
+    const friends = [...friendIds].map((id) => publicUser(database.users.find((candidate) => candidate.id === id))).filter(Boolean)
+      .sort((a, b) => a.username.localeCompare(b.username));
+    const blocked = database.blocks.filter((item) => item.blockerId === user.id)
+      .map((item) => publicUser(database.users.find((candidate) => candidate.id === item.blockedId))).filter(Boolean);
+    return reply.send({ friends, incoming, outgoing, blocked, user: publicUser(user) });
+  });
+
+  app.post("/api/messages/friend-requests", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    if (!allowRate("friend-request:" + user.id, 20, 60 * 60 * 1000)) return sendError(reply, 429, "Too many friend requests. Try again later.");
+    const targetId = String(request.body?.userId || "");
+    const targetName = String(request.body?.username || "").trim();
+    const target = targetId ? database.users.find((item) => item.id === targetId) : findUsername(targetName);
+    if (!target || target.id === user.id) return sendError(reply, 400, "Choose another DOGEUB user.");
+    if (hasBlockBetween(user.id, target.id)) return sendError(reply, 403, "A block is active between these accounts.");
+    if (areFriends(user.id, target.id)) return sendError(reply, 409, "You are already friends.");
+    const reverse = database.friendRequests.find((item) => item.fromUserId === target.id && item.toUserId === user.id && item.status === "pending");
+    if (reverse) return sendError(reply, 409, "They already sent you a friend request. Accept it from Requests.");
+    if (database.friendRequests.some((item) => item.fromUserId === user.id && item.toUserId === target.id && item.status === "pending")) {
+      return sendError(reply, 409, "You have already sent a friend request to this user.");
+    }
+    const item = { id: randomUUID(), fromUserId: user.id, toUserId: target.id, status: "pending", createdAt: Date.now() };
+    database.friendRequests.push(item);
+    const notification = notifyUser(target.id, "friend-request", "Friend request", user.username + " sent you a friend request.", user.id, { requestId: item.id });
+    try { await persist(); } catch {
+      database.friendRequests = database.friendRequests.filter((entry) => entry.id !== item.id);
+      database.notifications = database.notifications.filter((entry) => entry.id !== notification.id);
+      return sendError(reply, 500, "The friend request could not be saved.");
+    }
+    return reply.code(201).send({ ok: true });
+  });
+
+  app.post("/api/messages/friend-requests/respond", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    const requestId = String(request.body?.requestId || "");
+    const action = String(request.body?.action || "");
+    const item = database.friendRequests.find((entry) => entry.id === requestId && entry.status === "pending");
+    if (!item) return sendError(reply, 404, "That friend request is no longer available.");
+    if (action === "cancel") {
+      if (item.fromUserId !== user.id) return sendError(reply, 403, "Only the sender can cancel this request.");
+    } else if (!["accept", "decline"].includes(action) || item.toUserId !== user.id) {
+      return sendError(reply, 403, "You cannot respond to that friend request.");
+    }
+    if (action === "accept" && hasBlockBetween(item.fromUserId, item.toUserId)) return sendError(reply, 403, "Remove the active block before accepting this request.");
+    database.friendRequests = database.friendRequests.filter((entry) => entry.id !== item.id);
+    let notification = null;
+    if (action === "accept") {
+      const key = friendKey(item.fromUserId, item.toUserId);
+      if (!database.friendships.some((entry) => entry.key === key)) {
+        database.friendships.push({ key, userIds: [item.fromUserId, item.toUserId].sort(), createdAt: Date.now() });
+      }
+      notification = notifyUser(item.fromUserId, "friend-accepted", "Friend request accepted", user.username + " accepted your friend request.", user.id);
+    } else if (action === "decline") {
+      notification = notifyUser(item.fromUserId, "friend-declined", "Friend request update", user.username + " declined your friend request.", user.id);
+    }
+    try { await persist(); } catch {
+      if (notification) database.notifications = database.notifications.filter((entry) => entry.id !== notification.id);
+      return sendError(reply, 500, "The friend request response could not be saved.");
+    }
+    return reply.send({ ok: true });
+  });
+
+  app.post("/api/messages/friends/remove", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    const targetId = String(request.body?.userId || "");
+    if (!targetId || targetId === user.id) return sendError(reply, 400, "Choose a friend to remove.");
+    const key = friendKey(user.id, targetId);
+    const before = database.friendships.length;
+    database.friendships = database.friendships.filter((item) => item.key !== key);
+    if (database.friendships.length === before) return sendError(reply, 404, "That friend relationship was not found.");
+    try { await persist(); } catch { return sendError(reply, 500, "The friend could not be removed."); }
+    return reply.send({ ok: true });
+  });
+
+  app.post("/api/messages/block", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    const targetId = String(request.body?.userId || "");
+    const target = database.users.find((item) => item.id === targetId);
+    if (!target || target.id === user.id) return sendError(reply, 400, "Choose another DOGEUB user.");
+    if (request.body?.blocked === false) {
+      database.blocks = database.blocks.filter((item) => !(item.blockerId === user.id && item.blockedId === target.id));
+    } else {
+      if (!database.blocks.some((item) => item.blockerId === user.id && item.blockedId === target.id)) {
+        database.blocks.push({ blockerId: user.id, blockedId: target.id, createdAt: Date.now() });
+      }
+      const key = friendKey(user.id, target.id);
+      database.friendships = database.friendships.filter((item) => item.key !== key);
+      database.friendRequests = database.friendRequests.filter((item) =>
+        !((item.fromUserId === user.id && item.toUserId === target.id) || (item.fromUserId === target.id && item.toUserId === user.id))
+      );
+    }
+    try { await persist(); } catch { return sendError(reply, 500, "The block setting could not be saved."); }
+    return reply.send({ ok: true });
+  });
+
+  app.get("/api/messages/notification-center", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    const notifications = database.notifications.filter((item) => item.recipientId === user.id)
+      .slice(-100).reverse().map((item) => ({
+        id: item.id, type: item.type, title: item.title, body: item.body,
+        createdAt: item.createdAt, readAt: item.readAt,
+        actor: item.actorId ? publicUser(database.users.find((candidate) => candidate.id === item.actorId)) : null,
+        metadata: item.metadata || {}
+      }));
+    return reply.send({ notifications, unreadCount: notifications.filter((item) => !item.readAt).length });
+  });
+
+  app.post("/api/messages/notification-center/read", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    const id = request.body?.id ? String(request.body.id) : "";
+    const all = request.body?.all === true;
+    let changed = false;
+    for (const item of database.notifications) {
+      if (item.recipientId !== user.id || item.readAt) continue;
+      if (all || item.id === id) { item.readAt = Date.now(); changed = true; }
+    }
+    if (id && !database.notifications.some((item) => item.id === id && item.recipientId === user.id)) return sendError(reply, 404, "Notification not found.");
+    if (changed) {
+      try { await persist(); } catch { return sendError(reply, 500, "Notification state could not be saved."); }
+    }
+    return reply.send({ ok: true });
+  });
+
+  app.get("/api/messages/moderation/reports", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    if (!publicUser(user).isModerator) return sendError(reply, 403, "Moderator access is not enabled for this account.");
+    const reports = database.reports.slice().reverse().slice(0, 200).map((item) => {
+      const message = database.messages.find((entry) => entry.id === item.messageId);
+      return {
+        id: item.id, reason: item.reason, createdAt: item.createdAt, status: item.status || "open",
+        reporter: publicUser(database.users.find((entry) => entry.id === item.reporterId)),
+        message: message ? { id: message.id, text: message.text || (message.attachmentId ? "Attachment" : ""), sender: publicUser(database.users.find((entry) => entry.id === message.senderId)), channel: message.channel } : null
+      };
+    });
+    return reply.send({ reports });
+  });
+
+  app.post("/api/messages/moderation/action", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    if (!publicUser(user).isModerator) return sendError(reply, 403, "Moderator access is not enabled for this account.");
+    const report = database.reports.find((item) => item.id === String(request.body?.reportId || ""));
+    const action = String(request.body?.action || "");
+    if (!report) return sendError(reply, 404, "Report not found.");
+    if (action === "dismiss") {
+      report.status = "dismissed";
+      report.reviewedAt = Date.now();
+    } else if (action === "remove-message") {
+      const message = database.messages.find((item) => item.id === report.messageId);
+      if (!message) return sendError(reply, 404, "The reported message no longer exists.");
+      message.text = "[Message removed by a moderator]";
+      message.attachmentId = null;
+      message.moderatedRemoved = true;
+      database.reactions = database.reactions.filter((item) => item.messageId !== message.id);
+      report.status = "removed";
+      report.reviewedAt = Date.now();
+      notifyUser(message.senderId, "moderation", "Message removed", "A moderator removed one of your messages after review.", user.id, { messageId: message.id });
+    } else return sendError(reply, 400, "Choose dismiss or remove-message.");
+    try { await persist(); } catch { return sendError(reply, 500, "The moderation action could not be saved."); }
+    return reply.send({ ok: true });
   });
 
   const publicGroup = (group, viewerId = null) => ({
@@ -539,6 +762,7 @@ export default async function registerMessagesRoutes(app) {
       if (!recipientId || recipientId === user.id || !database.users.some((candidate) => candidate.id === recipientId)) {
         return sendError(reply, 400, "Choose a valid direct-message recipient.");
       }
+      if (hasBlockBetween(user.id, recipientId)) return sendError(reply, 403, "A block is active between these accounts, so direct messages are paused.");
     } else if (channel !== "global") {
       return sendError(reply, 400, "Unknown message channel.");
     }
@@ -566,10 +790,20 @@ export default async function registerMessagesRoutes(app) {
     database.messages.push(message);
     if (database.messages.length > 20000) database.messages.splice(0, database.messages.length - 20000);
     if (attachment) attachment.messageId = message.id;
+    const createdNotifications = [];
+    if (channel === "dm" && !muteMatches(recipientId, message)) {
+      createdNotifications.push(notifyUser(recipientId, "dm", "New message from " + user.username, text || "Sent an attachment", user.id, { messageId: message.id }));
+    } else if (channel === "group") {
+      const groupName = database.groups.find((item) => item.id === groupId)?.name || "Group chat";
+      for (const member of database.groupMembers.filter((item) => item.groupId === groupId && item.userId !== user.id)) {
+        if (!muteMatches(member.userId, message)) createdNotifications.push(notifyUser(member.userId, "group-message", "New message in " + groupName, text || "Sent an attachment", user.id, { groupId, messageId: message.id }));
+      }
+    }
     try {
       await persist();
     } catch {
       database.messages = database.messages.filter((item) => item.id !== message.id);
+      database.notifications = database.notifications.filter((item) => !createdNotifications.some((created) => created.id === item.id));
       if (attachment) attachment.messageId = null;
       return sendError(reply, 500, "Your message could not be saved. Try again.");
     }
