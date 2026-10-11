@@ -2,6 +2,8 @@
 // Add global chords and useful app-specific keyboard controls here.
 // When a shortcut is added or changed in a component, update this registry too.
 const shortcutRegistry = [
+  { app: 'Notification Center', category: 'System', keys: ['Alt', 'Shift', 'N'], title: 'Toggle Notification Center', description: 'Open or close the notification drawer, mark alerts read, or clear local notifications.', route: '/', note: 'Notifications are stored locally; only features explicitly connected to this center can send live alerts.' },
+  { app: 'HoloSpace', category: 'Navigation', keys: ['Ctrl', 'Alt', '← / →'], title: 'Switch workspace', description: 'Move between Main, School, Games, and Projects workspaces.', route: '/', note: 'Each workspace remembers its last DOGEUB route in this browser.' },
   {
     app: 'DOGEUB Section Switcher',
     category: 'Navigation',
