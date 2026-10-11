@@ -69,7 +69,7 @@ export default async function registerMessagesRoutes(app) {
   const secretPath = join(dataDirectory, "session-secret");
   await Promise.all([makeDirectory(attachmentDirectory), makeDirectory(avatarDirectory)]);
 
-  let database = { users: [], messages: [], attachments: [], reports: [], groups: [], groupMembers: [] };
+  let database = { users: [], messages: [], attachments: [], reports: [], groups: [], groupMembers: [], readStates: [], reactions: [], mutes: [] };
   try {
     const loaded = JSON.parse(await readFile(statePath, "utf8"));
     if (Array.isArray(loaded.users) && Array.isArray(loaded.messages) && Array.isArray(loaded.attachments)) {
@@ -78,6 +78,20 @@ export default async function registerMessagesRoutes(app) {
   } catch {}
   if (!Array.isArray(database.groups)) database.groups = [];
   if (!Array.isArray(database.groupMembers)) database.groupMembers = [];
+  if (!Array.isArray(database.readStates)) database.readStates = [];
+  if (!Array.isArray(database.reactions)) database.reactions = [];
+  if (!Array.isArray(database.mutes)) database.mutes = [];
+  const makeInviteCode = () => {
+    let code;
+    do { code = randomBytes(4).toString("hex").toUpperCase(); }
+    while (database.groups.some((group) => group.inviteCode === code));
+    return code;
+  };
+  let legacyInviteCodesChanged = false;
+  for (const group of database.groups) {
+    if (!group.inviteCode) { group.inviteCode = makeInviteCode(); legacyInviteCodesChanged = true; }
+  }
+  const typingSessions = new Map();
   let sessionSecret = process.env.DOGEUB_CHAT_SECRET || process.env.SESSION_SECRET || "";
   if (!sessionSecret) {
     try {
@@ -98,6 +112,7 @@ export default async function registerMessagesRoutes(app) {
     });
     return writeQueue;
   };
+  if (legacyInviteCodesChanged) await persist();
 
   // Clean up abandoned uploads from users who picked a file but never sent it.
   const referencedAttachmentIds = new Set(database.messages.map((message) => message.attachmentId).filter(Boolean));
@@ -170,15 +185,47 @@ export default async function registerMessagesRoutes(app) {
     if (!attachment) return null;
     return { id: attachment.id, name: attachment.name, type: attachment.type, size: attachment.size, url: "/api/messages/attachments/" + attachment.id };
   };
-  const messageForClient = (message) => ({
-    id: message.id,
-    channel: message.channel,
-    groupId: message.groupId || null,
-    text: message.text,
-    createdAt: message.createdAt,
-    sender: publicUser(database.users.find((user) => user.id === message.senderId)),
-    attachment: message.attachmentId ? attachmentForMessage(message.attachmentId) : null
-  });
+  const messageForClient = (message, viewerId = null) => {
+    const parent = message.replyToId ? database.messages.find((item) => item.id === message.replyToId) : null;
+    const sender = publicUser(database.users.find((user) => user.id === message.senderId));
+    const reactions = new Map();
+    for (const reaction of database.reactions.filter((item) => item.messageId === message.id)) {
+      const existing = reactions.get(reaction.emoji) || { emoji: reaction.emoji, count: 0, reacted: false };
+      existing.count += 1;
+      if (viewerId && reaction.userId === viewerId) existing.reacted = true;
+      reactions.set(reaction.emoji, existing);
+    }
+    let receipt = null;
+    if (viewerId && message.senderId === viewerId && message.channel === "dm" && message.recipientId) {
+      receipt = getReadAt(message.recipientId, "dm", message.senderId) >= message.createdAt ? "Read" : "Sent";
+    }
+    let readCount = 0;
+    if (viewerId && message.senderId === viewerId && message.channel === "group" && message.groupId) {
+      readCount = database.groupMembers
+        .filter((member) => member.groupId === message.groupId && member.userId !== viewerId)
+        .filter((member) => getReadAt(member.userId, "group", null, message.groupId) >= message.createdAt).length;
+    }
+    return {
+      id: message.id,
+      channel: message.channel,
+      groupId: message.groupId || null,
+      text: message.text,
+      createdAt: message.createdAt,
+      editedAt: message.editedAt || null,
+      pinned: Boolean(message.pinned),
+      replyToId: message.replyToId || null,
+      replyTo: parent ? {
+        id: parent.id,
+        text: parent.text || (parent.attachmentId ? "Attachment" : ""),
+        sender: publicUser(database.users.find((user) => user.id === parent.senderId))
+      } : null,
+      sender,
+      attachment: message.attachmentId ? attachmentForMessage(message.attachmentId) : null,
+      reactions: [...reactions.values()],
+      receipt,
+      readCount
+    };
+  };
   const normalizeUsername = (username) => String(username || "").trim().toLowerCase();
   const validateUsername = (username) => {
     const normalized = normalizeUsername(username);
@@ -313,20 +360,55 @@ export default async function registerMessagesRoutes(app) {
     return reply.send({ users });
   });
 
-  const publicGroup = (group) => ({
+  const publicGroup = (group, viewerId = null) => ({
     id: group.id,
     name: group.name,
     createdAt: group.createdAt,
+    inviteCode: group.inviteCode,
+    isOwner: Boolean(viewerId && group.createdBy === viewerId),
     memberCount: database.groupMembers.filter((member) => member.groupId === group.id).length
   });
   const isGroupMember = (groupId, userId) => database.groupMembers.some((member) => member.groupId === groupId && member.userId === userId);
+  const getReadAt = (userId, channel, peerId = null, groupId = null) => {
+    const state = database.readStates.find((item) => item.userId === userId && item.channel === channel &&
+      (item.peerId || null) === peerId && (item.groupId || null) === groupId);
+    return state?.lastReadAt || 0;
+  };
+  const setReadAt = (userId, channel, peerId = null, groupId = null, timestamp = Date.now()) => {
+    let state = database.readStates.find((item) => item.userId === userId && item.channel === channel &&
+      (item.peerId || null) === peerId && (item.groupId || null) === groupId);
+    if (!state) {
+      state = { userId, channel, peerId, groupId, lastReadAt: timestamp };
+      database.readStates.push(state);
+    } else {
+      state.lastReadAt = Math.max(state.lastReadAt || 0, timestamp);
+    }
+    return state.lastReadAt;
+  };
+  const canReadMessage = (message, userId) => Boolean(message && (
+    message.channel === "global" ||
+    (message.channel === "dm" && (message.senderId === userId || message.recipientId === userId)) ||
+    (message.channel === "group" && isGroupMember(message.groupId, userId))
+  ));
+  const dmPeerFor = (message, userId) => message.senderId === userId ? message.recipientId : message.senderId;
+  const muteMatches = (userId, message) => database.mutes.some((mute) => {
+    if (mute.userId !== userId || mute.channel !== message.channel) return false;
+    if (message.channel === "dm") return mute.peerId === dmPeerFor(message, userId);
+    if (message.channel === "group") return mute.groupId === message.groupId;
+    return message.channel === "global";
+  });
+  const typingScope = (channel, userId, peerId, groupId) => {
+    if (channel === "global") return "global";
+    if (channel === "group") return "group:" + groupId;
+    return "dm:" + [userId, peerId].sort().join(":");
+  };
 
   app.get("/api/messages/groups", async (request, reply) => {
     const user = requireUser(request, reply);
     if (!user) return;
     const groups = database.groups
       .filter((group) => isGroupMember(group.id, user.id))
-      .map(publicGroup)
+      .map((group) => publicGroup(group, user.id))
       .sort((a, b) => a.name.localeCompare(b.name));
     return reply.send({ groups });
   });
@@ -340,10 +422,10 @@ export default async function registerMessagesRoutes(app) {
     if (name.length < 3 || name.length > 40) return sendError(reply, 400, "Group names must be 3–40 characters.");
     if (hasProfanity(name)) return sendError(reply, 400, "Please choose a group name without profanity.");
     const normalizedName = name.toLocaleLowerCase("en-US");
-    let group = database.groups.find((candidate) => candidate.normalizedName === normalizedName);
+    let group = database.groups.find((candidate) => candidate.normalizedName === normalizedName || candidate.inviteCode?.toLowerCase() === normalizedName);
     let created = false;
     if (!group) {
-      group = { id: randomUUID(), name, normalizedName, createdBy: user.id, createdAt: Date.now() };
+      group = { id: randomUUID(), name, normalizedName, createdBy: user.id, inviteCode: makeInviteCode(), createdAt: Date.now() };
       database.groups.push(group);
       created = true;
     }
@@ -359,7 +441,7 @@ export default async function registerMessagesRoutes(app) {
       database.groupMembers = database.groupMembers.filter((item) => item !== membership);
       return sendError(reply, 500, "That group could not be saved. Check the Messages data directory.");
     }
-    return reply.send({ group: publicGroup(group), created, joined: true });
+    return reply.send({ group: publicGroup(group, user.id), created, joined: true });
   });
 
   app.get("/api/messages/notifications", async (request, reply) => {
@@ -368,7 +450,7 @@ export default async function registerMessagesRoutes(app) {
     const since = Number(request.query?.since || 0);
     const cursor = Date.now();
     const notifications = database.messages
-      .filter((message) => message.createdAt > since && message.createdAt <= cursor && message.senderId !== user.id && (
+      .filter((message) => message.createdAt > since && message.createdAt <= cursor && message.senderId !== user.id && !muteMatches(user.id, message) && (
         message.channel === "global" ||
         (message.channel === "dm" && message.recipientId === user.id) ||
         (message.channel === "group" && isGroupMember(message.groupId, user.id))
@@ -431,7 +513,11 @@ export default async function registerMessagesRoutes(app) {
     } else {
       return sendError(reply, 400, "Unknown message channel.");
     }
-    return reply.send({ messages: messages.slice(-100).map(messageForClient) });
+    const recentMessages = messages.slice(-100);
+    const retainedPins = messages.filter((message) => message.pinned).slice(-50);
+    const visibleMessages = [...new Map([...retainedPins, ...recentMessages].map((message) => [message.id, message])).values()]
+      .sort((a, b) => a.createdAt - b.createdAt);
+    return reply.send({ messages: visibleMessages.map((message) => messageForClient(message, user.id)) });
   });
 
   app.post("/api/messages/messages", async (request, reply) => {
@@ -463,9 +549,19 @@ export default async function registerMessagesRoutes(app) {
         return sendError(reply, 400, "That attachment is no longer available. Pick it from DogeFiler again.");
       }
     }
+    const replyToId = request.body?.replyToId ? String(request.body.replyToId) : null;
+    if (replyToId) {
+      const parent = database.messages.find((item) => item.id === replyToId);
+      const sameConversation = parent && parent.channel === channel && (
+        channel === "global" ||
+        (channel === "group" && parent.groupId === groupId) ||
+        (channel === "dm" && [parent.senderId, parent.recipientId].sort().join(":") === [user.id, recipientId].sort().join(":"))
+      );
+      if (!sameConversation || !canReadMessage(parent, user.id)) return sendError(reply, 400, "That reply target isn't in this conversation.");
+    }
     const message = {
       id: randomUUID(), channel, senderId: user.id, recipientId, groupId,
-      text: censorProfanity(text), attachmentId, createdAt: Date.now()
+      text: censorProfanity(text), attachmentId, replyToId, pinned: false, createdAt: Date.now()
     };
     database.messages.push(message);
     if (database.messages.length > 20000) database.messages.splice(0, database.messages.length - 20000);
@@ -477,7 +573,7 @@ export default async function registerMessagesRoutes(app) {
       if (attachment) attachment.messageId = null;
       return sendError(reply, 500, "Your message could not be saved. Try again.");
     }
-    return reply.code(201).send({ message: messageForClient(message) });
+    return reply.code(201).send({ message: messageForClient(message, user.id) });
   });
 
   app.post("/api/messages/attachments", { bodyLimit: 8 * 1024 * 1024 }, async (request, reply) => {
@@ -561,6 +657,238 @@ export default async function registerMessagesRoutes(app) {
     reply.header("X-Content-Type-Options", "nosniff");
     reply.header("Cache-Control", "private, max-age=300");
     return reply.send(bytes);
+  });
+
+  app.post("/api/messages/read", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    const channel = String(request.body?.channel || "");
+    let peerId = null;
+    let groupId = null;
+    if (channel === "dm") {
+      peerId = String(request.body?.peerId || "");
+      if (!peerId || peerId === user.id || !database.users.some((candidate) => candidate.id === peerId)) return sendError(reply, 400, "Choose a valid DM conversation.");
+    } else if (channel === "group") {
+      groupId = String(request.body?.groupId || "");
+      if (!isGroupMember(groupId, user.id)) return sendError(reply, 403, "Join that group to mark it as read.");
+    } else if (channel !== "global") return sendError(reply, 400, "Unknown read state.");
+    const lastMessageAt = database.messages.reduce((latest, message) => {
+      const matches = channel === "global" ? message.channel === "global" :
+        channel === "dm" ? message.channel === "dm" && ((message.senderId === user.id && message.recipientId === peerId) || (message.senderId === peerId && message.recipientId === user.id)) :
+        message.channel === "group" && message.groupId === groupId;
+      return matches ? Math.max(latest, message.createdAt) : latest;
+    }, 0);
+    const previousReadAt = getReadAt(user.id, channel, peerId, groupId);
+    const timestamp = Math.max(previousReadAt, lastMessageAt);
+    if (timestamp > previousReadAt) {
+      setReadAt(user.id, channel, peerId, groupId, timestamp);
+      try { await persist(); } catch { return sendError(reply, 500, "Read state could not be saved."); }
+    }
+    return reply.send({ ok: true, lastReadAt: timestamp });
+  });
+
+  app.get("/api/messages/unread", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    const unread = { global: 0, dms: {}, groups: {} };
+    for (const message of database.messages) {
+      if (message.senderId === user.id) continue;
+      if (message.channel === "global" && message.createdAt > getReadAt(user.id, "global")) unread.global += 1;
+      else if (message.channel === "dm" && (message.senderId === user.id || message.recipientId === user.id)) {
+        const peerId = dmPeerFor(message, user.id);
+        if (message.createdAt > getReadAt(user.id, "dm", peerId)) unread.dms[peerId] = (unread.dms[peerId] || 0) + 1;
+      } else if (message.channel === "group" && isGroupMember(message.groupId, user.id) && message.createdAt > getReadAt(user.id, "group", null, message.groupId)) {
+        unread.groups[message.groupId] = (unread.groups[message.groupId] || 0) + 1;
+      }
+    }
+    return reply.send({ unread });
+  });
+
+  app.get("/api/messages/typing", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    const channel = String(request.query?.channel || "global");
+    let peerId = null;
+    let groupId = null;
+    if (channel === "dm") {
+      peerId = String(request.query?.with || "");
+      if (!peerId || peerId === user.id) return sendError(reply, 400, "Choose a DM conversation.");
+    } else if (channel === "group") {
+      groupId = String(request.query?.groupId || "");
+      if (!isGroupMember(groupId, user.id)) return sendError(reply, 403, "Join that group first.");
+    } else if (channel !== "global") return sendError(reply, 400, "Unknown typing channel.");
+    const scope = typingScope(channel, user.id, peerId, groupId);
+    const now = Date.now();
+    for (const [key, item] of typingSessions) if (item.expiresAt < now) typingSessions.delete(key);
+    const users = [...typingSessions.values()].filter((item) => item.scope === scope && item.userId !== user.id && item.expiresAt >= now).map((item) => ({ id: item.userId, username: item.username }));
+    return reply.send({ users });
+  });
+
+  app.post("/api/messages/typing", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    const channel = String(request.body?.channel || "global");
+    let peerId = null;
+    let groupId = null;
+    if (channel === "dm") {
+      peerId = String(request.body?.peerId || "");
+      if (!peerId || peerId === user.id) return sendError(reply, 400, "Choose a DM conversation.");
+    } else if (channel === "group") {
+      groupId = String(request.body?.groupId || "");
+      if (!isGroupMember(groupId, user.id)) return sendError(reply, 403, "Join that group first.");
+    } else if (channel !== "global") return sendError(reply, 400, "Unknown typing channel.");
+    const scope = typingScope(channel, user.id, peerId, groupId);
+    const key = scope + ":" + user.id;
+    if (request.body?.typing === false) typingSessions.delete(key);
+    else typingSessions.set(key, {
+      scope, userId: user.id, username: user.username,
+      expiresAt: Date.now() + 6500
+    });
+    return reply.send({ ok: true });
+  });
+
+  app.get("/api/messages/mutes", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    return reply.send({ mutes: database.mutes.filter((item) => item.userId === user.id) });
+  });
+
+  app.post("/api/messages/mute", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    const channel = String(request.body?.channel || "");
+    let peerId = null;
+    let groupId = null;
+    if (channel === "global") {
+      // Global chat can be muted as a whole.
+    } else if (channel === "dm") {
+      peerId = String(request.body?.peerId || "");
+      if (!peerId || peerId === user.id) return sendError(reply, 400, "Choose a DM conversation.");
+    } else if (channel === "group") {
+      groupId = String(request.body?.groupId || "");
+      if (!isGroupMember(groupId, user.id)) return sendError(reply, 403, "Join that group first.");
+    } else return sendError(reply, 400, "Unknown mute channel.");
+    database.mutes = database.mutes.filter((item) => !(item.userId === user.id && item.channel === channel && (item.peerId || null) === peerId && (item.groupId || null) === groupId));
+    const muted = request.body?.muted === true;
+    if (muted) database.mutes.push({ userId: user.id, channel, peerId, groupId, createdAt: Date.now() });
+    try { await persist(); } catch { return sendError(reply, 500, "Mute preference could not be saved."); }
+    return reply.send({ ok: true, muted });
+  });
+
+  app.get("/api/messages/search", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    if (!allowRate("search:" + user.id, 30, 60_000)) return sendError(reply, 429, "Please slow down message searches.");
+    const q = String(request.query?.q || "").trim().slice(0, 100).toLowerCase();
+    if (q.length < 2) return reply.send({ messages: [] });
+    const channel = String(request.query?.channel || "global");
+    let allowed;
+    if (channel === "global") allowed = database.messages.filter((message) => message.channel === "global");
+    else if (channel === "dm") {
+      const peerId = String(request.query?.with || "");
+      if (!peerId || peerId === user.id) return sendError(reply, 400, "Choose a DM conversation.");
+      allowed = database.messages.filter((message) => message.channel === "dm" && ((message.senderId === user.id && message.recipientId === peerId) || (message.senderId === peerId && message.recipientId === user.id)));
+    } else if (channel === "group") {
+      const groupId = String(request.query?.groupId || "");
+      if (!isGroupMember(groupId, user.id)) return sendError(reply, 403, "Join that group first.");
+      allowed = database.messages.filter((message) => message.channel === "group" && message.groupId === groupId);
+    } else return sendError(reply, 400, "Unknown search channel.");
+    const results = allowed.filter((message) => String(message.text || "").toLowerCase().includes(q)).slice(-50).reverse();
+    return reply.send({ messages: results.map((message) => messageForClient(message, user.id)) });
+  });
+
+  app.post("/api/messages/reactions", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    const messageId = String(request.body?.messageId || "");
+    const emoji = String(request.body?.emoji || "");
+    if (!["👍", "❤️", "😂", "😮", "🎉", "👎"].includes(emoji)) return sendError(reply, 400, "Choose a supported reaction.");
+    const message = database.messages.find((item) => item.id === messageId);
+    if (!canReadMessage(message, user.id)) return sendError(reply, 404, "Message not found.");
+    const existing = database.reactions.find((item) => item.messageId === messageId && item.userId === user.id && item.emoji === emoji);
+    if (existing) database.reactions = database.reactions.filter((item) => item !== existing);
+    else database.reactions.push({ messageId, userId: user.id, emoji, createdAt: Date.now() });
+    try { await persist(); } catch { return sendError(reply, 500, "Reaction could not be saved."); }
+    return reply.send({ ok: true, reactions: database.reactions.filter((item) => item.messageId === messageId) });
+  });
+
+  app.post("/api/messages/edit", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    const message = database.messages.find((item) => item.id === String(request.body?.messageId || ""));
+    if (!message || message.senderId !== user.id || !canReadMessage(message, user.id)) return sendError(reply, 404, "You can only edit your own messages in conversations you can access.");
+    const text = String(request.body?.text || "").trim().slice(0, MAX_MESSAGE_LENGTH);
+    if (!text) return sendError(reply, 400, "Edited messages cannot be empty.");
+    message.text = censorProfanity(text);
+    message.editedAt = Date.now();
+    try { await persist(); } catch { return sendError(reply, 500, "Message edit could not be saved."); }
+    return reply.send({ message: messageForClient(message, user.id) });
+  });
+
+  app.post("/api/messages/delete", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    const message = database.messages.find((item) => item.id === String(request.body?.messageId || ""));
+    if (!message || message.senderId !== user.id || !canReadMessage(message, user.id)) return sendError(reply, 404, "You can only delete your own messages in conversations you can access.");
+    database.messages = database.messages.filter((item) => item.id !== message.id);
+    database.reactions = database.reactions.filter((item) => item.messageId !== message.id);
+    for (const child of database.messages) if (child.replyToId === message.id) child.replyToId = null;
+    try { await persist(); } catch { return sendError(reply, 500, "Message deletion could not be saved."); }
+    return reply.send({ ok: true, messageId: message.id });
+  });
+
+  app.post("/api/messages/pin", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    const message = database.messages.find((item) => item.id === String(request.body?.messageId || ""));
+    if (!canReadMessage(message, user.id)) return sendError(reply, 404, "Message not found.");
+    message.pinned = request.body?.pinned === true;
+    message.pinnedBy = message.pinned ? user.id : null;
+    message.pinnedAt = message.pinned ? Date.now() : null;
+    try { await persist(); } catch { return sendError(reply, 500, "Pin could not be saved."); }
+    return reply.send({ ok: true, pinned: message.pinned });
+  });
+
+  app.get("/api/messages/groups/members", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    const groupId = String(request.query?.groupId || "");
+    if (!isGroupMember(groupId, user.id)) return sendError(reply, 403, "Join that group first.");
+    const group = database.groups.find((item) => item.id === groupId);
+    return reply.send({
+      group: publicGroup(group, user.id),
+      members: database.groupMembers.filter((member) => member.groupId === groupId).map((member) => ({
+        id: member.userId,
+        username: database.users.find((candidate) => candidate.id === member.userId)?.username || "Unknown",
+        owner: group.createdBy === member.userId
+      }))
+    });
+  });
+
+  app.post("/api/messages/groups/manage", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    const groupId = String(request.body?.groupId || "");
+    const group = database.groups.find((item) => item.id === groupId);
+    if (!group || !isGroupMember(groupId, user.id)) return sendError(reply, 404, "Group not found.");
+    if (group.createdBy !== user.id) return sendError(reply, 403, "Only the group owner can manage members or rename the group.");
+    const action = String(request.body?.action || "");
+    if (action === "rename") {
+      const name = String(request.body?.name || "").trim().replace(/\s+/g, " ");
+      if (name.length < 3 || name.length > 40 || hasProfanity(name)) return sendError(reply, 400, "Choose a group name between 3 and 40 characters without profanity.");
+      const normalizedName = name.toLocaleLowerCase("en-US");
+      if (database.groups.some((other) => other.id !== groupId && other.normalizedName === normalizedName)) return sendError(reply, 409, "That group name is already taken.");
+      group.name = name;
+      group.normalizedName = normalizedName;
+    } else if (action === "kick") {
+      const targetId = String(request.body?.userId || "");
+      if (!targetId || targetId === user.id || !isGroupMember(groupId, targetId)) return sendError(reply, 400, "Choose another member to remove.");
+      database.groupMembers = database.groupMembers.filter((item) => !(item.groupId === groupId && item.userId === targetId));
+    } else if (action === "invite-code") {
+      group.inviteCode = makeInviteCode();
+    } else return sendError(reply, 400, "Unknown group management action.");
+    try { await persist(); } catch { return sendError(reply, 500, "Group changes could not be saved."); }
+    return reply.send({ group: publicGroup(group, user.id), ok: true });
   });
 
   app.post("/api/messages/report", async (request, reply) => {

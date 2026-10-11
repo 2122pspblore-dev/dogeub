@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  AlertTriangle, ArrowLeft, Check, FileText, Image, LogOut, MessageCircle,
-  MessagesSquare, Paperclip, Plus, Search, Send, Settings, ShieldCheck,
-  Users, X, LoaderCircle, LockKeyhole, UserRound, BellRing
+  AlertTriangle, ArrowLeft, BellOff, Check, Copy, FileText, Image, LogOut, MessageCircle,
+  MessagesSquare, Paperclip, Pencil, Pin, Plus, Reply, Search, Send, Settings, ShieldCheck,
+  Trash2, Users, X, LoaderCircle, LockKeyhole, UserRound, BellRing
 } from "lucide-react";
 import { formatSize, listFiles } from "../utils/fileStore";
 
@@ -79,6 +79,21 @@ export default function Messages() {
   const [joiningGroup, setJoiningGroup] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [messageToast, setMessageToast] = useState(null);
+  const [unread, setUnread] = useState({ global: 0, dms: {}, groups: {} });
+  const [typingUsers, setTypingUsers] = useState([]);
+  const [replyTo, setReplyTo] = useState(null);
+  const [editingMessageId, setEditingMessageId] = useState(null);
+  const [editingDraft, setEditingDraft] = useState("");
+  const [busyMessageAction, setBusyMessageAction] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchDraft, setSearchDraft] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchingMessages, setSearchingMessages] = useState(false);
+  const [searchMode, setSearchMode] = useState(false);
+  const [showPinnedOnly, setShowPinnedOnly] = useState(false);
+  const [groupMembers, setGroupMembers] = useState([]);
+  const [groupToolsOpen, setGroupToolsOpen] = useState(false);
+  const [mutedConversations, setMutedConversations] = useState([]);
   const [desktopNotifications, setDesktopNotifications] = useState(() => typeof window !== "undefined" && "Notification" in window ? window.Notification.permission : "unsupported");
   const [messageDraft, setMessageDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -102,6 +117,8 @@ export default function Messages() {
   const notificationCursorRef = useRef(Date.now());
   const seenNotificationIdsRef = useRef(new Set());
   const toastTimerRef = useRef(null);
+  const typingAnnounceTimerRef = useRef(null);
+  const typingStopTimerRef = useRef(null);
 
   useEffect(() => {
     let alive = true;
@@ -171,6 +188,52 @@ export default function Messages() {
     }
   }, [session, showIncomingNotification]);
 
+  const loadUnread = useCallback(async () => {
+    if (!session) return;
+    try {
+      const data = await apiRequest("/api/messages/unread");
+      setUnread(data.unread || { global: 0, dms: {}, groups: {} });
+    } catch {}
+  }, [session]);
+
+  const loadTyping = useCallback(async () => {
+    if (!session || (activeChannel === "dm" && !selectedPeer) || (activeChannel === "group" && !selectedGroup)) {
+      setTypingUsers([]);
+      return;
+    }
+    const query = activeChannel === "global" ? "?channel=global" :
+      activeChannel === "group" ? "?channel=group&groupId=" + encodeURIComponent(selectedGroup.id) :
+      "?channel=dm&with=" + encodeURIComponent(selectedPeer.id);
+    try {
+      const data = await apiRequest("/api/messages/typing" + query);
+      setTypingUsers(data.users || []);
+    } catch {
+      setTypingUsers([]);
+    }
+  }, [session, activeChannel, selectedPeer, selectedGroup]);
+
+  const loadGroupMembers = useCallback(async (groupId) => {
+    if (!session || !groupId) { setGroupMembers([]); return; }
+    try {
+      const data = await apiRequest("/api/messages/groups/members?groupId=" + encodeURIComponent(groupId));
+      setGroupMembers(data.members || []);
+      if (data.group) {
+        setGroups((previous) => previous.map((item) => item.id === data.group.id ? data.group : item));
+        setSelectedGroup((previous) => previous?.id === data.group.id ? data.group : previous);
+      }
+    } catch {
+      setGroupMembers([]);
+    }
+  }, [session]);
+
+  const loadMutes = useCallback(async () => {
+    if (!session) return;
+    try {
+      const data = await apiRequest("/api/messages/mutes");
+      setMutedConversations(data.mutes || []);
+    } catch {}
+  }, [session]);
+
   const loadMessages = useCallback(async () => {
     if (!session) return;
     if ((activeChannel === "dm" && !selectedPeer) || (activeChannel === "group" && !selectedGroup)) {
@@ -186,14 +249,23 @@ export default function Messages() {
       const data = await apiRequest("/api/messages/messages" + query);
       const next = data.messages || [];
       setMessages((previous) => {
-        if (previous.length === next.length && previous.at(-1)?.id === next.at(-1)?.id) return previous;
+        if (previous.length === next.length && previous.at(-1)?.id === next.at(-1)?.id &&
+            previous.every((item, index) => item.id === next[index]?.id && item.text === next[index]?.text &&
+              item.pinned === next[index]?.pinned && JSON.stringify(item.reactions || []) === JSON.stringify(next[index]?.reactions || []) &&
+              item.receipt === next[index]?.receipt && item.readCount === next[index]?.readCount)) return previous;
         return next;
       });
+      const readBody = activeChannel === "global" ? { channel: "global" } :
+        activeChannel === "group" ? { channel: "group", groupId: selectedGroup.id } :
+        { channel: "dm", peerId: selectedPeer.id };
+      apiRequest("/api/messages/read", { method: "POST", body: JSON.stringify(readBody) })
+        .then(loadUnread)
+        .catch(() => {});
       setAppError("");
     } catch (error) {
       setAppError(error.message);
     }
-  }, [session, activeChannel, selectedPeer, selectedGroup]);
+  }, [session, activeChannel, selectedPeer, selectedGroup, loadUnread]);
 
   useEffect(() => {
     if (!session) return undefined;
@@ -201,16 +273,30 @@ export default function Messages() {
     loadConversations();
     loadGroups();
     loadNotifications();
+    loadUnread();
+    loadMutes();
+    loadTyping();
     const interval = window.setInterval(() => {
       loadMessages();
       loadConversations();
       loadGroups();
       loadNotifications();
+      loadUnread();
+      loadTyping();
     }, 3500);
     return () => window.clearInterval(interval);
-  }, [session, loadMessages, loadConversations, loadGroups, loadNotifications]);
+  }, [session, loadMessages, loadConversations, loadGroups, loadNotifications, loadUnread, loadMutes, loadTyping]);
 
-  useEffect(() => () => window.clearTimeout(toastTimerRef.current), []);
+  useEffect(() => {
+    if (activeChannel === "group" && selectedGroup?.id) loadGroupMembers(selectedGroup.id);
+    else { setGroupMembers([]); setGroupToolsOpen(false); }
+  }, [activeChannel, selectedGroup?.id, loadGroupMembers]);
+
+  useEffect(() => () => {
+    window.clearTimeout(toastTimerRef.current);
+    window.clearTimeout(typingAnnounceTimerRef.current);
+    window.clearTimeout(typingStopTimerRef.current);
+  }, []);
 
   useEffect(() => {
     if (!shouldAutoScroll.current) return;
@@ -240,6 +326,10 @@ export default function Messages() {
   }, [session, userSearch]);
 
   const startConversation = (peer) => {
+    setSearchMode(false);
+    setShowPinnedOnly(false);
+    setSearchResults([]);
+    setReplyTo(null);
     setSelectedGroup(null);
     setSelectedPeer(peer);
     setActiveChannel("dm");
@@ -303,6 +393,7 @@ export default function Messages() {
           channel: activeChannel,
           recipientId: activeChannel === "dm" ? selectedPeer?.id : undefined,
           groupId: activeChannel === "group" ? selectedGroup?.id : undefined,
+          replyToId: replyTo?.id,
           text,
           attachmentId: pendingAttachment?.id
         })
@@ -310,7 +401,9 @@ export default function Messages() {
       setMessageDraft("");
       setPendingAttachment(null);
       shouldAutoScroll.current = true;
-      await Promise.all([loadMessages(), loadConversations()]);
+      setReplyTo(null);
+      stopTyping();
+      await Promise.all([loadMessages(), loadConversations(), loadUnread()]);
       messageInputRef.current?.focus();
     } catch (error) {
       setAppError(error.message);
@@ -424,6 +517,123 @@ export default function Messages() {
     }
   };
 
+  const conversationBody = () => activeChannel === "global" ? { channel: "global" } :
+    activeChannel === "group" ? { channel: "group", groupId: selectedGroup?.id } :
+    { channel: "dm", peerId: selectedPeer?.id };
+
+  const stopTyping = () => {
+    window.clearTimeout(typingAnnounceTimerRef.current);
+    window.clearTimeout(typingStopTimerRef.current);
+    if (session && (activeChannel === "global" || (activeChannel === "dm" && selectedPeer) || (activeChannel === "group" && selectedGroup))) {
+      apiRequest("/api/messages/typing", { method: "POST", body: JSON.stringify({ ...conversationBody(), typing: false }) }).catch(() => {});
+    }
+  };
+
+  const onMessageDraftChange = (value) => {
+    setMessageDraft(value.slice(0, 1200));
+    window.clearTimeout(typingAnnounceTimerRef.current);
+    window.clearTimeout(typingStopTimerRef.current);
+    if (!value.trim()) { stopTyping(); return; }
+    typingAnnounceTimerRef.current = window.setTimeout(() => {
+      apiRequest("/api/messages/typing", { method: "POST", body: JSON.stringify({ ...conversationBody(), typing: true }) }).catch(() => {});
+    }, 300);
+    typingStopTimerRef.current = window.setTimeout(() => {
+      apiRequest("/api/messages/typing", { method: "POST", body: JSON.stringify({ ...conversationBody(), typing: false }) }).catch(() => {});
+    }, 4500);
+  };
+
+  const searchCurrentMessages = async (event) => {
+    event.preventDefault();
+    const q = searchDraft.trim();
+    if (q.length < 2) { setSearchResults([]); setAppError("Enter at least two characters to search messages."); return; }
+    setSearchingMessages(true);
+    setAppError("");
+    try {
+      const query = new URLSearchParams({ q, channel: activeChannel });
+      if (activeChannel === "dm" && selectedPeer) query.set("with", selectedPeer.id);
+      if (activeChannel === "group" && selectedGroup) query.set("groupId", selectedGroup.id);
+      const data = await apiRequest("/api/messages/search?" + query.toString());
+      setSearchResults(data.messages || []);
+      setSearchMode(true);
+      setShowPinnedOnly(false);
+    } catch (error) { setAppError(error.message); }
+    finally { setSearchingMessages(false); }
+  };
+
+  const toggleReaction = async (message, emoji) => {
+    setBusyMessageAction(message.id + ":reaction");
+    try {
+      await apiRequest("/api/messages/reactions", { method: "POST", body: JSON.stringify({ messageId: message.id, emoji }) });
+      await loadMessages();
+    } catch (error) { setAppError(error.message); }
+    finally { setBusyMessageAction(""); }
+  };
+
+  const togglePin = async (message) => {
+    setBusyMessageAction(message.id + ":pin");
+    try {
+      await apiRequest("/api/messages/pin", { method: "POST", body: JSON.stringify({ messageId: message.id, pinned: !message.pinned }) });
+      await loadMessages();
+    } catch (error) { setAppError(error.message); }
+    finally { setBusyMessageAction(""); }
+  };
+
+  const saveEdit = async (event, message) => {
+    event.preventDefault();
+    setBusyMessageAction(message.id + ":edit");
+    try {
+      await apiRequest("/api/messages/edit", { method: "POST", body: JSON.stringify({ messageId: message.id, text: editingDraft }) });
+      setEditingMessageId(null);
+      setEditingDraft("");
+      await loadMessages();
+    } catch (error) { setAppError(error.message); }
+    finally { setBusyMessageAction(""); }
+  };
+
+  const deleteOwnMessage = async (message) => {
+    if (!window.confirm("Delete this message? This cannot be undone.")) return;
+    setBusyMessageAction(message.id + ":delete");
+    try {
+      await apiRequest("/api/messages/delete", { method: "POST", body: JSON.stringify({ messageId: message.id }) });
+      await Promise.all([loadMessages(), loadUnread()]);
+    } catch (error) { setAppError(error.message); }
+    finally { setBusyMessageAction(""); }
+  };
+
+  const toggleActiveMute = async () => {
+    setAppError("");
+    const muted = isActiveMuted;
+    try {
+      await apiRequest("/api/messages/mute", { method: "POST", body: JSON.stringify({ ...conversationBody(), muted: !muted }) });
+      await loadMutes();
+      setNotice(!muted ? "Notifications muted for this conversation." : "Notifications unmuted for this conversation.");
+    } catch (error) { setAppError(error.message); }
+  };
+
+  const manageGroup = async (action, extra = {}) => {
+    if (!selectedGroup) return;
+    setBusyMessageAction("group:" + action + (extra.userId || ""));
+    setAppError("");
+    try {
+      const data = await apiRequest("/api/messages/groups/manage", { method: "POST", body: JSON.stringify({ groupId: selectedGroup.id, action, ...extra }) });
+      setSelectedGroup(data.group);
+      setGroups((previous) => previous.map((item) => item.id === data.group.id ? data.group : item));
+      await loadGroupMembers(data.group.id);
+      setNotice(action === "rename" ? "Group renamed." : action === "kick" ? "Member removed." : "New invite code generated.");
+    } catch (error) { setAppError(error.message); }
+    finally { setBusyMessageAction(""); }
+  };
+
+  const copyInviteCode = async () => {
+    if (!selectedGroup?.inviteCode) return;
+    try {
+      await navigator.clipboard.writeText(selectedGroup.inviteCode);
+      setNotice("Invite code copied. Share it with people you want to invite.");
+    } catch {
+      setNotice("Invite code: " + selectedGroup.inviteCode);
+    }
+  };
+
   const joinGroup = async (event) => {
     event.preventDefault();
     const name = groupNameDraft.trim();
@@ -436,6 +646,9 @@ export default function Messages() {
       setGroups((previous) => previous.some((item) => item.id === group.id)
         ? previous.map((item) => item.id === group.id ? group : item)
         : [...previous, group].sort((a, b) => a.name.localeCompare(b.name)));
+      setSearchMode(false);
+      setShowPinnedOnly(false);
+      setReplyTo(null);
       setGroupNameDraft("");
       setSelectedPeer(null);
       setSelectedGroup(group);
@@ -452,16 +665,26 @@ export default function Messages() {
     }
   };
 
+  const isActiveMuted = mutedConversations.some((item) =>
+    item.channel === activeChannel &&
+    (activeChannel === "global" ||
+      (activeChannel === "dm" && item.peerId === selectedPeer?.id) ||
+      (activeChannel === "group" && item.groupId === selectedGroup?.id))
+  );
+
+  const activeRenderedMessages = searchMode ? searchResults : messages;
+  const visibleMessages = showPinnedOnly ? activeRenderedMessages.filter((message) => message.pinned) : activeRenderedMessages;
+
   const openMessageToast = () => {
     if (!messageToast) return;
     const { kind, message } = messageToast;
     if (kind === "global") {
-      setActiveChannel("global"); setSelectedPeer(null); setSelectedGroup(null); setMessages([]);
+      setActiveChannel("global"); setSelectedPeer(null); setSelectedGroup(null); setMessages([]); setSearchMode(false); setShowPinnedOnly(false);
     } else if (kind === "dm" && message?.sender) {
       startConversation(message.sender);
     } else if (kind === "group") {
       const group = groups.find((item) => item.id === message?.groupId);
-      if (group) { setSelectedPeer(null); setSelectedGroup(group); setActiveChannel("group"); setMessages([]); }
+      if (group) { setSelectedPeer(null); setSelectedGroup(group); setActiveChannel("group"); setMessages([]); setSearchMode(false); setShowPinnedOnly(false); }
     }
     setMessageToast(null);
     shouldAutoScroll.current = true;
@@ -557,9 +780,10 @@ export default function Messages() {
         <div className="grid min-h-[min(730px,calc(100vh-10rem))] overflow-hidden rounded-2xl border border-white/10 bg-slate-950/55 shadow-[0_25px_100px_rgba(0,0,0,.25)] backdrop-blur-2xl lg:grid-cols-[280px_minmax(0,1fr)]">
           <aside className="flex min-h-0 flex-col border-b border-white/10 bg-black/10 lg:border-b-0 lg:border-r">
             <div className="p-3">
-              <button type="button" onClick={() => { setActiveChannel("global"); setSelectedPeer(null); setSelectedGroup(null); setPendingAttachment(null); setMessages([]); shouldAutoScroll.current = true; }} className={"flex w-full items-center gap-3 rounded-xl border px-3 py-3 text-left transition " + (activeChannel === "global" ? "border-cyan-100/20 bg-cyan-100/[.08]" : "border-transparent hover:bg-white/[.04]")}>
+              <button type="button" onClick={() => { setActiveChannel("global"); setSelectedPeer(null); setSelectedGroup(null); setPendingAttachment(null); setReplyTo(null); setSearchMode(false); setShowPinnedOnly(false); setMessages([]); shouldAutoScroll.current = true; }} className={"flex w-full items-center gap-3 rounded-xl border px-3 py-3 text-left transition " + (activeChannel === "global" ? "border-cyan-100/20 bg-cyan-100/[.08]" : "border-transparent hover:bg-white/[.04]")}>
                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-100/10 text-cyan-100"><Users size={19} /></span>
                 <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">Global chat</span><span className="mt-1 block text-[11px] text-white/35">Everyone on DOGEUB</span></span>
+                {unread.global > 0 && <span className="rounded-full bg-cyan-100 px-2 py-0.5 text-[10px] font-bold text-slate-950">{unread.global > 99 ? "99+" : unread.global}</span>}
                 <span className="h-2 w-2 rounded-full bg-emerald-300 shadow-[0_0_10px_rgba(110,231,183,.5)]" />
               </button>
             </div>
@@ -575,11 +799,11 @@ export default function Messages() {
               <div className="mb-3 rounded-xl border border-cyan-100/10 bg-cyan-100/[.035] p-3">
                 <div className="mb-2 flex items-center gap-2"><Users size={14} className="text-cyan-100/70" /><p className="text-[10px] font-bold uppercase tracking-[.18em] text-white/45">Group chats</p><span className="ml-auto text-[10px] text-white/25">{groups.length}</span></div>
                 <form onSubmit={joinGroup} className="flex gap-1.5">
-                  <input value={groupNameDraft} onChange={(event) => setGroupNameDraft(event.target.value.slice(0, 40))} minLength={3} maxLength={40} placeholder="Type a group name…" aria-label="Group name to join or create" className="min-w-0 flex-1 rounded-lg border border-white/10 bg-black/20 px-2.5 py-2 text-[11px] outline-none placeholder:text-white/25 focus:border-cyan-100/30" />
+                  <input value={groupNameDraft} onChange={(event) => setGroupNameDraft(event.target.value.slice(0, 40))} minLength={3} maxLength={40} placeholder="Group name or invite code…" aria-label="Group name or invite code to join or create" className="min-w-0 flex-1 rounded-lg border border-white/10 bg-black/20 px-2.5 py-2 text-[11px] outline-none placeholder:text-white/25 focus:border-cyan-100/30" />
                   <button type="submit" disabled={joiningGroup || groupNameDraft.trim().length < 3} className="rounded-lg bg-cyan-100 px-2.5 py-2 text-[10px] font-bold text-slate-950 hover:bg-white disabled:opacity-40">{joiningGroup ? <Spinner small /> : "Join"}</button>
                 </form>
-                <p className="mt-1.5 text-[9px] leading-4 text-white/30">Existing names join the saved group; new names create one.</p>
-                {groups.length > 0 && <div className="mt-2 space-y-1">{groups.map((group) => <button type="button" key={group.id} onClick={() => { setSelectedPeer(null); setSelectedGroup(group); setActiveChannel("group"); setMessages([]); setPendingAttachment(null); shouldAutoScroll.current = true; }} className={"flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left " + (activeChannel === "group" && selectedGroup?.id === group.id ? "bg-cyan-100/10 text-cyan-50" : "text-white/65 hover:bg-white/[.05]")}><Users size={14} className="shrink-0 text-cyan-100/70" /><span className="min-w-0 flex-1 truncate text-xs font-semibold">{group.name}</span><span className="text-[9px] text-white/30">{group.memberCount}</span></button>)}</div>}
+                <p className="mt-1.5 text-[9px] leading-4 text-white/30">Existing group names or invite codes join; new names create one.</p>
+                {groups.length > 0 && <div className="mt-2 space-y-1">{groups.map((group) => <button type="button" key={group.id} onClick={() => { setSelectedPeer(null); setSelectedGroup(group); setActiveChannel("group"); setMessages([]); setPendingAttachment(null); setReplyTo(null); setSearchMode(false); setShowPinnedOnly(false); shouldAutoScroll.current = true; }} className={"flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left " + (activeChannel === "group" && selectedGroup?.id === group.id ? "bg-cyan-100/10 text-cyan-50" : "text-white/65 hover:bg-white/[.05]")}><Users size={14} className="shrink-0 text-cyan-100/70" /><span className="min-w-0 flex-1 truncate text-xs font-semibold">{group.name}</span><span className="text-[9px] text-white/30">{group.memberCount}</span>{unread.groups?.[group.id] > 0 && <span className="rounded-full bg-cyan-100 px-1.5 py-0.5 text-[9px] font-bold text-slate-950">{unread.groups[group.id] > 99 ? "99+" : unread.groups[group.id]}</span>}</button>)}</div>}
               </div>
               <div className="mb-2 px-1"><p className="text-[10px] font-bold uppercase tracking-[.18em] text-white/30">Direct messages</p></div>
               {conversations.length ? conversations.map((conversation) => {
@@ -588,7 +812,7 @@ export default function Messages() {
                 return <button type="button" key={peer.id} onClick={() => startConversation(peer)} className={"mt-1 flex w-full items-center gap-2.5 rounded-xl border px-2.5 py-2.5 text-left transition " + (active ? "border-violet-200/20 bg-violet-200/[.07]" : "border-transparent hover:bg-white/[.04]")}>
                   <Avatar user={peer} size="sm" />
                   <span className="min-w-0 flex-1"><span className="block truncate text-xs font-semibold">@{peer.username}</span><span className="mt-1 block truncate text-[10px] text-white/35">{conversation.lastMessage || "File attachment"} </span></span>
-                  <span className="text-[9px] text-white/25">{relativeTime(conversation.createdAt)}</span>
+                  <span className="flex flex-col items-end gap-1"><span className="text-[9px] text-white/25">{relativeTime(conversation.createdAt)}</span>{unread.dms?.[peer.id] > 0 && <span className="rounded-full bg-violet-200 px-1.5 py-0.5 text-[9px] font-bold text-slate-950">{unread.dms[peer.id] > 99 ? "99+" : unread.dms[peer.id]}</span>}</span>
                 </button>;
               }) : <div className="px-2 py-5 text-center"><MessageCircle size={22} className="mx-auto text-white/20" /><p className="mt-2 text-xs text-white/35">No conversations yet.</p><p className="mt-1 text-[10px] text-white/25">Search a username to start one.</p></div>}
             </div>
@@ -603,8 +827,25 @@ export default function Messages() {
               {activeChannel !== "global" && <button type="button" aria-label="Back to global chat" onClick={() => { setActiveChannel("global"); setSelectedPeer(null); setSelectedGroup(null); }} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 text-white/50 hover:bg-white/[.06] lg:hidden"><ArrowLeft size={16} /></button>}
               {activeChannel === "global" ? <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-cyan-100/15 bg-cyan-100/[.07] text-cyan-100"><MessagesSquare size={19} /></div> : activeChannel === "group" ? <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-cyan-100/15 bg-cyan-100/[.07] text-cyan-100"><Users size={19} /></div> : <Avatar user={selectedPeer} />}
               <div className="min-w-0 flex-1"><div className="flex items-center gap-2"><h2 className="truncate text-sm font-bold">{activeTitle}</h2>{activeChannel === "global" ? <span className="rounded-full border border-emerald-200/15 bg-emerald-200/[.05] px-2 py-0.5 text-[9px] font-semibold text-emerald-100/70">PUBLIC</span> : <span className="rounded-full border border-violet-200/15 bg-violet-200/[.05] px-2 py-0.5 text-[9px] font-semibold text-violet-100/70">{activeChannel === "group" ? "GROUP" : "PRIVATE"}</span>}</div><p className="mt-1 truncate text-[11px] text-white/35">{activeSubtitle}</p></div>
-              <span className="hidden items-center gap-1.5 text-[10px] text-white/25 sm:flex"><span className="h-1.5 w-1.5 rounded-full bg-emerald-300/80" /> Live updates</span>
+              <div className="flex items-center gap-1">
+                <button type="button" onClick={() => { setSearchOpen((value) => !value); setSearchResults([]); setSearchMode(false); setShowPinnedOnly(false); }} aria-label="Search messages" title="Search this conversation" className="flex h-8 w-8 items-center justify-center rounded-lg text-white/45 hover:bg-white/[.07] hover:text-white"><Search size={15} /></button>
+                <button type="button" onClick={() => setShowPinnedOnly((value) => !value)} aria-label="Show pinned messages" title={showPinnedOnly ? "Show all messages" : "Show pinned messages"} className={"flex h-8 w-8 items-center justify-center rounded-lg hover:bg-white/[.07] " + (showPinnedOnly ? "text-cyan-100" : "text-white/45")}><Pin size={15} /></button>
+                <button type="button" onClick={toggleActiveMute} aria-label={isActiveMuted ? "Unmute conversation" : "Mute conversation"} title={isActiveMuted ? "Unmute notifications" : "Mute notifications"} className={"flex h-8 w-8 items-center justify-center rounded-lg hover:bg-white/[.07] " + (isActiveMuted ? "text-amber-200" : "text-white/45")}>{isActiveMuted ? <BellOff size={15} /> : <BellRing size={15} />}</button>
+              </div>
+              <span className="hidden items-center gap-1.5 text-[10px] text-white/25 xl:flex"><span className="h-1.5 w-1.5 rounded-full bg-emerald-300/80" /> Live updates</span>
             </header>
+
+            {searchOpen && <form onSubmit={searchCurrentMessages} className="border-b border-white/10 bg-black/10 p-3">
+              <div className="flex gap-2"><input value={searchDraft} onChange={(event) => setSearchDraft(event.target.value)} placeholder="Search this chat…" minLength={2} maxLength={100} aria-label="Search messages" className="min-w-0 flex-1 rounded-xl border border-white/10 bg-white/[.04] px-3 py-2 text-xs outline-none focus:border-cyan-100/30" /><button type="submit" disabled={searchingMessages || searchDraft.trim().length < 2} className="rounded-xl bg-cyan-100 px-3 py-2 text-xs font-bold text-slate-950 disabled:opacity-40">{searchingMessages ? <Spinner small /> : "Search"}</button>{searchMode && <button type="button" onClick={() => { setSearchMode(false); setSearchResults([]); setSearchDraft(""); }} className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white/60">Clear</button>}</div>
+              {searchMode && <p className="mt-2 text-[10px] text-white/35">Showing {searchResults.length} matching message(s) in this conversation.</p>}
+            </form>}
+
+            {activeChannel === "group" && selectedGroup && <div className="border-b border-white/10 bg-cyan-100/[.025] px-4 py-3">
+              <div className="flex flex-wrap items-center gap-2"><span className="text-[10px] font-semibold uppercase tracking-wider text-white/40">Invite code</span><code className="rounded-md border border-cyan-100/10 bg-black/25 px-2 py-1 text-xs font-bold tracking-[.18em] text-cyan-50">{selectedGroup.inviteCode || "—"}</code><button type="button" onClick={copyInviteCode} className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-2 py-1 text-[10px] text-white/60 hover:bg-white/[.06]"><Copy size={12} />Copy</button><button type="button" onClick={() => setGroupToolsOpen((value) => !value)} className="rounded-lg border border-white/10 px-2 py-1 text-[10px] text-white/60 hover:bg-white/[.06]">Members ({groupMembers.length})</button>
+                {selectedGroup.isOwner && <><button type="button" onClick={() => { const name = window.prompt("Rename this group", selectedGroup.name); if (name?.trim() && name.trim() !== selectedGroup.name) manageGroup("rename", { name }); }} className="rounded-lg border border-white/10 px-2 py-1 text-[10px] text-white/60 hover:bg-white/[.06]">Rename</button><button type="button" disabled={busyMessageAction === "group:invite-code"} onClick={() => manageGroup("invite-code")} className="rounded-lg border border-white/10 px-2 py-1 text-[10px] text-white/60 hover:bg-white/[.06] disabled:opacity-40">Reset code</button></>}
+              </div>
+              {groupToolsOpen && <div className="mt-3 grid gap-2 sm:grid-cols-2">{groupMembers.map((member) => <div key={member.id} className="flex items-center gap-2 rounded-xl border border-white/[.06] bg-white/[.025] px-3 py-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/[.05] text-[10px] font-bold">{member.username[0]?.toUpperCase()}</span><span className="min-w-0 flex-1 truncate text-xs text-white/70">@{member.username}{member.owner ? " · owner" : ""}</span>{selectedGroup.isOwner && !member.owner && <button type="button" title={"Remove @" + member.username} aria-label={"Remove @" + member.username} disabled={busyMessageAction === "group:kick" + member.id} onClick={() => { if (window.confirm("Remove @" + member.username + " from this group?")) manageGroup("kick", { userId: member.id }); }} className="text-[10px] text-rose-200/60 hover:text-rose-100 disabled:opacity-30">Remove</button>}</div>)}</div>}
+            </div>}
 
             <div
               ref={messageListRef}
@@ -613,16 +854,27 @@ export default function Messages() {
             >
               {(activeChannel === "dm" && !selectedPeer) || (activeChannel === "group" && !selectedGroup) ? (
                 <div className="flex h-full min-h-64 flex-col items-center justify-center text-center"><Users size={28} className="text-cyan-100/45" /><h3 className="mt-3 text-sm font-semibold text-white/75">Choose a conversation</h3><p className="mt-1 max-w-xs text-xs leading-5 text-white/35">Choose a saved group or search for a user to start chatting.</p></div>
-              ) : messages.length === 0 ? (
-                <div className="flex h-full min-h-64 flex-col items-center justify-center px-6 text-center"><div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/[.035] text-white/30">{activeChannel === "global" ? <Users size={24} /> : <MessageCircle size={24} />}</div><h3 className="mt-4 text-sm font-semibold text-white/70">{activeChannel === "global" ? "It's quiet in here." : "Start the conversation."}</h3><p className="mt-1 max-w-xs text-xs leading-5 text-white/35">{activeChannel === "global" ? "Say hello to other DOGEUB users. Messages here are public to signed-in accounts." : activeChannel === "group" ? "Everyone who joins this saved group can read its messages." : "Only you and @" + (selectedPeer?.username || "this user") + " can read this conversation."}</p></div>
-              ) : messages.map((message) => {
+              ) : visibleMessages.length === 0 ? (
+                <div className="flex h-full min-h-64 flex-col items-center justify-center px-6 text-center"><div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/[.035] text-white/30">{activeChannel === "global" ? <Users size={24} /> : <MessageCircle size={24} />}</div><h3 className="mt-4 text-sm font-semibold text-white/70">{showPinnedOnly ? "No pinned messages here." : searchMode ? "No matching messages." : activeChannel === "global" ? "It's quiet in here." : "Start the conversation."}</h3><p className="mt-1 max-w-xs text-xs leading-5 text-white/35">{showPinnedOnly ? "Pin any message to find it here later." : searchMode ? "Try another search in this conversation." : activeChannel === "global" ? "Say hello to other DOGEUB users. Messages here are public to signed-in accounts." : activeChannel === "group" ? "Everyone who joins this saved group can read its messages." : "Only you and @" + (selectedPeer?.username || "this user") + " can read this conversation."}</p></div>
+              ) : visibleMessages.map((message) => {
                 const own = message.sender?.id === session.id;
-                return <article key={message.id} className="group flex items-start gap-2.5">
+                const actionBusy = busyMessageAction.startsWith(message.id + ":");
+                return <article id={"message-" + message.id} key={message.id} className={"group flex items-start gap-2.5 " + (message.pinned ? "rounded-xl bg-amber-100/[.025] p-1.5" : "")}>
                   <Avatar user={message.sender} size="sm" />
                   <div className="min-w-0 max-w-[min(92%,680px)] flex-1">
-                    <div className="mb-1 flex flex-wrap items-baseline gap-x-2 gap-y-0.5"><span className="text-xs font-bold text-white/85">{message.sender?.username || "Unknown user"}</span><time className="text-[9px] text-white/25" title={new Date(message.createdAt).toLocaleString()}>{relativeTime(message.createdAt)}</time>{own && <span className="text-[9px] uppercase tracking-wider text-cyan-100/40">you</span>}</div>
-                    {message.text && <p className="whitespace-pre-wrap break-words rounded-2xl rounded-tl-md border border-white/[.06] bg-white/[.035] px-3.5 py-2.5 text-[13px] leading-6 text-white/80">{message.text}</p>}
+                    <div className="mb-1 flex flex-wrap items-baseline gap-x-2 gap-y-0.5"><span className="text-xs font-bold text-white/85">{message.sender?.username || "Unknown user"}</span><time className="text-[9px] text-white/25" title={new Date(message.createdAt).toLocaleString()}>{relativeTime(message.createdAt)}</time>{own && <span className="text-[9px] uppercase tracking-wider text-cyan-100/40">you</span>}{message.editedAt && <span className="text-[9px] italic text-white/25">edited</span>}{message.pinned && <span className="inline-flex items-center gap-1 text-[9px] text-amber-100/75"><Pin size={10} /> pinned</span>}</div>
+                    {message.replyTo && <div className="mb-1 rounded-lg border-l-2 border-cyan-100/35 bg-white/[.025] px-2.5 py-1.5 text-[10px] text-white/45"><span className="font-semibold text-cyan-50/70">Reply to @{message.replyTo.sender?.username || "user"}</span><p className="mt-0.5 truncate">{message.replyTo.text || "Message"}</p></div>}
+                    {editingMessageId === message.id ? <form onSubmit={(event) => saveEdit(event, message)} className="mt-1 flex gap-2"><input autoFocus value={editingDraft} onChange={(event) => setEditingDraft(event.target.value.slice(0, 1200))} maxLength={1200} className="min-w-0 flex-1 rounded-xl border border-cyan-100/20 bg-black/25 px-3 py-2 text-xs outline-none" /><button type="submit" disabled={actionBusy || !editingDraft.trim()} className="rounded-lg bg-cyan-100 px-3 py-2 text-[10px] font-bold text-slate-950 disabled:opacity-40">Save</button><button type="button" onClick={() => { setEditingMessageId(null); setEditingDraft(""); }} className="rounded-lg border border-white/10 px-2 py-2 text-[10px] text-white/50">Cancel</button></form> : message.text && <p className="whitespace-pre-wrap break-words rounded-2xl rounded-tl-md border border-white/[.06] bg-white/[.035] px-3.5 py-2.5 text-[13px] leading-6 text-white/80">{message.text}</p>}
                     {message.attachment && <a href={message.attachment.url} className="mt-1.5 flex max-w-md items-center gap-3 rounded-xl border border-cyan-100/10 bg-cyan-100/[.035] px-3 py-3 transition hover:border-cyan-100/25 hover:bg-cyan-100/[.07]"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-cyan-100/10 text-cyan-100">{message.attachment.type?.startsWith("image/") ? <Image size={18} /> : <FileText size={18} />}</span><span className="min-w-0 flex-1"><span className="block truncate text-xs font-semibold text-white/80">{message.attachment.name}</span><span className="mt-1 block text-[10px] text-white/35">{formatSize(message.attachment.size)} · download</span></span><Paperclip size={15} className="shrink-0 text-white/30" /></a>}
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                      {(message.reactions || []).map((reaction) => <button key={reaction.emoji} type="button" disabled={actionBusy} onClick={() => toggleReaction(message, reaction.emoji)} className={"rounded-lg border px-2 py-1 text-[10px] " + (reaction.reacted ? "border-cyan-100/35 bg-cyan-100/10 text-cyan-50" : "border-white/10 bg-white/[.025] text-white/60")}>{reaction.emoji} {reaction.count}</button>)}
+                      {["👍", "❤️", "😂", "😮"].filter((emoji) => !(message.reactions || []).some((reaction) => reaction.emoji === emoji)).map((emoji) => <button key={emoji} type="button" disabled={actionBusy} aria-label={"React with " + emoji} onClick={() => toggleReaction(message, emoji)} className="rounded-lg border border-white/[.07] px-1.5 py-1 text-[10px] text-white/30 hover:bg-white/[.06] hover:text-white">{emoji}</button>)}
+                      <button type="button" onClick={() => { setReplyTo(message); messageInputRef.current?.focus(); }} className="inline-flex items-center gap-1 rounded-lg px-1.5 py-1 text-[10px] text-white/35 hover:bg-white/[.05] hover:text-white"><Reply size={11} /> Reply</button>
+                      <button type="button" disabled={actionBusy} onClick={() => togglePin(message)} className={"inline-flex items-center gap-1 rounded-lg px-1.5 py-1 text-[10px] hover:bg-white/[.05] disabled:opacity-40 " + (message.pinned ? "text-amber-100/80" : "text-white/35 hover:text-white")}><Pin size={11} /> {message.pinned ? "Unpin" : "Pin"}</button>
+                      {own && <><button type="button" onClick={() => { setEditingMessageId(message.id); setEditingDraft(message.text || ""); }} className="inline-flex items-center gap-1 rounded-lg px-1.5 py-1 text-[10px] text-white/35 hover:bg-white/[.05] hover:text-white"><Pencil size={11} /> Edit</button><button type="button" disabled={actionBusy} onClick={() => deleteOwnMessage(message)} className="inline-flex items-center gap-1 rounded-lg px-1.5 py-1 text-[10px] text-rose-100/45 hover:bg-rose-100/[.05] hover:text-rose-100 disabled:opacity-40"><Trash2 size={11} /> Delete</button></>}
+                      {own && message.channel === "dm" && <span className="ml-auto text-[9px] text-white/30">{message.receipt || "Sent"}</span>}
+                      {own && message.channel === "group" && message.readCount > 0 && <span className="ml-auto text-[9px] text-white/30">Seen by {message.readCount}</span>}
+                    </div>
                   </div>
                   {!own && <button type="button" aria-label={"Report message from " + message.sender?.username} title="Report message" disabled={reportingId === message.id} onClick={() => reportMessage(message)} className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-white/20 opacity-0 transition hover:bg-rose-300/[.08] hover:text-rose-100 group-hover:opacity-100 focus:opacity-100 disabled:opacity-50">{reportingId === message.id ? <Spinner small /> : <AlertTriangle size={13} />}</button>}
                 </article>;
@@ -631,6 +883,8 @@ export default function Messages() {
             </div>
 
             <div className="border-t border-white/10 bg-black/[.08] p-3 sm:p-4">
+              {replyTo && <div className="mb-2 flex items-center gap-2 rounded-xl border border-cyan-100/15 bg-cyan-100/[.04] px-3 py-2"><Reply size={14} className="shrink-0 text-cyan-100" /><span className="min-w-0 flex-1 truncate text-[11px] text-white/65">Replying to @{replyTo.sender?.username}: {replyTo.text || "Attachment"}</span><button type="button" onClick={() => setReplyTo(null)} className="text-white/35 hover:text-white"><X size={13} /></button></div>}
+              {typingUsers.length > 0 && <p className="px-2 pb-2 text-[10px] text-cyan-100/65">{typingUsers.map((person) => "@" + person.username).join(", ")} {typingUsers.length === 1 ? "is" : "are"} typing…</p>}
               {pendingAttachment && <div className="mb-2 flex items-center gap-2 rounded-xl border border-cyan-100/15 bg-cyan-100/[.04] px-3 py-2"><Paperclip size={15} className="shrink-0 text-cyan-100" /><span className="min-w-0 flex-1 truncate text-xs text-white/70">{pendingAttachment.name} <span className="text-white/30">· {formatSize(pendingAttachment.size)}</span></span><button type="button" aria-label="Remove attachment" onClick={() => setPendingAttachment(null)} className="flex h-7 w-7 items-center justify-center rounded-lg text-white/40 hover:bg-white/10 hover:text-white"><X size={14} /></button></div>}
               <form onSubmit={sendMessage} className="flex items-end gap-2 rounded-2xl border border-white/10 bg-white/[.035] p-2 focus-within:border-cyan-100/20">
                 <button type="button" title="Attach from DogeFiler" aria-label="Attach from DogeFiler" disabled={activeChannel === "dm" && !selectedPeer} onClick={openDogeFiles} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white/45 transition hover:bg-white/[.07] hover:text-cyan-100 disabled:opacity-25"><Paperclip size={18} /></button>
@@ -638,7 +892,7 @@ export default function Messages() {
                   ref={messageInputRef}
                   rows={1}
                   value={messageDraft}
-                  onChange={(event) => setMessageDraft(event.target.value.slice(0, 1200))}
+                  onChange={(event) => onMessageDraftChange(event.target.value)}
                   onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }}
                   placeholder={activeChannel === "global" ? "Message the DOGEUB community…" : activeChannel === "group" ? "Message the " + (selectedGroup?.name || "group") + " group…" : selectedPeer ? "Message @" + selectedPeer.username + " privately…" : "Choose a conversation first…"}
                   disabled={(activeChannel === "dm" && !selectedPeer) || (activeChannel === "group" && !selectedGroup)}
