@@ -795,6 +795,7 @@ export default async function registerMessagesRoutes(app) {
     const target = findUsername(username);
     if (!target) return sendError(reply, 404, "That username does not have a DOGEUB Messages account.");
     if (isDeploymentAdmin(target)) return sendError(reply, 403, "Deployment-configured administrators are managed with DOGEUB_ADMIN_USERNAMES on the server.");
+    if (granted && !target.passwordHash) return sendError(reply, 400, "This account can be claimed using its username alone. Have the user set a password for the Messages account before granting administrator access.");
     if (target.isSuspended && granted) return sendError(reply, 400, "Restore this account before granting administrator access.");
     if (target.id === admin.id && !granted) return sendError(reply, 400, "You cannot remove your own administrator access.");
     if ((target.isAdminGranted === true) === granted) {
