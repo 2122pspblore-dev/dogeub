@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { getCachedSpecs, getDeviceSpecs, specsToText } from '../utils/deviceSpecs';
 import {
   AppWindow, BatteryFull, Globe, Home, Search, Settings, BatteryCharging,
-  Wifi, WifiOff, Music2, X, Youtube, BookOpen, Grid3X3, Power, ChevronUp, Cpu, LockKeyhole, Sparkles, Smile, FolderOpen, Keyboard, Zap, Command, MessagesSquare, ShieldCheck
+  Wifi, WifiOff, Music2, X, Youtube, BookOpen, Grid3X3, Power, ChevronUp, Cpu, LockKeyhole, Sparkles, Smile, FolderOpen, Keyboard, Zap, Command, MessagesSquare, ShieldCheck, Monitor, UsersRound
 } from 'lucide-react';
 
 const apps = [
@@ -13,6 +13,8 @@ const apps = [
   { name: 'Docs', description: 'Games and resources', icon: BookOpen, path: '/docs' },
   { name: 'DogeFiler', description: 'Import, organize, preview and export files', icon: FolderOpen, path: '/files' },
   { name: 'Doge Messages', description: 'Global chat and private messages', icon: MessagesSquare, path: '/messages' },
+  { name: 'Remote Desktop', description: 'Screen sharing and device connection setup', icon: Monitor, path: '/remote-desktop' },
+  { name: 'Collaboration Center', description: 'Project workspaces, notes, and team links', icon: UsersRound, path: '/collaboration-center' },
   { name: 'Doge Shortcuts', description: 'Browse all DogeUB keyboard shortcuts', icon: Keyboard, path: '/shortcuts' },
   { name: 'Settings', description: 'Customize DogeUB', icon: Settings, path: '/settings' },
   { name: 'Admin Panel', description: 'Administrator control center', icon: ShieldCheck, adminPanel: true },

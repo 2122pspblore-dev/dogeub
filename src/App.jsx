@@ -43,6 +43,8 @@ const importPCCenter = () => import('./pages/PCCenter');
 const importGameLibrary = () => import('./pages/GameLibrary');
 const importStudentCenter = () => import('./pages/StudentCenter');
 const importSocialCenter = () => import('./pages/SocialCenter');
+const importRemoteDesktop = () => import('./pages/RemoteDesktop');
+const importCollaborationCenter = () => import('./pages/CollaborationCenter');
 const importPublicProfile = () => import('./pages/PublicProfile');
 
 const Home = lazyLoad(importHome);
@@ -59,6 +61,8 @@ const PCCenter = lazyLoad(importPCCenter);
 const GameLibrary = lazyLoad(importGameLibrary);
 const StudentCenter = lazyLoad(importStudentCenter);
 const SocialCenter = lazyLoad(importSocialCenter);
+const RemoteDesktop = lazyLoad(importRemoteDesktop);
+const CollaborationCenter = lazyLoad(importCollaborationCenter);
 const PublicProfile = lazyLoad(importPublicProfile);
 const Player = lazyLoad(() => import('./pages/Player'));
 
@@ -243,6 +247,8 @@ const ThemedApp = memo(() => {
       { path: '/game-library', element: <GameLibrary /> },
       { path: '/student-center', element: <StudentCenter /> },
       { path: '/social', element: <SocialCenter /> },
+      { path: '/remote-desktop', element: <RemoteDesktop /> },
+      { path: '/collaboration-center', element: <CollaborationCenter /> },
       { path: '/profile/:username', element: <PublicProfile /> },
       { path: '/portal/k12/*', element: <NotFound /> },
       { path: '/ham/*', element: <NotFound /> },

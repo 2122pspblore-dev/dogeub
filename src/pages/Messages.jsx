@@ -894,6 +894,14 @@ export default function Messages() {
               </button>
             </div>
 
+            <div className="px-3 pb-2">
+              <button type="button" onClick={() => navigate('/collaboration-center')} className="flex w-full items-center gap-3 rounded-xl border border-violet-200/15 bg-violet-200/[.045] px-3 py-3 text-left transition hover:border-violet-200/30 hover:bg-violet-200/[.08]">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-200/10 text-violet-100"><Users size={18} /></span>
+                <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">Collaboration Center</span><span className="mt-1 block text-[11px] text-white/40">Project notes, tasks & workspaces</span></span>
+                <span className="text-[10px] text-violet-100/65">Open ↗</span>
+              </button>
+            </div>
+
             <div className="px-3 pb-2 pt-1">
               <div className="flex items-center justify-between px-1 pb-2"><p className="text-[10px] font-bold uppercase tracking-[.18em] text-white/30">Direct messages</p><span className="text-[10px] text-white/25">{conversations.length}</span></div>
               <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[.035] px-3 py-2.5 focus-within:border-cyan-100/25"><Search size={15} className="shrink-0 text-white/35" /><input value={userSearch} onChange={(event) => setUserSearch(event.target.value)} placeholder="Find a username…" aria-label="Find a DOGEUB user" className="min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-white/25" />{searchingUsers && <Spinner small />}</label>
