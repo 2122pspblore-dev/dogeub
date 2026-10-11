@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Activity, AlertTriangle, ArrowDownToLine, BellRing, Check, ChevronRight, CircleHelp,
   Clock3, Command, Cpu, Database, ExternalLink, Gauge, Globe, LayoutDashboard, LoaderCircle,
-  LockKeyhole, MessageSquare, RefreshCw, Search, ShieldAlert, ShieldCheck, UserCheck, UserCog,
+  LockKeyhole, Megaphone, MessageSquare, MessagesSquare, RefreshCw, Search, ShieldAlert, ShieldCheck, UserCheck, UserCog,
   UserRound, UserRoundX, Users, Wrench, X
 } from 'lucide-react';
 
@@ -11,6 +11,8 @@ const TABS = [
   { id: 'overview', label: 'Overview', icon: Gauge },
   { id: 'users', label: 'Users', icon: Users },
   { id: 'reports', label: 'Reports', icon: ShieldAlert },
+  { id: 'conversations', label: 'Conversations', icon: MessagesSquare },
+  { id: 'broadcast', label: 'Announcements', icon: Megaphone },
   { id: 'site', label: 'Site controls', icon: Globe },
   { id: 'audit', label: 'Audit log', icon: Activity },
 ];
@@ -74,6 +76,13 @@ export default function AdminPanel() {
   const [users, setUsers] = useState([]);
   const [reports, setReports] = useState([]);
   const [audit, setAudit] = useState([]);
+  const [conversations, setConversations] = useState([]);
+  const [selectedConversation, setSelectedConversation] = useState(null);
+  const [conversationMessages, setConversationMessages] = useState([]);
+  const [conversationSearch, setConversationSearch] = useState('');
+  const [conversationText, setConversationText] = useState('');
+  const [announcementHistory, setAnnouncementHistory] = useState([]);
+  const [broadcastText, setBroadcastText] = useState('');
   const [userQuery, setUserQuery] = useState('');
   const [announcement, setAnnouncement] = useState('');
   const [announcementEnabled, setAnnouncementEnabled] = useState(false);
@@ -93,14 +102,18 @@ export default function AdminPanel() {
       setAnnouncement(result.siteSettings?.announcement || '');
       setAnnouncementEnabled(Boolean(result.siteSettings?.announcementEnabled));
       setRegistrationPaused(Boolean(result.siteSettings?.registrationPaused));
-      const [usersResult, reportsResult, auditResult] = await Promise.all([
+      const [usersResult, reportsResult, auditResult, conversationsResult, announcementsResult] = await Promise.all([
         adminRequest('/api/messages/admin/users'),
         adminRequest('/api/messages/admin/reports'),
         adminRequest('/api/messages/admin/audit'),
+        adminRequest('/api/messages/admin/conversations'),
+        adminRequest('/api/messages/admin/announcements'),
       ]);
       setUsers(usersResult.users || []);
       setReports(reportsResult.reports || []);
       setAudit(auditResult.entries || []);
+      setConversations(conversationsResult.conversations || []);
+      setAnnouncementHistory(announcementsResult.announcements || []);
       setLastUpdated(Date.now());
     } catch (problem) {
       setError(problem.message || 'Unable to load the admin overview.');
@@ -155,6 +168,96 @@ export default function AdminPanel() {
     await loadOverview();
     setNotice(action === 'dismiss' ? 'Report dismissed.' : 'Reported message removed.');
   });
+
+  const refreshConversations = async (query = conversationSearch) => {
+    const result = await adminRequest('/api/messages/admin/conversations?q=' + encodeURIComponent(query.trim()));
+    setConversations(result.conversations || []);
+    if (selectedConversation) {
+      const updated = (result.conversations || []).find((item) => item.id === selectedConversation.id);
+      if (updated) setSelectedConversation(updated);
+    }
+  };
+  const getConversationQuery = (conversation) => {
+    const params = new URLSearchParams({ type: conversation.type });
+    if (conversation.type === 'group') params.set('groupId', conversation.groupId);
+    else {
+      params.set('userA', conversation.userIds[0]);
+      params.set('userB', conversation.userIds[1]);
+    }
+    return params.toString();
+  };
+  const openConversation = async (conversation) => {
+    setSelectedConversation(conversation);
+    setConversationMessages([]);
+    const data = await adminRequest('/api/messages/admin/conversation-messages?' + getConversationQuery(conversation));
+    setConversationMessages(data.messages || []);
+  };
+  const joinConversation = (conversation) => runAction('conversation:' + conversation.id, async () => {
+    await adminRequest('/api/messages/admin/conversations/join', {
+      method: 'POST',
+      body: JSON.stringify(conversation.type === 'group'
+        ? { type: 'group', groupId: conversation.groupId }
+        : { type: 'dm', userA: conversation.userIds[0], userB: conversation.userIds[1] }),
+    });
+    const joined = { ...conversation, joined: true };
+    setSelectedConversation(joined);
+    await refreshConversations();
+    const data = await adminRequest('/api/messages/admin/conversation-messages?' + getConversationQuery(joined));
+    setConversationMessages(data.messages || []);
+    setNotice(conversation.type === 'dm' ? 'Joined direct conversation in transparent observer mode; participants were notified.' : 'Joined the group conversation as a visible member.');
+  });
+  const leaveConversation = (conversation) => runAction('leave:' + conversation.id, async () => {
+    if (!window.confirm(conversation.type === 'dm'
+      ? 'Stop observing this direct conversation? The join and leave remain in the audit log.'
+      : 'Leave this group conversation as an administrator?')) return;
+    await adminRequest('/api/messages/admin/conversations/leave', {
+      method: 'POST',
+      body: JSON.stringify(conversation.type === 'group'
+        ? { type: 'group', groupId: conversation.groupId }
+        : { type: 'dm', userA: conversation.userIds[0], userB: conversation.userIds[1] }),
+    });
+    setSelectedConversation(null);
+    setConversationMessages([]);
+    await refreshConversations();
+    setNotice('Left the selected conversation.');
+  });
+  const sendConversationMessage = (event) => {
+    event.preventDefault();
+    if (!selectedConversation || !conversationText.trim()) return;
+    runAction('conversation-send', async () => {
+      await adminRequest('/api/messages/admin/conversations/send', {
+        method: 'POST',
+        body: JSON.stringify({
+          type: selectedConversation.type,
+          groupId: selectedConversation.groupId,
+          userA: selectedConversation.userIds?.[0],
+          userB: selectedConversation.userIds?.[1],
+          text: conversationText,
+        }),
+      });
+      setConversationText('');
+      const data = await adminRequest('/api/messages/admin/conversation-messages?' + getConversationQuery(selectedConversation));
+      setConversationMessages(data.messages || []);
+      await refreshConversations();
+      setNotice('Admin message sent into the selected conversation.');
+    });
+  };
+  const sendGlobalAnnouncement = (event) => {
+    event.preventDefault();
+    if (!broadcastText.trim()) return;
+    runAction('broadcast', async () => {
+      await adminRequest('/api/messages/admin/announcements', {
+        method: 'POST',
+        body: JSON.stringify({ text: broadcastText }),
+      });
+      setBroadcastText('');
+      const data = await adminRequest('/api/messages/admin/announcements');
+      setAnnouncementHistory(data.announcements || []);
+      await loadOverview();
+      setNotice('Global announcement published to DOGEUB Global Chat and notification center.');
+    });
+  };
+
   const saveSiteControls = (event) => {
     event.preventDefault();
     runAction('settings', async () => {
