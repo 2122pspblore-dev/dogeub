@@ -79,6 +79,7 @@ export default function Messages() {
   const [joiningGroup, setJoiningGroup] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [messageToast, setMessageToast] = useState(null);
+  const [desktopNotifications, setDesktopNotifications] = useState(() => typeof window !== "undefined" && "Notification" in window ? window.Notification.permission : "unsupported");
   const [messageDraft, setMessageDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [pendingAttachment, setPendingAttachment] = useState(null);
@@ -404,6 +405,25 @@ export default function Messages() {
     }
   };
 
+  const enableDesktopNotifications = async () => {
+    if (!("Notification" in window)) {
+      setDesktopNotifications("unsupported");
+      setNotice("Desktop notifications aren't supported by this browser.");
+      return;
+    }
+    try {
+      const permission = await window.Notification.requestPermission();
+      setDesktopNotifications(permission);
+      setNotice(permission === "granted"
+        ? "Desktop message notifications are enabled."
+        : permission === "denied"
+          ? "Notifications are blocked. Allow them in your browser's site settings."
+          : "Desktop notifications weren't enabled.");
+    } catch {
+      setNotice("Could not enable desktop notifications in this browser.");
+    }
+  };
+
   const joinGroup = async (event) => {
     event.preventDefault();
     const name = groupNameDraft.trim();
@@ -526,6 +546,7 @@ export default function Messages() {
             <div className="min-w-0"><h1 className="truncate text-lg font-bold tracking-tight">Doge Messages</h1><p className="text-[11px] text-white/35">Connected as @{session.username}</p></div>
           </div>
           <div className="flex items-center gap-2">
+            <button type="button" onClick={enableDesktopNotifications} disabled={desktopNotifications === "unsupported"} title={desktopNotifications === "granted" ? "Desktop alerts are enabled when this tab is in the background" : desktopNotifications === "denied" ? "Notifications are blocked in browser site settings" : "Enable desktop message alerts"} aria-label="Enable desktop message notifications" className="flex h-10 items-center gap-2 rounded-xl border border-cyan-100/15 bg-cyan-100/[.05] px-3 text-[11px] font-semibold text-cyan-50/80 transition hover:bg-cyan-100/10 disabled:cursor-not-allowed disabled:opacity-40"><BellRing size={15} />{desktopNotifications === "granted" ? "Alerts on" : desktopNotifications === "denied" ? "Alerts blocked" : desktopNotifications === "unsupported" ? "No alerts" : "Enable alerts"}</button>
             <button type="button" onClick={() => { setProfileUsername(session.username); setAvatarDraft(""); setClearAvatar(false); setProfileOpen(true); }} className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[.04] p-1.5 pr-3 text-left transition hover:bg-white/[.08]"><Avatar user={session} size="sm" /><span className="max-w-28 truncate text-xs font-semibold">@{session.username}</span><Settings size={14} className="text-white/40" /></button>
             <button type="button" title="Sign out" aria-label="Sign out" onClick={logout} className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 text-white/50 transition hover:border-rose-200/20 hover:bg-rose-200/[.06] hover:text-rose-100"><LogOut size={17} /></button>
           </div>
