@@ -1484,6 +1484,7 @@ export default async function registerMessagesRoutes(app) {
     if (!user) return;
     const message = database.messages.find((item) => item.id === String(request.body?.messageId || ""));
     if (!message || message.senderId !== user.id || !canReadMessage(message, user.id)) return sendError(reply, 404, "You can only edit your own messages in conversations you can access.");
+    if (message.isAdminNotice) return sendError(reply, 403, "Administrator access notices cannot be edited.");
     const text = String(request.body?.text || "").trim().slice(0, MAX_MESSAGE_LENGTH);
     if (!text) return sendError(reply, 400, "Edited messages cannot be empty.");
     message.text = censorProfanity(text);
@@ -1497,6 +1498,7 @@ export default async function registerMessagesRoutes(app) {
     if (!user) return;
     const message = database.messages.find((item) => item.id === String(request.body?.messageId || ""));
     if (!message || message.senderId !== user.id || !canReadMessage(message, user.id)) return sendError(reply, 404, "You can only delete your own messages in conversations you can access.");
+    if (message.isAdminNotice) return sendError(reply, 403, "Administrator access notices cannot be deleted.");
     database.messages = database.messages.filter((item) => item.id !== message.id);
     database.reactions = database.reactions.filter((item) => item.messageId !== message.id);
     for (const child of database.messages) if (child.replyToId === message.id) child.replyToId = null;
