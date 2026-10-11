@@ -69,13 +69,15 @@ export default async function registerMessagesRoutes(app) {
   const secretPath = join(dataDirectory, "session-secret");
   await Promise.all([makeDirectory(attachmentDirectory), makeDirectory(avatarDirectory)]);
 
-  let database = { users: [], messages: [], attachments: [], reports: [] };
+  let database = { users: [], messages: [], attachments: [], reports: [], groups: [], groupMembers: [] };
   try {
     const loaded = JSON.parse(await readFile(statePath, "utf8"));
     if (Array.isArray(loaded.users) && Array.isArray(loaded.messages) && Array.isArray(loaded.attachments)) {
       database = { ...database, ...loaded };
     }
   } catch {}
+  if (!Array.isArray(database.groups)) database.groups = [];
+  if (!Array.isArray(database.groupMembers)) database.groupMembers = [];
   let sessionSecret = process.env.DOGEUB_CHAT_SECRET || process.env.SESSION_SECRET || "";
   if (!sessionSecret) {
     try {
@@ -171,6 +173,7 @@ export default async function registerMessagesRoutes(app) {
   const messageForClient = (message) => ({
     id: message.id,
     channel: message.channel,
+    groupId: message.groupId || null,
     text: message.text,
     createdAt: message.createdAt,
     sender: publicUser(database.users.find((user) => user.id === message.senderId)),
@@ -310,6 +313,75 @@ export default async function registerMessagesRoutes(app) {
     return reply.send({ users });
   });
 
+  const publicGroup = (group) => ({
+    id: group.id,
+    name: group.name,
+    createdAt: group.createdAt,
+    memberCount: database.groupMembers.filter((member) => member.groupId === group.id).length
+  });
+  const isGroupMember = (groupId, userId) => database.groupMembers.some((member) => member.groupId === groupId && member.userId === userId);
+
+  app.get("/api/messages/groups", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    const groups = database.groups
+      .filter((group) => isGroupMember(group.id, user.id))
+      .map(publicGroup)
+      .sort((a, b) => a.name.localeCompare(b.name));
+    return reply.send({ groups });
+  });
+
+  // Entering a known name joins that saved group; entering a new name creates it.
+  app.post("/api/messages/groups/join", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    if (!allowRate("groups:" + user.id, 20, 60_000)) return sendError(reply, 429, "Please slow down group joins.");
+    const name = String(request.body?.name || "").trim().replace(/\s+/g, " ");
+    if (name.length < 3 || name.length > 40) return sendError(reply, 400, "Group names must be 3–40 characters.");
+    if (hasProfanity(name)) return sendError(reply, 400, "Please choose a group name without profanity.");
+    const normalizedName = name.toLocaleLowerCase("en-US");
+    let group = database.groups.find((candidate) => candidate.normalizedName === normalizedName);
+    let created = false;
+    if (!group) {
+      group = { id: randomUUID(), name, normalizedName, createdBy: user.id, createdAt: Date.now() };
+      database.groups.push(group);
+      created = true;
+    }
+    let membership = database.groupMembers.find((item) => item.groupId === group.id && item.userId === user.id);
+    if (!membership) {
+      membership = { groupId: group.id, userId: user.id, joinedAt: Date.now() };
+      database.groupMembers.push(membership);
+    }
+    try {
+      await persist();
+    } catch {
+      if (created) database.groups = database.groups.filter((item) => item.id !== group.id);
+      database.groupMembers = database.groupMembers.filter((item) => item !== membership);
+      return sendError(reply, 500, "That group could not be saved. Check the Messages data directory.");
+    }
+    return reply.send({ group: publicGroup(group), created, joined: true });
+  });
+
+  app.get("/api/messages/notifications", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    const since = Number(request.query?.since || 0);
+    const cursor = Date.now();
+    const notifications = database.messages
+      .filter((message) => message.createdAt > since && message.createdAt <= cursor && message.senderId !== user.id && (
+        message.channel === "global" ||
+        (message.channel === "dm" && message.recipientId === user.id) ||
+        (message.channel === "group" && isGroupMember(message.groupId, user.id))
+      ))
+      .slice(-50)
+      .map((message) => ({
+        kind: message.channel,
+        groupName: message.channel === "group" ? database.groups.find((group) => group.id === message.groupId)?.name || "Group chat" : null,
+        message: messageForClient(message)
+      }));
+    return reply.send({ notifications, cursor });
+  });
+
   app.get("/api/messages/conversations", async (request, reply) => {
     const user = requireUser(request, reply);
     if (!user) return;
@@ -341,6 +413,11 @@ export default async function registerMessagesRoutes(app) {
     let messages;
     if (channel === "global") {
       messages = database.messages.filter((message) => message.channel === "global");
+    } else if (channel === "group") {
+      const groupId = String(request.query?.groupId || "");
+      const group = database.groups.find((candidate) => candidate.id === groupId);
+      if (!group || !isGroupMember(groupId, user.id)) return sendError(reply, 404, "Join that group before opening its messages.");
+      messages = database.messages.filter((message) => message.channel === "group" && message.groupId === groupId);
     } else if (channel === "dm") {
       const peerId = String(request.query?.with || "");
       if (!peerId || !database.users.some((candidate) => candidate.id === peerId) || peerId === user.id) {
@@ -366,7 +443,12 @@ export default async function registerMessagesRoutes(app) {
     const attachmentId = request.body?.attachmentId ? String(request.body.attachmentId) : null;
     if (!text && !attachmentId) return sendError(reply, 400, "Write a message or attach a file.");
     let recipientId = null;
-    if (channel === "dm") {
+    let groupId = null;
+    if (channel === "group") {
+      groupId = String(request.body?.groupId || "");
+      const group = database.groups.find((candidate) => candidate.id === groupId);
+      if (!group || !isGroupMember(groupId, user.id)) return sendError(reply, 403, "Join that group before sending messages there.");
+    } else if (channel === "dm") {
       recipientId = String(request.body?.recipientId || "");
       if (!recipientId || recipientId === user.id || !database.users.some((candidate) => candidate.id === recipientId)) {
         return sendError(reply, 400, "Choose a valid direct-message recipient.");
@@ -382,7 +464,7 @@ export default async function registerMessagesRoutes(app) {
       }
     }
     const message = {
-      id: randomUUID(), channel, senderId: user.id, recipientId,
+      id: randomUUID(), channel, senderId: user.id, recipientId, groupId,
       text: censorProfanity(text), attachmentId, createdAt: Date.now()
     };
     database.messages.push(message);
@@ -445,7 +527,8 @@ export default async function registerMessagesRoutes(app) {
     const isUploader = attachment.ownerId === user.id;
     const canReadMessage = message && (
       message.channel === "global" ||
-      (message.channel === "dm" && (message.senderId === user.id || message.recipientId === user.id))
+      (message.channel === "dm" && (message.senderId === user.id || message.recipientId === user.id)) ||
+      (message.channel === "group" && isGroupMember(message.groupId, user.id))
     );
     if (!isUploader && !canReadMessage) return sendError(reply, 404, "Attachment not found.");
     let bytes;
