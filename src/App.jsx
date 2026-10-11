@@ -8,6 +8,7 @@ import { useLocation } from 'react-router-dom';
 import Popunder from './components/Popunder';
 import PanicButton from './components/PanicButton';
 import Taskbar from './components/Taskbar';
+import AdminPanelWindow from './components/AdminPanelWindow';
 import PatchLogs from './components/PatchLogs';
 import AdminAnnouncement from './components/AdminAnnouncement';
 import LockScreen from './components/LockScreen';
@@ -290,6 +291,7 @@ const ThemedApp = memo(() => {
       <AdminAnnouncement />
       <PortalTransitions />
       <Taskbar />
+      <AdminPanelWindow />
       <DogeHub />
       <DogeNexus />
       <EmojiWidgets />
