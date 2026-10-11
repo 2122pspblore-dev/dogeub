@@ -283,12 +283,37 @@ export default function Taskbar() {
   };
 
   const submitSearch = (event) => {
-    event.preventDefault();
+    event?.preventDefault?.();
     const value = query.trim();
     if (!value) return;
     navigate('/search', {
       state: { url: (value.startsWith('http://') || value.startsWith('https://')) ? value : `https://www.bing.com/search?q=${encodeURIComponent(value)}` },
     });
+    setQuery('');
+    setStartOpen(false);
+    setSearchOpen(false);
+  };
+
+  const submitStartSearch = (event) => {
+    event?.preventDefault?.();
+    const value = query.trim();
+    if (!value) return;
+    const term = value.toLowerCase();
+    const app = apps.find((item) => (item.name + ' ' + item.description).toLowerCase().includes(term));
+    if (app) {
+      openApp(app);
+      setQuery('');
+      return;
+    }
+    const settingsTerms = ['privacy', 'cloak', 'customize', 'theme', 'appearance', 'color', 'browsing', 'search engine', 'advanced', 'cache', 'settings', 'preferences'];
+    if (settingsTerms.some((keyword) => keyword.includes(term) || term.includes(keyword))) {
+      navigate('/settings');
+      setQuery('');
+      setStartOpen(false);
+      setSearchOpen(false);
+      return;
+    }
+    navigate('/search', { state: { url: `https://www.bing.com/search?q=${encodeURIComponent(value)}` } });
     setQuery('');
     setStartOpen(false);
     setSearchOpen(false);
@@ -317,41 +342,63 @@ export default function Taskbar() {
       )}
 
       {startOpen && (
-        <section className="fixed bottom-[4.6rem] left-1/2 z-[10999] w-[min(92vw,390px)] -translate-x-1/2 overflow-hidden rounded-2xl border border-white/15 bg-[#172033]/95 p-4 text-white shadow-2xl backdrop-blur-2xl">
-          <div className="mb-4 flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm font-semibold"><Grid3X3 size={17} /> Pinned</div>
-            <span className="text-xs text-white/50">DogeUB</span>
+        <section role="dialog" aria-label="Start menu" className="fixed bottom-[4.6rem] left-1/2 z-[10999] w-[min(92vw,420px)] -translate-x-1/2 overflow-hidden rounded-2xl border border-white/15 bg-[#172033]/[.97] p-4 text-white shadow-2xl backdrop-blur-2xl">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm font-semibold"><Grid3X3 size={17} /> Start</div>
+            <span className="text-xs text-white/45">DOGEUB</span>
           </div>
-          <div className="grid grid-cols-3 gap-2">
-            {apps.map((app) => {
-              const Icon = app.icon;
-              return (
-                <button key={app.name} onClick={() => openApp(app)} className="flex min-h-[84px] flex-col items-center justify-center gap-2 rounded-xl p-2 text-center hover:bg-white/10">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#243a59] text-sky-200"><Icon size={21} /></span>
-                  <span className="text-xs">{app.name}</span>
-                </button>
-              );
-            })}
+          <form onSubmit={submitStartSearch} className="flex items-center gap-2 rounded-xl border border-sky-300/30 bg-black/25 px-3 py-3 focus-within:border-sky-300/70">
+            <Search size={18} className="shrink-0 text-sky-300" />
+            <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search apps, settings, or the web" aria-label="Search apps, settings, or the web" className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-white/40" />
+            <kbd className="hidden rounded border border-white/10 px-1.5 py-1 text-[10px] text-white/40 sm:inline">↵</kbd>
+          </form>
+          <div className="mt-3 max-h-[min(45vh,360px)] overflow-y-auto">
+            {!query.trim() ? (
+              <>
+                <div className="mb-2 text-xs font-semibold text-white/50">Suggested</div>
+                <div className="grid grid-cols-2 gap-1">
+                  {[apps[0], apps[1], apps[2], apps[9]].map((app) => {
+                    const Icon = app.icon;
+                    return <button key={app.name} onClick={() => openApp(app)} className="flex items-center gap-3 rounded-xl p-3 text-left hover:bg-white/10"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#243a59] text-sky-200"><Icon size={18} /></span><span className="min-w-0"><span className="block truncate text-sm">{app.name}</span><span className="block truncate text-[11px] text-white/45">{app.description}</span></span></button>;
+                  })}
+                </div>
+                <div className="mt-3 border-t border-white/10 pt-3">
+                  <div className="mb-2 text-xs font-semibold text-white/50">Settings</div>
+                  <button onClick={() => openApp(apps.find((app) => app.name === 'Settings'))} className="flex w-full items-center gap-3 rounded-xl p-2 text-left hover:bg-white/10"><Settings size={18} className="text-sky-300" /><span className="text-sm">All settings</span><span className="ml-auto text-xs text-white/35">›</span></button>
+                </div>
+              </>
+            ) : (
+              <>
+                {(() => {
+                  const term = query.trim().toLowerCase();
+                  const appMatches = apps.filter((app) => (app.name + ' ' + app.description).toLowerCase().includes(term)).slice(0, 6);
+                  const settings = [
+                    { name: 'All settings', description: 'Open DOGEUB settings', keywords: 'settings customize preferences', path: '/settings' },
+                    { name: 'Privacy', description: 'Cloaking and privacy options', keywords: 'privacy title cloak about blank', path: '/settings' },
+                    { name: 'Customize', description: 'Themes, colors, and interface', keywords: 'customize theme color appearance ui interface scale', path: '/settings' },
+                    { name: 'Browsing', description: 'Browser and search preferences', keywords: 'browsing tabs search engine browser', path: '/settings' },
+                    { name: 'Advanced', description: 'Advanced options and cache', keywords: 'advanced debug experimental cache', path: '/settings' },
+                  ].filter((item) => (item.name + ' ' + item.description + ' ' + item.keywords).toLowerCase().includes(term)).slice(0, 5);
+                  return <>
+                    {appMatches.length > 0 && <div className="mb-1 text-xs font-semibold text-white/50">Apps</div>}
+                    {appMatches.map((app) => { const Icon = app.icon; return <button key={app.name} onClick={() => openApp(app)} className="flex w-full items-center gap-3 rounded-xl p-2.5 text-left hover:bg-white/10"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#243a59] text-sky-200"><Icon size={17} /></span><span className="min-w-0 flex-1"><span className="block text-sm">{app.name}</span><span className="block truncate text-[11px] text-white/45">{app.description}</span></span><span className="text-xs text-white/30">App</span></button>; })}
+                    {settings.length > 0 && <div className="mb-1 mt-3 border-t border-white/10 pt-3 text-xs font-semibold text-white/50">Settings</div>}
+                    {settings.map((item) => <button key={item.name} onClick={() => { navigate(item.path); setStartOpen(false); setSearchOpen(false); setQuery(''); }} className="flex w-full items-center gap-3 rounded-xl p-2.5 text-left hover:bg-white/10"><Settings size={17} className="shrink-0 text-sky-300" /><span className="min-w-0 flex-1"><span className="block text-sm">{item.name}</span><span className="block truncate text-[11px] text-white/45">{item.description}</span></span><span className="text-xs text-white/30">Setting</span></button>)}
+                    <div className="mt-3 border-t border-white/10 pt-3">
+                      <button type="button" onClick={() => submitStartSearch()} className="flex w-full items-center gap-3 rounded-xl p-2.5 text-left hover:bg-sky-500/15"><Globe size={18} className="shrink-0 text-emerald-300" /><span className="min-w-0 flex-1"><span className="block text-sm">Search the web for “{query.trim()}”</span><span className="block text-[11px] text-white/45">Open Bing web results</span></span><span className="text-xs text-white/30">Web</span></button>
+                    </div>
+                  </>;
+                })()}
+              </>
+            )}
           </div>
-          <div className="mt-4 border-t border-white/10 pt-3">
-            <div className="mb-2 text-xs font-semibold text-white/60">Recommended</div>
-            <button onClick={() => openApp(apps[1])} className="flex w-full items-center gap-3 rounded-xl p-2 text-left hover:bg-white/10">
-              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-500/20 text-sky-200"><Globe size={19} /></span>
-              <span><span className="block text-sm">Open browser</span><span className="block text-xs text-white/50">Start browsing on DogeUB</span></span>
-            </button>
-          </div>
-          <div className="mt-3 flex items-center justify-between gap-2 border-t border-white/10 pt-3">
-            <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-white/10 px-3 py-2 text-xs font-medium hover:bg-white/15">
-              <input type="file" accept="image/*" className="hidden" onChange={handleBackgroundUpload} />
-              {startBackground ? "Change site background" : "Upload site background"}
-            </label>
-            {startBackground && <button onClick={clearStartBackground} className="rounded-lg px-3 py-2 text-xs text-white/70 hover:bg-white/10 hover:text-white">Remove image</button>}
-          </div>
-          <div className="mt-3 flex items-center justify-between border-t border-white/10 pt-3 text-xs text-white/65">
-            <button onClick={() => { if (!osUsername) window.dispatchEvent(new Event('dogeub-lock')); }} className="flex items-center gap-2 rounded-lg pr-2 text-left hover:text-white" title={osUsername ? 'DOGEUB OS identity' : 'Set up your DOGEUB OS username'}><span className="flex h-7 w-7 items-center justify-center rounded-full bg-sky-500/30 font-bold">{(osUsername || 'D')[0]?.toUpperCase()}</span><span className="max-w-32 truncate">{osUsername ? '@' + osUsername : 'Set up username'}</span></button>
-            <div className="flex items-center gap-1">
-              <button title="Lock DogeUB (Alt+L)" aria-label="Lock DogeUB" onClick={() => { setStartOpen(false); window.dispatchEvent(new Event('dogeub-lock')); }} className="rounded-lg p-2 hover:bg-sky-500/20 hover:text-sky-200"><LockKeyhole size={16} /></button>
-              <button title="Power off / close page" onClick={() => setPowerConfirm(true)} className="rounded-lg p-2 hover:bg-red-500/25"><Power size={16} /></button>
+          <div className="mt-3 flex items-center justify-between gap-2 border-t border-white/10 pt-3 text-xs text-white/65">
+            <button onClick={() => { if (!osUsername) window.dispatchEvent(new Event('dogeub-lock')); }} className="flex min-w-0 items-center gap-2 rounded-lg pr-2 text-left hover:text-white" title={osUsername ? 'DOGEUB OS identity' : 'Set up your DOGEUB OS username'}><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sky-500/30 font-bold">{(osUsername || 'D')[0]?.toUpperCase()}</span><span className="max-w-32 truncate">{osUsername ? '@' + osUsername : 'Set up username'}</span></button>
+            <div className="flex shrink-0 items-center gap-1">
+              <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-white/10"><input type="file" accept="image/*" className="hidden" onChange={handleBackgroundUpload} />Wallpaper</label>
+              {startBackground && <button onClick={clearStartBackground} title="Remove wallpaper" className="rounded-lg p-2 text-white/50 hover:bg-white/10 hover:text-white"><X size={15} /></button>}
+              <button title="Lock DOGEUB" aria-label="Lock DOGEUB" onClick={() => { setStartOpen(false); window.dispatchEvent(new Event('dogeub-lock')); }} className="rounded-lg p-2 hover:bg-sky-500/20 hover:text-sky-200"><LockKeyhole size={16} /></button>
+              <button title="Power options" aria-label="Power options" onClick={() => { setStartOpen(false); setPowerConfirm(true); }} className="rounded-lg p-2 hover:bg-red-500/25"><Power size={16} /></button>
             </div>
           </div>
         </section>
