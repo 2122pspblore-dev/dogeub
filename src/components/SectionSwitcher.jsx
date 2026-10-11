@@ -12,6 +12,12 @@ import {
   Settings,
   Sparkles,
   Compass,
+  LayoutDashboard,
+  Wrench,
+  Cpu,
+  Library,
+  GraduationCap,
+  Users,
   X,
 } from 'lucide-react';
 import loaderStore from '../utils/hooks/loader/useLoaderStore';
@@ -23,6 +29,12 @@ const SECTIONS = [
   { id: 'files', name: 'Files', detail: 'Open your DOGEUB file manager', icon: Files, path: '/files' },
   { id: 'settings', name: 'Settings', detail: 'Customize DOGEUB', icon: Settings, path: '/settings' },
   { id: 'messages', name: 'Messages', detail: 'Global chat and private conversations', icon: MessagesSquare, path: '/messages' },
+  { id: 'dashboard-studio', name: 'Dashboard Studio', detail: 'Customize and rearrange your DOGEUB dashboard', icon: LayoutDashboard, path: '/dashboard' },
+  { id: 'toolbox', name: 'Toolbox', detail: 'Text, JSON, color, QR, and image tools', icon: Wrench, path: '/toolbox' },
+  { id: 'pc-center', name: 'PC Center', detail: 'Device snapshot and hardware explorer', icon: Cpu, path: '/pc-center' },
+  { id: 'game-library', name: 'Game Library', detail: 'Organize favorites and game shortcuts', icon: Library, path: '/game-library' },
+  { id: 'student-center', name: 'Student Center', detail: 'Homework planner, focus timer, and flashcards', icon: GraduationCap, path: '/student-center' },
+  { id: 'social-center', name: 'Social Center', detail: 'Friends, profile, presence, and notifications', icon: Users, path: '/social' },
   { id: 'browser-tabs', name: 'Browser Tabs', detail: 'Open the built-in browser and keep your tabs', icon: Globe, path: '/search', preserveBrowserTabs: true },
 ];
 
