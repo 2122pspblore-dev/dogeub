@@ -2,6 +2,14 @@ import { useEffect, useRef, useState } from 'react';
 import { Monitor, Copy, PhoneOff, ShieldCheck } from 'lucide-react';
 import Nav from '../layouts/Nav';
 
+const makeShortPeerId = () => {
+  const alphabet = 'abcdefghjkmnpqrstuvwxyz23456789';
+  const bytes = new Uint8Array(10);
+  if (window.crypto?.getRandomValues) window.crypto.getRandomValues(bytes);
+  else for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+  return Array.from(bytes, byte => alphabet[byte % alphabet.length]).join('');
+};
+
 export default function RemoteDesktop() {
   const localVideo = useRef(null), remoteVideo = useRef(null);
   const peerRef = useRef(null), callRef = useRef(null), streamRef = useRef(null);
@@ -57,14 +65,14 @@ export default function RemoteDesktop() {
       streamRef.current = stream;
       if (localVideo.current) localVideo.current.srcObject = stream;
       stream.getVideoTracks()[0]?.addEventListener('ended', stop, { once: true });
-      const peer = new window.Peer(); peerRef.current = peer; setMode('host');
+      const peer = new window.Peer(makeShortPeerId()); peerRef.current = peer; setMode('host');
       setStatus('Starting connection…');
       peer.on('open', id => { setPeerId(id); setStatus('Ready — waiting for connection'); });
       peer.on('call', call => {
         if (callRef.current || pendingRef.current) return call.close();
         pendingRef.current = call; setIncoming(true); setStatus('Incoming request — approval required');
       });
-      peer.on('error', err => setError(err?.type === 'unavailable-id' ? 'Connection code unavailable. Restart hosting.' : 'Could not connect. Check internet on both devices.'));
+      peer.on('error', err => setError(err?.type === 'unavailable-id' ? 'That short code is already in use. Stop hosting and start again for a new code.' : `Host setup failed${err?.type ? ` (${err.type})` : ''}. Check the internet connection and refresh if needed.`));
     } catch (err) {
       if (!['NotAllowedError', 'AbortError'].includes(err?.name)) setError('Could not share screen. Check browser permissions.');
     }
@@ -77,12 +85,24 @@ export default function RemoteDesktop() {
     const peer = new window.Peer(); peerRef.current = peer; setMode('viewer');
     setStatus('Connecting to host…');
     peer.on('open', () => {
-      const call = peer.call(code.trim());
+      const hostCode = code.trim().toLowerCase();
+      const call = peer.call(hostCode);
       if (call) wireCall(call);
-      else setError('Could not start connection. Check the code.');
+      else {
+        setError('Could not create the call. Check the host code and try again; if it repeats, the PeerJS signaling service may be unavailable.');
+        setStatus('Call could not start');
+      }
     });
     peer.on('error', err => {
-      if (!stoppingRef.current) setError(err?.type === 'peer-unavailable' ? 'Host is offline or code is incorrect. Use the newest code.' : 'Connection failed. Check both devices and retry.');
+      if (stoppingRef.current) return;
+      const messages = {
+        'peer-unavailable': 'Host code not found. Make sure hosting is still active and copy the newest 10-character code.',
+        'network': 'PeerJS signaling connection failed. Check internet on both laptops and try again.',
+        'server-error': 'PeerJS signaling server error. Wait a moment and retry.',
+        'socket-error': 'Could not reach the signaling server. Check internet access and try again.',
+        'disconnected': 'Disconnected from the signaling server. Stop and start the connection again.',
+      };
+      setError(messages[err?.type] || `Connection failed${err?.type ? ` (${err.type})` : ''}. Check the code and both internet connections.`);
     });
   };
 
