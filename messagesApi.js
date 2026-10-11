@@ -57,6 +57,9 @@ function publicUser(user) {
   const presence = age < 90_000 ? "online" : age < 5 * 60_000 ? "away" : "offline";
   const moderators = String(process.env.DOGEUB_MODERATOR_USERNAMES || "")
     .split(",").map((value) => value.trim().toLowerCase()).filter(Boolean);
+  const admins = String(process.env.DOGEUB_ADMIN_USERNAMES || "")
+    .split(",").map((value) => value.trim().toLowerCase()).filter(Boolean);
+  const normalizedUsername = String(user.normalizedUsername || user.username || "").toLowerCase();
   return {
     id: user.id,
     username: user.username,
@@ -67,7 +70,9 @@ function publicUser(user) {
     bannerColor: /^#[0-9a-f]{6}$/i.test(user.bannerColor || "") ? user.bannerColor : "#172554",
     presence,
     lastSeenAt: presence === "online" ? null : (Number(user.lastSeenAt) || null),
-    isModerator: moderators.includes(String(user.normalizedUsername || user.username || "").toLowerCase())
+    isModerator: moderators.includes(normalizedUsername),
+    isAdmin: admins.includes(normalizedUsername),
+    title: admins.includes(normalizedUsername) ? "DOGEUB Architect" : null
   };
 }
 
