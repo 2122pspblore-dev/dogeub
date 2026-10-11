@@ -66,6 +66,13 @@ initPreload('/docs', importGms);
 initPreload('/settings', importSettings);
 initPreload('/', importHome);
 
+function SiteControlNotice({ title, detail }) {
+  return <main className="fixed inset-0 z-[2147483000] flex items-center justify-center bg-slate-950 p-6 text-white"><section className="w-full max-w-xl rounded-3xl border border-amber-200/15 bg-white/[.03] p-8 text-center"><div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl border border-amber-200/20 bg-amber-200/[.07] text-amber-100"><span className="text-2xl">⏸</span></div><h1 className="mt-5 text-2xl font-bold">{title}</h1><p className="mt-3 text-sm leading-6 text-white/60">{detail}</p><a href="/" className="mt-6 inline-flex rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-slate-950">Return home</a></section></main>;
+}
+function ShieldBanIcon() {
+  return <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 3 20 6v5c0 5-3.4 8.4-8 10-4.6-1.6-8-5-8-10V6l8-3Z"/><path d="m9 9 6 6m0-6-6 6"/></svg>;
+}
+
 function Windows10Startup() {
   const [visible, setVisible] = useState(true);
 
@@ -111,10 +118,43 @@ function useTracking() {
 
 const ThemedApp = memo(() => {
   const { options, updateOption } = useOptions();
+  const location = useLocation();
+  const [siteStatus, setSiteStatus] = useState({ gamesDisabled: false, serverMuted: false, browsingDisabled: false, banned: false, banReason: '' });
   const popunderEnabled = POPUNDER_ENABLED === 'true';
   const [customBackground, setCustomBackground] = useState(() => {
     try { return window.localStorage.getItem('dogeub-site-background') || ''; } catch { return ''; }
   });
+
+  useEffect(() => {
+    let active = true;
+    const refreshSiteStatus = async () => {
+      try {
+        let username = '';
+        try { username = window.localStorage.getItem('dogeub-os-username-v1') || ''; } catch {}
+        const response = await fetch('/api/public/site-status?username=' + encodeURIComponent(username), { credentials: 'same-origin' });
+        if (!response.ok) return;
+        const data = await response.json();
+        if (active) setSiteStatus({
+          gamesDisabled: data.gamesDisabled === true,
+          serverMuted: data.serverMuted === true,
+          browsingDisabled: data.browsingDisabled === true,
+          banned: data.banned === true,
+          banReason: String(data.banReason || '')
+        });
+      } catch {}
+    };
+    refreshSiteStatus();
+    const interval = window.setInterval(refreshSiteStatus, 10000);
+    const onIdentityChange = () => refreshSiteStatus();
+    window.addEventListener('storage', onIdentityChange);
+    window.addEventListener('dogeub-identity-change', onIdentityChange);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+      window.removeEventListener('storage', onIdentityChange);
+      window.removeEventListener('dogeub-identity-change', onIdentityChange);
+    };
+  }, []);
 
   useEffect(() => {
     const body = document.body;
@@ -232,7 +272,20 @@ const ThemedApp = memo(() => {
       <Windows10Startup />
       <PanicButton />
       <PatchLogs />
-      <Routing pages={pages} />
+      {siteStatus.banned ? (
+        <main className="fixed inset-0 z-[2147483000] flex items-center justify-center bg-slate-950 p-6 text-white">
+          <section className="w-full max-w-xl rounded-3xl border border-rose-300/20 bg-rose-300/[.05] p-8 text-center shadow-2xl">
+            <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl border border-rose-200/20 bg-rose-200/10 text-rose-100"><ShieldBanIcon /></div>
+            <h1 className="mt-5 text-2xl font-bold">DOGEUB access disabled</h1>
+            <p className="mt-3 text-sm leading-6 text-white/65">{siteStatus.banReason || 'An administrator has disabled access for this DOGEUB account.'}</p>
+            <p className="mt-5 text-xs text-white/35">If you believe this is a mistake, contact a DOGEUB administrator.</p>
+          </section>
+        </main>
+      ) : siteStatus.gamesDisabled && ['/docs', '/docs/r', '/game-library'].includes(location.pathname) ? (
+        <SiteControlNotice title="Games are temporarily disabled" detail="A DOGEUB administrator has closed the Games section. Please try again later." />
+      ) : siteStatus.browsingDisabled && ['/materials', '/search', '/recommended'].includes(location.pathname) ? (
+        <SiteControlNotice title="Browsing tools are temporarily disabled" detail="A DOGEUB administrator has paused browsing tools inside DOGEUB. Other browser apps on your device are not affected." />
+      ) : <Routing pages={pages} />}
       <AdminAnnouncement />
       <PortalTransitions />
       <Taskbar />
