@@ -15,6 +15,9 @@ export const isPatchLogsEnabled = () => {
 const PATCH_DATE = '2026-10-11';
 
 const PATCH_LOGS = [
+  'Added Notification Center with a cyan glass drawer, unread indicators, mark-all-read and clear-all controls, keyboard toggle (Alt+Shift+N), and browser-local notification storage. Live alerts require an explicit feature integration.',
+  'Added HoloSpace with Main, School, Games, and Projects workspaces, remembered last DOGEUB route per workspace, and Ctrl+Alt+Left/Right switching.',
+  'Updated the Doge Shortcuts catalog with Notification Center and HoloSpace keyboard controls.',
   'Added resizable Admin Panel windows and changed minimize to hide the existing window without unmounting its content, preserving in-progress state.',
   'Added a Collaboration Center shortcut directly in the Messages sidebar so Global Chat users can jump to team workspaces, project notes, and tasks.',
   'Expanded Remote Desktop with viewer-side mouse movement, click, scroll, and keyboard event relay; added host-side confirmation and emergency disconnect. Full OS input requires the optional local host agent and is not available from browser-only mode.',

@@ -21,6 +21,8 @@ import InteractiveDots from './components/InteractiveDots';
 import QuickLauncher from './components/QuickLauncher';
 import SectionSwitcher from './components/SectionSwitcher';
 import HolographicTabSwitcher from './components/HolographicTabSwitcher';
+import NotificationCenter from './components/NotificationCenter';
+import HoloSpace from './components/HoloSpace';
 import { OptionsProvider, useOptions } from './utils/optionsContext';
 import { initPreload } from './utils/preload';
 import { designConfig as bgDesign } from './utils/config';
@@ -321,6 +323,8 @@ const ThemedApp = memo(() => {
       <QuickLauncher />
       <SectionSwitcher />
       <HolographicTabSwitcher />
+      <NotificationCenter />
+      <HoloSpace />
       <PetBuddy />
       <LockScreen />
       {popunderEnabled && !adKeyPassed ? <Popunder /> : null}
