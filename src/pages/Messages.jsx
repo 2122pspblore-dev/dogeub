@@ -155,7 +155,7 @@ export default function Messages() {
         if (!alive) return;
         const account = data.user || null;
         const localName = readOSUsername();
-        if (account && localName && account.username.toLowerCase() !== localName.toLowerCase()) {
+        if (account && !account.isGuest && localName && account.username.toLowerCase() !== localName.toLowerCase()) {
           try { await apiRequest("/api/messages/logout", { method: "POST", body: "{}" }); } catch {}
           if (alive) {
             setSession(null);
@@ -166,7 +166,7 @@ export default function Messages() {
           }
           return;
         }
-        if (account && !localName) {
+        if (account && !account.isGuest && !localName) {
           saveOSUsername(account.username);
           setOsUsername(account.username);
           setAuthUsername(account.username);
