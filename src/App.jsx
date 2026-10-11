@@ -131,7 +131,7 @@ const ThemedApp = memo(() => {
       try {
         let username = '';
         try { username = window.localStorage.getItem('dogeub-os-username-v1') || ''; } catch {}
-        const response = await fetch('/api/public/site-status?username=' + encodeURIComponent(username), { credentials: 'same-origin' });
+        const response = await fetch('/api/public/site-status?username=' + encodeURIComponent(username), { credentials: 'same-origin', cache: 'no-store' });
         if (!response.ok) return;
         const data = await response.json();
         if (active) setSiteStatus({
