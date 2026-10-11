@@ -1175,7 +1175,12 @@ export default async function registerMessagesRoutes(app) {
     }
     const recentMessages = messages.slice(-100);
     const retainedPins = messages.filter((message) => message.pinned).slice(-50);
-    const visibleMessages = [...new Map([...retainedPins, ...recentMessages].map((message) => [message.id, message])).values()]
+    // Keep recent admin broadcasts visible even during very busy global chat traffic.
+    // Announcements are pinned, but ordinary pinned messages must not crowd them out.
+    const retainedAnnouncements = channel === "global"
+      ? messages.filter((message) => message.isAnnouncement).slice(-50)
+      : [];
+    const visibleMessages = [...new Map([...retainedAnnouncements, ...retainedPins, ...recentMessages].map((message) => [message.id, message])).values()]
       .sort((a, b) => a.createdAt - b.createdAt);
     return reply.send({ messages: visibleMessages.map((message) => messageForClient(message, user.id)) });
   });
