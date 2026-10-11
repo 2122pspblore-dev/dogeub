@@ -19,6 +19,7 @@ const keyMap = {
   F7: Key.F7, F8: Key.F8, F9: Key.F9, F10: Key.F10, F11: Key.F11, F12: Key.F12
 };
 for (const letter of 'ABCDEFGHIJKLMNOPQRSTUVWXYZ') keyMap[letter] = Key[letter];
+for (const letter of 'abcdefghijklmnopqrstuvwxyz') keyMap[letter] = Key[letter.toUpperCase()];
 for (const digit of '0123456789') keyMap[digit] = Key[digit];
 
 const wss = new WebSocketServer({ host: '127.0.0.1', port: PORT });
