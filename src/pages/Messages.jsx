@@ -9,6 +9,18 @@ import { formatSize, listFiles } from "../utils/fileStore";
 
 const MAX_ATTACHMENT_BYTES = 4 * 1024 * 1024;
 const MAX_AVATAR_BYTES = 512 * 1024;
+const OS_USERNAME_KEY = "dogeub-os-username-v1";
+
+function readOSUsername() {
+  try { return String(window.localStorage.getItem(OS_USERNAME_KEY) || "").trim(); } catch { return ""; }
+}
+
+function saveOSUsername(username) {
+  const value = String(username || "").trim();
+  if (!value) return;
+  try { window.localStorage.setItem(OS_USERNAME_KEY, value); } catch {}
+  window.dispatchEvent(new CustomEvent("dogeub-identity-change", { detail: { username: value } }));
+}
 
 async function apiRequest(path, options = {}) {
   const response = await fetch(path, {
@@ -64,8 +76,9 @@ export default function Messages() {
   const navigate = useNavigate();
   const [session, setSession] = useState(null);
   const [sessionLoading, setSessionLoading] = useState(true);
-  const [authMode, setAuthMode] = useState("register");
-  const [authUsername, setAuthUsername] = useState("");
+  const [osUsername, setOsUsername] = useState(readOSUsername);
+  const [authMode, setAuthMode] = useState(() => readOSUsername() ? "login" : "register");
+  const [authUsername, setAuthUsername] = useState(readOSUsername);
   const [authPassword, setAuthPassword] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
   const [appError, setAppError] = useState("");
@@ -121,9 +134,50 @@ export default function Messages() {
   const typingStopTimerRef = useRef(null);
 
   useEffect(() => {
+    const syncIdentity = () => {
+      const name = readOSUsername();
+      setOsUsername(name);
+      setAuthUsername(name);
+      if (name) setAuthMode("login");
+    };
+    window.addEventListener("dogeub-identity-change", syncIdentity);
+    window.addEventListener("storage", syncIdentity);
+    return () => {
+      window.removeEventListener("dogeub-identity-change", syncIdentity);
+      window.removeEventListener("storage", syncIdentity);
+    };
+  }, []);
+
+  useEffect(() => {
     let alive = true;
     apiRequest("/api/messages/session")
-      .then((data) => { if (alive) { notificationCursorRef.current = Date.now(); setSession(data.user || null); } })
+      .then(async (data) => {
+        if (!alive) return;
+        const account = data.user || null;
+        const localName = readOSUsername();
+        if (account && localName && account.username.toLowerCase() !== localName.toLowerCase()) {
+          try { await apiRequest("/api/messages/logout", { method: "POST", body: "{}" }); } catch {}
+          if (alive) {
+            setSession(null);
+            setOsUsername(localName);
+            setAuthUsername(localName);
+            setAuthMode("login");
+            setAppError("This browser's DOGEUB OS identity is @" + localName + ". Sign in with that same username to continue.");
+          }
+          return;
+        }
+        if (account && !localName) {
+          saveOSUsername(account.username);
+          setOsUsername(account.username);
+          setAuthUsername(account.username);
+        } else if (localName) {
+          setOsUsername(localName);
+          setAuthUsername(localName);
+          setAuthMode("login");
+        }
+        notificationCursorRef.current = Date.now();
+        setSession(account);
+      })
       .catch((error) => { if (alive) setAppError(error.message); })
       .finally(() => { if (alive) setSessionLoading(false); });
     return () => { alive = false; };
@@ -357,17 +411,28 @@ export default function Messages() {
     setAuthBusy(true);
     setAppError("");
     try {
+      const requiredUsername = readOSUsername();
+      const username = requiredUsername || authUsername.trim();
+      if (!username) throw new Error("Set up a DOGEUB OS username before signing into Messages.");
       const endpoint = authMode === "register" ? "/api/messages/register" : "/api/messages/login";
       const data = await apiRequest(endpoint, {
         method: "POST",
-        body: JSON.stringify({ username: authUsername, password: authPassword })
+        body: JSON.stringify({ username, password: authPassword })
       });
+      if (requiredUsername && data.user.username.toLowerCase() !== requiredUsername.toLowerCase()) {
+        await apiRequest("/api/messages/logout", { method: "POST", body: "{}" }).catch(() => {});
+        throw new Error("Messages must use your DOGEUB OS username, @" + requiredUsername + ".");
+      }
+      saveOSUsername(data.user.username);
+      setOsUsername(data.user.username);
+      setAuthUsername(data.user.username);
+      setAuthMode("login");
       notificationCursorRef.current = Date.now();
       seenNotificationIdsRef.current.clear();
       setSession(data.user);
       setAuthPassword("");
       setProfileUsername(data.user.username);
-      setNotice(authMode === "register" ? "Welcome to DOGEUB Messages." : "You're signed in.");
+      setNotice(authMode === "register" ? "Welcome to DOGEUB Messages. Your OS and Messages usernames now match." : "You're signed in.");
     } catch (error) {
       setAppError(error.message);
     } finally {
@@ -476,10 +541,14 @@ export default function Messages() {
       if (clearAvatar) body.clearAvatar = true;
       const data = await apiRequest("/api/messages/profile", { method: "PATCH", body: JSON.stringify(body) });
       setSession(data.user);
+      saveOSUsername(data.user.username);
+      setOsUsername(data.user.username);
+      setAuthUsername(data.user.username);
+      setProfileUsername(data.user.username);
       setAvatarDraft("");
       setClearAvatar(false);
       setProfileOpen(false);
-      setNotice("Profile updated.");
+      setNotice("Profile updated. Your DOGEUB OS username was synced.");
       await loadConversations();
       await loadMessages();
     } catch (error) {
