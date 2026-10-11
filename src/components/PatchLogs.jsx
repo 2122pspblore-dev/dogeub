@@ -15,6 +15,9 @@ export const isPatchLogsEnabled = () => {
 const PATCH_DATE = '2026-10-11';
 
 const PATCH_LOGS = [
+  'Added a restricted Admin Panel section to Settings with a code gate, site metrics, account suspension controls, report review, site-wide announcements, registration pause, and an admin audit log.',
+  'Protected administrative APIs with the server-side DOGEUB_ADMIN_USERNAMES allowlist. The Settings passcode is a UI gate only and is not used as server authorization.',
+  'Added a public announcement banner that displays the current enabled message from the Messages service and can be dismissed per page session.',
   'Added a customizable DOGEUB Studio dashboard with reorderable and hideable widgets, saved shortcuts, sticky notes, and a focus timer.',
   'Added DOGEUB Toolbox utilities: text transformations and counters, JSON formatting, color picking, QR-code generation, and local image resizing.',
   'Added PC Center with browser-reported device details, a CPU/GPU class explorer, and a practical PC health checklist.',

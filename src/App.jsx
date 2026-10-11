@@ -9,6 +9,7 @@ import Popunder from './components/Popunder';
 import PanicButton from './components/PanicButton';
 import Taskbar from './components/Taskbar';
 import PatchLogs from './components/PatchLogs';
+import AdminAnnouncement from './components/AdminAnnouncement';
 import LockScreen from './components/LockScreen';
 import DogeHub from './components/DogeHub';
 import PetBuddy from './components/PetBuddy';
@@ -232,6 +233,7 @@ const ThemedApp = memo(() => {
       <PanicButton />
       <PatchLogs />
       <Routing pages={pages} />
+      <AdminAnnouncement />
       <PortalTransitions />
       <Taskbar />
       <DogeHub />

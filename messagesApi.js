@@ -79,7 +79,7 @@ export default async function registerMessagesRoutes(app) {
   const secretPath = join(dataDirectory, "session-secret");
   await Promise.all([makeDirectory(attachmentDirectory), makeDirectory(avatarDirectory)]);
 
-  let database = { users: [], messages: [], attachments: [], reports: [], groups: [], groupMembers: [], readStates: [], reactions: [], mutes: [], friendRequests: [], friendships: [], blocks: [], notifications: [] };
+  let database = { users: [], messages: [], attachments: [], reports: [], groups: [], groupMembers: [], readStates: [], reactions: [], mutes: [], friendRequests: [], friendships: [], blocks: [], notifications: [], adminAudit: [], adminSettings: { announcement: "", announcementEnabled: false, registrationPaused: false, updatedAt: null, updatedBy: null } };
   try {
     const loaded = JSON.parse(await readFile(statePath, "utf8"));
     if (Array.isArray(loaded.users) && Array.isArray(loaded.messages) && Array.isArray(loaded.attachments)) {
@@ -95,6 +95,15 @@ export default async function registerMessagesRoutes(app) {
   if (!Array.isArray(database.friendships)) database.friendships = [];
   if (!Array.isArray(database.blocks)) database.blocks = [];
   if (!Array.isArray(database.notifications)) database.notifications = [];
+  if (!Array.isArray(database.adminAudit)) database.adminAudit = [];
+  if (!database.adminSettings || typeof database.adminSettings !== "object") database.adminSettings = { announcement: "", announcementEnabled: false, registrationPaused: false, updatedAt: null, updatedBy: null };
+  database.adminSettings = {
+    announcement: String(database.adminSettings.announcement || "").slice(0, 300),
+    announcementEnabled: database.adminSettings.announcementEnabled === true,
+    registrationPaused: database.adminSettings.registrationPaused === true,
+    updatedAt: database.adminSettings.updatedAt || null,
+    updatedBy: database.adminSettings.updatedBy || null
+  };
   const makeInviteCode = () => {
     let code;
     do { code = randomBytes(4).toString("hex").toUpperCase(); }
@@ -171,7 +180,29 @@ export default async function registerMessagesRoutes(app) {
       sendError(reply, 401, "Sign in to DOGEUB Messages to continue.");
       return null;
     }
+    if (user.isSuspended) {
+      sendError(reply, 403, "This DOGEUB Messages account is suspended. Contact a site administrator if you believe this is a mistake.");
+      return null;
+    }
     return user;
+  };
+  const configuredAdmins = new Set(String(process.env.DOGEUB_ADMIN_USERNAMES || "")
+    .split(",").map((value) => value.trim().toLowerCase()).filter(Boolean));
+  const isAdminUser = (user) => Boolean(user && configuredAdmins.has(String(user.normalizedUsername || user.username || "").toLowerCase()));
+  const requireAdmin = (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return null;
+    if (!isAdminUser(user)) {
+      sendError(reply, 403, "Admin API access is not enabled for this account. Configure DOGEUB_ADMIN_USERNAMES on the server.");
+      return null;
+    }
+    return user;
+  };
+  const recordAdminAction = (admin, action, target = null, details = "") => {
+    const entry = { id: randomUUID(), actorId: admin.id, actorUsername: admin.username, action, target: target ? String(target).slice(0, 120) : null, details: String(details || "").slice(0, 240), createdAt: Date.now() };
+    database.adminAudit.push(entry);
+    if (database.adminAudit.length > 500) database.adminAudit.splice(0, database.adminAudit.length - 500);
+    return entry;
   };
 
   const rateBuckets = new Map();
@@ -270,9 +301,22 @@ export default async function registerMessagesRoutes(app) {
     return true;
   };
 
-  app.get("/api/messages/session", async (request, reply) => reply.send({ user: publicUser(currentUser(request)) }));
+  app.get("/api/messages/session", async (request, reply) => {
+    const user = currentUser(request);
+    return reply.send({ user: user?.isSuspended ? null : publicUser(user) });
+  });
+
+  app.get("/api/public/announcement", async (_request, reply) => {
+    const settings = database.adminSettings;
+    return reply.send({
+      enabled: settings.announcementEnabled === true && Boolean(settings.announcement),
+      message: settings.announcementEnabled === true ? settings.announcement : "",
+      updatedAt: settings.updatedAt || null
+    });
+  });
 
   app.post("/api/messages/register", async (request, reply) => {
+    if (database.adminSettings.registrationPaused) return sendError(reply, 503, "New account registration is temporarily paused by a DOGEUB administrator.");
     const ip = request.ip || "unknown";
     if (!allowRate("register:" + ip, 8, 60 * 60 * 1000)) return sendError(reply, 429, "Too many sign-up attempts. Try again later.");
     const username = String(request.body?.username || "").trim();
@@ -310,6 +354,7 @@ export default async function registerMessagesRoutes(app) {
     const salt = user?.passwordSalt || "dogeub-invalid-user-salt";
     const suppliedHash = (await scrypt(password, salt, 64)).toString("base64url");
     if (!user || suppliedHash !== user.passwordHash) return sendError(reply, 401, "That username or password doesn't match.");
+    if (user.isSuspended) return sendError(reply, 403, "This account is suspended. Contact a site administrator if you believe this is a mistake.");
     setSession(reply, user.id);
     return reply.send({ user: publicUser(user) });
   });
@@ -549,6 +594,157 @@ export default async function registerMessagesRoutes(app) {
       try { await persist(); } catch { return sendError(reply, 500, "Notification state could not be saved."); }
     }
     return reply.send({ ok: true });
+  });
+
+
+  // Administrative APIs are protected by a server-side username allowlist.
+  // The Settings passcode is a UI gate only and is not treated as server authorization.
+  app.get("/api/messages/admin/overview", async (request, reply) => {
+    const admin = requireAdmin(request, reply);
+    if (!admin) return;
+    const onlineUsers = database.users.filter((user) => Date.now() - (Number(user.lastSeenAt) || 0) < 90_000).length;
+    const openReports = database.reports.filter((item) => !item.status || item.status === "open").length;
+    const pendingRequests = database.friendRequests.filter((item) => item.status === "pending").length;
+    const stats = {
+      users: database.users.length,
+      onlineUsers,
+      suspendedUsers: database.users.filter((user) => user.isSuspended).length,
+      messages: database.messages.length,
+      directMessages: database.messages.filter((item) => item.channel === "dm").length,
+      groups: database.groups.length,
+      groupMembers: database.groupMembers.length,
+      friendRelationships: database.friendships.length,
+      pendingFriendRequests: pendingRequests,
+      openReports,
+      notifications: database.notifications.length,
+      attachments: database.attachments.length
+    };
+    const siteSettings = { ...database.adminSettings };
+    delete siteSettings.updatedBy;
+    return reply.send({ stats, siteSettings, admin: { username: admin.username }, serverTime: Date.now() });
+  });
+
+  app.get("/api/messages/admin/users", async (request, reply) => {
+    const admin = requireAdmin(request, reply);
+    if (!admin) return;
+    const query = String(request.query?.q || "").trim().slice(0, 40).toLowerCase();
+    const matchingUsers = database.users
+      .filter((user) => !query || String(user.username || "").toLowerCase().includes(query))
+      .sort((a, b) => (Number(b.createdAt) || 0) - (Number(a.createdAt) || 0));
+    const selectedUsers = matchingUsers.slice(0, 200);
+    const selectedIds = new Set(selectedUsers.map((user) => user.id));
+    const messageCounts = new Map();
+    const messageOwners = new Map();
+    for (const message of database.messages) {
+      messageOwners.set(message.id, message.senderId);
+      if (selectedIds.has(message.senderId)) messageCounts.set(message.senderId, (messageCounts.get(message.senderId) || 0) + 1);
+    }
+    const reportCounts = new Map();
+    for (const report of database.reports) {
+      const ownerId = messageOwners.get(report.messageId);
+      if (ownerId && selectedIds.has(ownerId)) reportCounts.set(ownerId, (reportCounts.get(ownerId) || 0) + 1);
+    }
+    const users = selectedUsers.map((user) => ({
+      ...publicUser(user),
+      isSuspended: Boolean(user.isSuspended),
+      suspensionReason: String(user.suspensionReason || "").slice(0, 200),
+      suspendedAt: user.suspendedAt || null,
+      messageCount: messageCounts.get(user.id) || 0,
+      reportCount: reportCounts.get(user.id) || 0,
+      isProtectedAdmin: isAdminUser(user)
+    }));
+    return reply.send({ users, totalMatches: matchingUsers.length });
+  });
+
+  app.post("/api/messages/admin/users/status", async (request, reply) => {
+    const admin = requireAdmin(request, reply);
+    if (!admin) return;
+    const userId = String(request.body?.userId || "");
+    const suspended = request.body?.suspended === true;
+    const reason = String(request.body?.reason || "").trim().slice(0, 200);
+    const target = database.users.find((user) => user.id === userId);
+    if (!target) return sendError(reply, 404, "That user was not found.");
+    if (target.id === admin.id) return sendError(reply, 400, "You cannot suspend your own admin account.");
+    if (isAdminUser(target)) return sendError(reply, 403, "Protected administrator accounts cannot be suspended from this panel.");
+    if (suspended) {
+      target.isSuspended = true;
+      target.suspensionReason = reason || "Suspended by a DOGEUB administrator.";
+      target.suspendedAt = Date.now();
+      target.suspendedBy = admin.id;
+    } else {
+      target.isSuspended = false;
+      target.suspensionReason = "";
+      target.suspendedAt = null;
+      target.suspendedBy = null;
+    }
+    const action = suspended ? "user-suspended" : "user-unsuspended";
+    recordAdminAction(admin, action, target.username, target.suspensionReason);
+    try { await persist(); } catch { return sendError(reply, 500, "The user status could not be saved."); }
+    return reply.send({ ok: true, user: { id: target.id, username: target.username, isSuspended: Boolean(target.isSuspended), suspensionReason: target.suspensionReason || "" } });
+  });
+
+  app.get("/api/messages/admin/reports", async (request, reply) => {
+    const admin = requireAdmin(request, reply);
+    if (!admin) return;
+    const reports = database.reports.slice().reverse().slice(0, 250).map((item) => {
+      const message = database.messages.find((entry) => entry.id === item.messageId);
+      return {
+        id: item.id, reason: item.reason, createdAt: item.createdAt, status: item.status || "open",
+        reporter: publicUser(database.users.find((entry) => entry.id === item.reporterId)),
+        message: message ? { id: message.id, text: message.text || (message.attachmentId ? "Attachment" : ""), sender: publicUser(database.users.find((entry) => entry.id === message.senderId)), channel: message.channel } : null
+      };
+    });
+    return reply.send({ reports });
+  });
+
+  app.post("/api/messages/admin/reports/action", async (request, reply) => {
+    const admin = requireAdmin(request, reply);
+    if (!admin) return;
+    const report = database.reports.find((item) => item.id === String(request.body?.reportId || ""));
+    const action = String(request.body?.action || "");
+    if (!report) return sendError(reply, 404, "Report not found.");
+    if (report.status && report.status !== "open") return sendError(reply, 409, "That report has already been reviewed.");
+    if (action === "dismiss") {
+      report.status = "dismissed";
+      report.reviewedAt = Date.now();
+      recordAdminAction(admin, "report-dismissed", report.id, report.reason);
+    } else if (action === "remove-message") {
+      const message = database.messages.find((item) => item.id === report.messageId);
+      if (!message) return sendError(reply, 404, "The reported message no longer exists.");
+      message.text = "[Message removed by a DOGEUB administrator]";
+      message.attachmentId = null;
+      message.moderatedRemoved = true;
+      database.reactions = database.reactions.filter((item) => item.messageId !== message.id);
+      report.status = "removed";
+      report.reviewedAt = Date.now();
+      notifyUser(message.senderId, "moderation", "Message removed", "A DOGEUB administrator removed a message after reviewing a report.", admin.id, { messageId: message.id });
+      recordAdminAction(admin, "message-removed", message.senderId, "Report " + report.id);
+    } else return sendError(reply, 400, "Choose dismiss or remove-message.");
+    try { await persist(); } catch { return sendError(reply, 500, "The moderation action could not be saved."); }
+    return reply.send({ ok: true });
+  });
+
+  app.get("/api/messages/admin/audit", async (request, reply) => {
+    const admin = requireAdmin(request, reply);
+    if (!admin) return;
+    return reply.send({ entries: database.adminAudit.slice().reverse().slice(0, 150).map((item) => ({ ...item })) });
+  });
+
+  app.patch("/api/messages/admin/settings", async (request, reply) => {
+    const admin = requireAdmin(request, reply);
+    if (!admin) return;
+    const changes = request.body || {};
+    if (Object.prototype.hasOwnProperty.call(changes, "announcement") && String(changes.announcement || "").length > 300) {
+      return sendError(reply, 400, "Announcements must be 300 characters or fewer.");
+    }
+    if (Object.prototype.hasOwnProperty.call(changes, "announcement")) database.adminSettings.announcement = String(changes.announcement || "").trim();
+    if (Object.prototype.hasOwnProperty.call(changes, "announcementEnabled")) database.adminSettings.announcementEnabled = changes.announcementEnabled === true && Boolean(database.adminSettings.announcement);
+    if (Object.prototype.hasOwnProperty.call(changes, "registrationPaused")) database.adminSettings.registrationPaused = changes.registrationPaused === true;
+    database.adminSettings.updatedAt = Date.now();
+    database.adminSettings.updatedBy = admin.username;
+    recordAdminAction(admin, "site-settings-updated", null, "Updated announcement or registration settings.");
+    try { await persist(); } catch { return sendError(reply, 500, "Admin settings could not be saved."); }
+    return reply.send({ ok: true, siteSettings: { ...database.adminSettings } });
   });
 
   app.get("/api/messages/moderation/reports", async (request, reply) => {
