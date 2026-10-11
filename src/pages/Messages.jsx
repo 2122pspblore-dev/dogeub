@@ -819,20 +819,20 @@ export default function Messages() {
             </div>
 
             <div className="p-6 sm:p-10">
-              <div className="mb-6 flex rounded-xl border border-white/10 bg-black/20 p-1">
+              {!osUsername && <div className="mb-6 flex rounded-xl border border-white/10 bg-black/20 p-1">
                 <button type="button" onClick={() => { setAuthMode("register"); setAppError(""); }} className={"flex-1 rounded-lg px-3 py-2.5 text-sm font-semibold transition " + (authMode === "register" ? "bg-white/10 text-white" : "text-white/40 hover:text-white")}>Create account</button>
                 <button type="button" onClick={() => { setAuthMode("login"); setAppError(""); }} className={"flex-1 rounded-lg px-3 py-2.5 text-sm font-semibold transition " + (authMode === "login" ? "bg-white/10 text-white" : "text-white/40 hover:text-white")}>Sign in</button>
-              </div>
-              <h2 className="text-2xl font-bold">{authMode === "register" ? "Join the chat" : "Welcome back"}</h2>
-              <p className="mt-2 text-sm leading-6 text-white/45">{authMode === "register" ? "Create your DOGEUB Messages username." : "Sign in with your existing Messages account."}</p>
+              </div>}
+              <h2 className="text-2xl font-bold">{osUsername ? "Sign in as @" + osUsername : authMode === "register" ? "Join the chat" : "Welcome back"}</h2>
+              <p className="mt-2 text-sm leading-6 text-white/45">{osUsername ? "Your DOGEUB Messages account uses the same unique username as your DOGEUB OS profile." : authMode === "register" ? "Create your DOGEUB OS and Messages identity." : "Sign in with your existing DOGEUB Messages account."}</p>
               <form onSubmit={handleAuth} className="mt-7 space-y-4">
-                <label className="block"><span className="mb-2 block text-xs font-semibold uppercase tracking-wider text-white/45">Username</span><input autoComplete="username" value={authUsername} onChange={(event) => setAuthUsername(event.target.value)} required minLength={3} maxLength={20} pattern="[A-Za-z0-9_]{3,20}" placeholder="e.g. doge_fan" className="w-full rounded-xl border border-white/10 bg-white/[.04] px-4 py-3 text-sm outline-none transition placeholder:text-white/25 focus:border-cyan-100/35 focus:bg-white/[.07]" /></label>
+                <label className="block"><span className="mb-2 block text-xs font-semibold uppercase tracking-wider text-white/45">DOGEUB OS username</span><input autoComplete="username" value={osUsername || authUsername} readOnly={Boolean(osUsername)} onChange={(event) => setAuthUsername(event.target.value)} required minLength={3} maxLength={20} pattern="[A-Za-z0-9_]{3,20}" placeholder="e.g. doge_fan" className="w-full rounded-xl border border-white/10 bg-white/[.04] px-4 py-3 text-sm outline-none transition placeholder:text-white/25 focus:border-cyan-100/35 focus:bg-white/[.07] read-only:text-cyan-100" />{osUsername && <span className="mt-2 block text-[10px] text-cyan-100/55">Synced with DOGEUB OS. Change it in your profile to update both.</span>}</label>
                 <label className="block"><span className="mb-2 block text-xs font-semibold uppercase tracking-wider text-white/45">Password</span><input type="password" autoComplete={authMode === "register" ? "new-password" : "current-password"} value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} required minLength={8} maxLength={128} placeholder="At least 8 characters" className="w-full rounded-xl border border-white/10 bg-white/[.04] px-4 py-3 text-sm outline-none transition placeholder:text-white/25 focus:border-cyan-100/35 focus:bg-white/[.07]" /></label>
                 {authMode === "register" && <p className="text-[11px] leading-5 text-white/35">Usernames use 3–20 letters, numbers, or underscores. Passwords are stored as salted hashes.</p>}
                 {appError && <p role="alert" className="rounded-xl border border-rose-300/20 bg-rose-300/[.06] px-3 py-2.5 text-xs leading-5 text-rose-100/90">{appError}</p>}
                 <button type="submit" disabled={authBusy} className="flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-100 px-4 py-3 text-sm font-bold text-slate-950 transition hover:bg-white disabled:cursor-wait disabled:opacity-60">{authBusy ? <Spinner small /> : <MessagesSquare size={17} />}{authMode === "register" ? "Create Messages account" : "Sign in to Messages"}</button>
               </form>
-              <p className="mt-5 text-center text-[11px] leading-5 text-white/30">This account is for DOGEUB Messages. It is separate from your browser, email, and other accounts.</p>
+              <p className="mt-5 text-center text-[11px] leading-5 text-white/30">Your DOGEUB OS and Messages share the same unique username. The account is separate from your email and other services.</p>
             </div>
           </div>
         </div>
