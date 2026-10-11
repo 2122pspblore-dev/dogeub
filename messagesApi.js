@@ -1044,6 +1044,7 @@ export default async function registerMessagesRoutes(app) {
     const pairIds = dmPairKeyForMessage(message).split(":");
     if (pairIds.includes(userId)) return pairIds.find((id) => id && id !== userId) || null;
     return message.senderId === userId ? message.recipientId : message.senderId;
+  };
   const muteMatches = (userId, message) => database.mutes.some((mute) => {
     if (mute.userId !== userId || mute.channel !== message.channel) return false;
     if (message.channel === "dm") return mute.peerId === dmPeerFor(message, userId);
