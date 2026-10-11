@@ -71,8 +71,8 @@ function publicUser(user) {
     presence,
     lastSeenAt: presence === "online" ? null : (Number(user.lastSeenAt) || null),
     isModerator: moderators.includes(normalizedUsername),
-    isAdmin: admins.includes(normalizedUsername),
-    title: admins.includes(normalizedUsername) ? "DOGEUB Architect" : null,
+    isAdmin: admins.includes(normalizedUsername) || user.isAdminGranted === true,
+    title: admins.includes(normalizedUsername) || user.isAdminGranted === true ? "DOGEUB Architect" : null,
     isGuest: Boolean(user.isGuest)
   };
 }
@@ -111,6 +111,8 @@ export default async function registerMessagesRoutes(app) {
     gamesDisabled: database.adminSettings.gamesDisabled === true,
     serverMuted: database.adminSettings.serverMuted === true,
     browsingDisabled: database.adminSettings.browsingDisabled === true,
+    maintenanceMode: database.adminSettings.maintenanceMode === true,
+    maintenanceMessage: String(database.adminSettings.maintenanceMessage || "DOGEUB is temporarily unavailable while we perform maintenance. Please check back soon.").slice(0, 300),
     updatedAt: database.adminSettings.updatedAt || null,
     updatedBy: database.adminSettings.updatedBy || null
   };
@@ -198,7 +200,8 @@ export default async function registerMessagesRoutes(app) {
   };
   const configuredAdmins = new Set(String(process.env.DOGEUB_ADMIN_USERNAMES || "")
     .split(",").map((value) => value.trim().toLowerCase()).filter(Boolean));
-  const isAdminUser = (user) => Boolean(user && configuredAdmins.has(String(user.normalizedUsername || user.username || "").toLowerCase()));
+  const isDeploymentAdmin = (user) => Boolean(user && configuredAdmins.has(String(user.normalizedUsername || user.username || "").toLowerCase()));
+  const isAdminUser = (user) => Boolean(user && (isDeploymentAdmin(user) || user.isAdminGranted === true));
   const requireAdmin = (request, reply) => {
     const user = requireUser(request, reply);
     if (!user) return null;
@@ -214,6 +217,27 @@ export default async function registerMessagesRoutes(app) {
     if (database.adminAudit.length > 500) database.adminAudit.splice(0, database.adminAudit.length - 500);
     return entry;
   };
+
+  // Maintenance mode blocks the application APIs for ordinary sessions. Login/session/status
+  // endpoints remain available so an administrator can sign in and unlock the control panel.
+  // Admin APIs still run through requireAdmin, which performs the server-side role check.
+  app.addHook("preHandler", async (request, reply) => {
+    if (database.adminSettings.maintenanceMode !== true) return;
+    const pathname = String(request.url || "").split("?")[0];
+    if (!pathname.startsWith("/api/")) return;
+    const maintenanceExemptPaths = new Set([
+      "/api/public/site-status",
+      "/api/public/announcement",
+      "/api/messages/session",
+      "/api/messages/login",
+      "/api/messages/logout",
+      "/api/messages/os-session"
+    ]);
+    if (maintenanceExemptPaths.has(pathname)) return;
+    if (isAdminUser(currentUser(request))) return;
+    const message = String(database.adminSettings.maintenanceMessage || "DOGEUB is temporarily unavailable while we perform maintenance. Please check back soon.").slice(0, 300);
+    return reply.code(503).send({ error: message });
+  });
 
   const rateBuckets = new Map();
   const allowRate = (key, limit, windowMs) => {
@@ -370,6 +394,10 @@ export default async function registerMessagesRoutes(app) {
       gamesDisabled: settings.gamesDisabled === true,
       serverMuted: settings.serverMuted === true,
       browsingDisabled: settings.browsingDisabled === true,
+      maintenanceMode: settings.maintenanceMode === true,
+      maintenanceMessage: String(settings.maintenanceMessage || "DOGEUB is temporarily unavailable while we perform maintenance. Please check back soon.").slice(0, 300),
+      maintenanceAdmin: Boolean(sessionUser && !sessionUser.isSuspended && isAdminUser(sessionUser)),
+      maintenanceAuthenticated: Boolean(sessionUser && !sessionUser.isSuspended),
       banned: Boolean(matchedUser?.isSuspended),
       banReason: matchedUser?.isSuspended ? String(matchedUser.suspensionReason || "Access to DOGEUB has been disabled by an administrator.") : ""
     });
@@ -743,6 +771,58 @@ export default async function registerMessagesRoutes(app) {
     return reply.send({ ok: true, user: { id: target.id, username: target.username, isSuspended: Boolean(target.isSuspended), suspensionReason: target.suspensionReason || "" } });
   });
 
+  app.get("/api/messages/admin/administrators", async (request, reply) => {
+    const admin = requireAdmin(request, reply);
+    if (!admin) return;
+    const administrators = database.users
+      .filter((user) => isAdminUser(user))
+      .map((user) => ({
+        id: user.id,
+        username: user.username,
+        isDeploymentAdmin: isDeploymentAdmin(user),
+        isAdminGranted: user.isAdminGranted === true
+      }))
+      .sort((a, b) => a.username.localeCompare(b.username));
+    return reply.send({ administrators });
+  });
+
+  app.post("/api/messages/admin/administrators", async (request, reply) => {
+    const admin = requireAdmin(request, reply);
+    if (!admin) return;
+    const username = String(request.body?.username || "").trim();
+    const granted = request.body?.granted === true;
+    if (!username || username.length > 24) return sendError(reply, 400, "Enter a valid DOGEUB username.");
+    const target = findUsername(username);
+    if (!target) return sendError(reply, 404, "That username does not have a DOGEUB Messages account.");
+    if (isDeploymentAdmin(target)) return sendError(reply, 403, "Deployment-configured administrators are managed with DOGEUB_ADMIN_USERNAMES on the server.");
+    if (granted && !target.passwordHash) return sendError(reply, 400, "This account can be claimed using its username alone. Have the user set a password for the Messages account before granting administrator access.");
+    if (target.isSuspended && granted) return sendError(reply, 400, "Restore this account before granting administrator access.");
+    if (target.id === admin.id && !granted) return sendError(reply, 400, "You cannot remove your own administrator access.");
+    if ((target.isAdminGranted === true) === granted) {
+      return reply.send({ ok: true, unchanged: true, user: { id: target.id, username: target.username, isAdminGranted: target.isAdminGranted === true } });
+    }
+    const priorGranted = target.isAdminGranted === true;
+    target.isAdminGranted = granted;
+    const auditEntry = recordAdminAction(admin, granted ? "administrator-granted" : "administrator-revoked", target.username, granted ? "Granted administrator access." : "Revoked administrator access.");
+    try {
+      await persist();
+    } catch {
+      target.isAdminGranted = priorGranted;
+      database.adminAudit = database.adminAudit.filter((entry) => entry.id !== auditEntry.id);
+      return sendError(reply, 500, "The administrator role could not be saved.");
+    }
+    const administrators = database.users
+      .filter((user) => isAdminUser(user))
+      .map((user) => ({
+        id: user.id,
+        username: user.username,
+        isDeploymentAdmin: isDeploymentAdmin(user),
+        isAdminGranted: user.isAdminGranted === true
+      }))
+      .sort((a, b) => a.username.localeCompare(b.username));
+    return reply.send({ ok: true, user: { id: target.id, username: target.username, isAdminGranted: granted }, administrators });
+  });
+
   app.get("/api/messages/admin/reports", async (request, reply) => {
     const admin = requireAdmin(request, reply);
     if (!admin) return;
@@ -803,9 +883,15 @@ export default async function registerMessagesRoutes(app) {
     if (Object.prototype.hasOwnProperty.call(changes, "gamesDisabled")) database.adminSettings.gamesDisabled = changes.gamesDisabled === true;
     if (Object.prototype.hasOwnProperty.call(changes, "serverMuted")) database.adminSettings.serverMuted = changes.serverMuted === true;
     if (Object.prototype.hasOwnProperty.call(changes, "browsingDisabled")) database.adminSettings.browsingDisabled = changes.browsingDisabled === true;
+    if (Object.prototype.hasOwnProperty.call(changes, "maintenanceMode")) database.adminSettings.maintenanceMode = changes.maintenanceMode === true;
+    if (Object.prototype.hasOwnProperty.call(changes, "maintenanceMessage")) {
+      const maintenanceMessage = String(changes.maintenanceMessage || "").trim();
+      if (maintenanceMessage.length > 300) return sendError(reply, 400, "Maintenance messages must be 300 characters or fewer.");
+      database.adminSettings.maintenanceMessage = maintenanceMessage || "DOGEUB is temporarily unavailable while we perform maintenance. Please check back soon.";
+    }
     database.adminSettings.updatedAt = Date.now();
     database.adminSettings.updatedBy = admin.username;
-    recordAdminAction(admin, "site-settings-updated", null, "Updated announcement or registration settings.");
+    recordAdminAction(admin, "site-settings-updated", null, "Updated announcement, registration, emergency controls, or maintenance mode.");
     try { await persist(); } catch { return sendError(reply, 500, "Admin settings could not be saved."); }
     return reply.send({ ok: true, siteSettings: { ...database.adminSettings } });
   });

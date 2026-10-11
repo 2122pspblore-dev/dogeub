@@ -10,6 +10,7 @@ const ADMIN_PANEL_CODE = 'y:LVXjJwM3nQTRU';
 const TABS = [
   { id: 'overview', label: 'Overview', icon: Gauge },
   { id: 'users', label: 'Users', icon: Users },
+  { id: 'administrators', label: 'Administrators', icon: ShieldCheck },
   { id: 'reports', label: 'Reports', icon: ShieldAlert },
   { id: 'conversations', label: 'Conversations', icon: MessagesSquare },
   { id: 'broadcast', label: 'Announcements', icon: Megaphone },
@@ -74,6 +75,8 @@ export default function AdminPanel() {
   const [tab, setTab] = useState('overview');
   const [overview, setOverview] = useState(null);
   const [users, setUsers] = useState([]);
+  const [administrators, setAdministrators] = useState([]);
+  const [adminUsername, setAdminUsername] = useState('');
   const [reports, setReports] = useState([]);
   const [audit, setAudit] = useState([]);
   const [conversations, setConversations] = useState([]);
@@ -90,6 +93,8 @@ export default function AdminPanel() {
   const [gamesDisabled, setGamesDisabled] = useState(false);
   const [serverMuted, setServerMuted] = useState(false);
   const [browsingDisabled, setBrowsingDisabled] = useState(false);
+  const [maintenanceMode, setMaintenanceMode] = useState(false);
+  const [maintenanceMessage, setMaintenanceMessage] = useState('DOGEUB is temporarily unavailable while we perform maintenance. Please check back soon.');
   const [loading, setLoading] = useState(false);
   const [actionBusy, setActionBusy] = useState('');
   const [error, setError] = useState('');
@@ -108,18 +113,22 @@ export default function AdminPanel() {
       setGamesDisabled(Boolean(result.siteSettings?.gamesDisabled));
       setServerMuted(Boolean(result.siteSettings?.serverMuted));
       setBrowsingDisabled(Boolean(result.siteSettings?.browsingDisabled));
-      const [usersResult, reportsResult, auditResult, conversationsResult, announcementsResult] = await Promise.all([
+      setMaintenanceMode(Boolean(result.siteSettings?.maintenanceMode));
+      setMaintenanceMessage(String(result.siteSettings?.maintenanceMessage || 'DOGEUB is temporarily unavailable while we perform maintenance. Please check back soon.'));
+      const [usersResult, reportsResult, auditResult, conversationsResult, announcementsResult, administratorsResult] = await Promise.all([
         adminRequest('/api/messages/admin/users'),
         adminRequest('/api/messages/admin/reports'),
         adminRequest('/api/messages/admin/audit'),
         adminRequest('/api/messages/admin/conversations'),
         adminRequest('/api/messages/admin/announcements'),
+        adminRequest('/api/messages/admin/administrators'),
       ]);
       setUsers(usersResult.users || []);
       setReports(reportsResult.reports || []);
       setAudit(auditResult.entries || []);
       setConversations(conversationsResult.conversations || []);
       setAnnouncementHistory(announcementsResult.announcements || []);
+      setAdministrators(administratorsResult.administrators || []);
       setLastUpdated(Date.now());
     } catch (problem) {
       setError(problem.message || 'Unable to load the admin overview.');
@@ -167,6 +176,18 @@ export default function AdminPanel() {
     await adminRequest('/api/messages/admin/users/status', { method: 'POST', body: JSON.stringify({ userId: user.id, suspended, reason }) });
     await loadOverview();
     setNotice(suspended ? '@' + user.username + ' was banned from DOGEUB.' : '@' + user.username + ' can access DOGEUB again.');
+  });
+  const changeAdministrator = (username, granted) => runAction('administrator:' + username, async () => {
+    const verb = granted ? 'grant administrator access to' : 'remove administrator access from';
+    if (!window.confirm('Are you sure you want to ' + verb + ' @' + username + '? This changes that account\'s server-side DOGEUB permissions.')) return;
+    const result = await adminRequest('/api/messages/admin/administrators', {
+      method: 'POST',
+      body: JSON.stringify({ username, granted }),
+    });
+    setAdministrators(result.administrators || []);
+    await loadOverview();
+    setAdminUsername('');
+    setNotice(granted ? '@' + username + ' is now a DOGEUB administrator.' : 'Administrator access was removed from @' + username + '.');
   });
   const reviewReport = (report, action) => runAction('report:' + report.id, async () => {
     if (!window.confirm(action === 'remove-message' ? 'Remove the reported message? This changes the stored message text.' : 'Dismiss this report?')) return;
@@ -267,13 +288,15 @@ export default function AdminPanel() {
   const saveSiteControls = (event) => {
     event.preventDefault();
     runAction('settings', async () => {
-      const result = await adminRequest('/api/messages/admin/settings', { method: 'PATCH', body: JSON.stringify({ announcement, announcementEnabled, registrationPaused, gamesDisabled, serverMuted, browsingDisabled }) });
+      const result = await adminRequest('/api/messages/admin/settings', { method: 'PATCH', body: JSON.stringify({ announcement, announcementEnabled, registrationPaused, gamesDisabled, serverMuted, browsingDisabled, maintenanceMode, maintenanceMessage }) });
       setAnnouncement(result.siteSettings?.announcement || '');
       setAnnouncementEnabled(Boolean(result.siteSettings?.announcementEnabled));
       setRegistrationPaused(Boolean(result.siteSettings?.registrationPaused));
       setGamesDisabled(Boolean(result.siteSettings?.gamesDisabled));
       setServerMuted(Boolean(result.siteSettings?.serverMuted));
       setBrowsingDisabled(Boolean(result.siteSettings?.browsingDisabled));
+      setMaintenanceMode(Boolean(result.siteSettings?.maintenanceMode));
+      setMaintenanceMessage(String(result.siteSettings?.maintenanceMessage || 'DOGEUB is temporarily unavailable while we perform maintenance. Please check back soon.'));
       await loadOverview();
       setNotice('Site controls saved.');
     });
@@ -322,7 +345,7 @@ export default function AdminPanel() {
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 px-5 py-3 text-xs text-white/40 sm:px-7"><span className="inline-flex items-center gap-2"><span className={'h-2 w-2 rounded-full ' + (overview && !needsAdminSetup ? 'bg-emerald-300' : needsAdminSetup ? 'bg-amber-300' : 'bg-slate-500')} />{overview ? 'Server admin connected · @' + (overview.admin?.username || 'admin') : needsAdminSetup ? 'Server admin setup required' : 'Checking server authorization'}</span><span>Last refresh: {dateTime(lastUpdated)}</span></div>
       </header>
       {(error || notice) && <div role={error ? 'alert' : 'status'} className={'mb-4 flex items-start justify-between gap-3 rounded-2xl border p-4 text-sm ' + (error ? 'border-rose-200/20 bg-rose-300/[.06] text-rose-100' : 'border-emerald-200/15 bg-emerald-200/[.04] text-emerald-100')}><span>{error || notice}{needsAdminSetup && <span className="mt-2 block text-xs leading-5 text-rose-100/70">Sign into your DOGEUB Messages account, then configure <code>DOGEUB_ADMIN_USERNAMES</code> on Railway with your exact username. The passcode alone cannot grant server privileges.</span>}</span><button onClick={() => { setError(''); setNotice(''); }} aria-label="Dismiss message"><X size={15} /></button></div>}
-      <div className="mb-5 flex gap-2 overflow-x-auto pb-1">{TABS.map((item) => { const Icon = item.icon; const count = item.id === 'reports' ? openReports : item.id === 'users' && overview ? overview.suspendedUsers : 0; return <button key={item.id} onClick={() => setTab(item.id)} className={'flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2.5 text-xs font-semibold transition ' + (tab === item.id ? 'border-cyan-200/30 bg-cyan-200/[.09] text-white' : 'border-white/10 bg-slate-950/45 text-white/50 hover:text-white')}><Icon size={14} />{item.label}{count > 0 && <span className="rounded-full bg-cyan-200 px-1.5 text-[10px] font-bold text-slate-950">{count}</span>}</button>; })}</div>
+      <div className="mb-5 flex gap-2 overflow-x-auto pb-1">{TABS.map((item) => { const Icon = item.icon; const count = item.id === 'reports' ? openReports : item.id === 'users' && overview ? overview.suspendedUsers : item.id === 'administrators' ? administrators.length : 0; return <button key={item.id} onClick={() => setTab(item.id)} className={'flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2.5 text-xs font-semibold transition ' + (tab === item.id ? 'border-cyan-200/30 bg-cyan-200/[.09] text-white' : 'border-white/10 bg-slate-950/45 text-white/50 hover:text-white')}><Icon size={14} />{item.label}{count > 0 && <span className="rounded-full bg-cyan-200 px-1.5 text-[10px] font-bold text-slate-950">{count}</span>}</button>; })}</div>
 
       {tab === 'overview' && <>
         {loading && !overview ? <div className="flex items-center justify-center gap-2 rounded-2xl border border-white/10 p-12 text-sm text-white/50"><LoaderCircle className="animate-spin" size={17} /> Connecting to admin APIs…</div> : overview ? <>
@@ -347,6 +370,35 @@ export default function AdminPanel() {
         <form onSubmit={(event) => { event.preventDefault(); runAction('users', () => refreshUsers(userQuery)); }} className="mb-4 flex gap-2"><label className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-white/10 bg-black/15 px-3"><Search size={15} className="text-white/35" /><input value={userQuery} onChange={(event) => setUserQuery(event.target.value)} placeholder="Filter users by username…" className="w-full bg-transparent py-3 text-sm outline-none" /></label><button type="submit" disabled={actionBusy === 'users'} className="rounded-xl bg-cyan-300 px-4 text-sm font-bold text-slate-950 disabled:opacity-40">Search</button></form>
         <div className="space-y-2">{filteredUsers.map((user) => <div key={user.id} className="flex flex-wrap items-center gap-3 rounded-2xl border border-white/[.07] p-3 sm:p-4"><Avatar user={user} /><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-semibold">@{user.username}</p>{user.isProtectedAdmin && <span className="rounded-full border border-violet-200/20 bg-violet-200/[.07] px-2 py-0.5 text-[9px] uppercase tracking-wider text-violet-100">Protected admin</span>}{user.isSuspended && <span className="rounded-full border border-rose-200/20 bg-rose-200/[.06] px-2 py-0.5 text-[9px] uppercase tracking-wider text-rose-100" >Banned from site</span>}</div><p className="mt-1 text-[11px] text-white/40">Joined {dateTime(user.createdAt)} · {fmt(user.messageCount)} messages · {fmt(user.reportCount)} related reports</p>{user.isSuspended && user.suspensionReason && <p className="mt-1 text-xs text-rose-100/70">Reason: {user.suspensionReason}</p>}</div>{user.isProtectedAdmin ? <span className="text-[10px] text-violet-100/45">Protected</span> : <button onClick={() => changeSuspension(user)} disabled={Boolean(actionBusy) || loading} className={'rounded-xl border px-3 py-2 text-xs font-semibold disabled:opacity-40 ' + (user.isSuspended ? 'border-emerald-200/15 text-emerald-100 hover:bg-emerald-200/[.05]' : 'border-rose-200/15 text-rose-100 hover:bg-rose-200/[.05]')}>{actionBusy === 'user:' + user.id ? 'Saving…' : user.isSuspended ? 'Restore access' : 'Ban from site'}</button>}</div>)}{filteredUsers.length === 0 && <p className="rounded-xl border border-dashed border-white/10 p-7 text-center text-sm text-white/40">{needsAdminSetup ? 'Configure server admin access to load accounts.' : 'No accounts match this filter.'}</p>}</div>
       </Panel>}
+
+      {tab === 'administrators' && <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(280px,.8fr)]">
+        <Panel title="Manage administrators" description="Grant or revoke DOGEUB admin access by an existing Messages username. The change is checked and stored on the server." icon={ShieldCheck} action={<button type="button" onClick={() => runAction('admins-refresh', async () => { const result = await adminRequest('/api/messages/admin/administrators'); setAdministrators(result.administrators || []); })} className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-xs hover:bg-white/10"><RefreshCw size={13} /> Refresh</button>}>
+          <form onSubmit={(event) => { event.preventDefault(); const username = adminUsername.trim(); if (username) changeAdministrator(username, true); }} className="flex flex-col gap-2 sm:flex-row">
+            <label className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-white/10 bg-black/15 px-3"><UserCog size={15} className="text-white/35" /><input value={adminUsername} onChange={(event) => setAdminUsername(event.target.value)} maxLength={24} autoComplete="off" placeholder="Enter an exact DOGEUB username" className="w-full bg-transparent py-3 text-sm outline-none" /></label>
+            <button type="submit" disabled={Boolean(actionBusy) || !adminUsername.trim()} className="rounded-xl bg-cyan-300 px-4 py-3 text-sm font-bold text-slate-950 disabled:opacity-40">{actionBusy.startsWith('administrator:') ? 'Saving…' : 'Grant admin access'}</button>
+          </form>
+          <p className="mt-3 rounded-xl border border-amber-200/15 bg-amber-200/[.04] p-3 text-xs leading-5 text-amber-100/75">The person must already have a password-protected DOGEUB Messages account; username-only OS-linked accounts cannot be promoted because they can be claimed by typing the username. Deployment-configured administrators remain managed in Railway's DOGEUB_ADMIN_USERNAMES setting, and you cannot remove your own current access.</p>
+          <div className="mt-5 space-y-2">
+            {administrators.map((item) => {
+              const currentAdmin = String(overview?.admin?.username || '').toLowerCase() === item.username.toLowerCase();
+              return <div key={item.id} className="flex flex-wrap items-center gap-3 rounded-2xl border border-white/[.07] p-3 sm:p-4">
+                <Avatar user={item} />
+                <div className="min-w-0 flex-1"><p className="text-sm font-semibold">@{item.username}</p><p className="mt-1 text-[10px] text-white/40">{item.isDeploymentAdmin ? 'Managed by server configuration' : 'Granted from the Admin Panel'}</p></div>
+                <span className="rounded-full border border-violet-200/20 bg-violet-200/[.06] px-2.5 py-1 text-[10px] font-semibold text-violet-100">Administrator</span>
+                {item.isAdminGranted && !item.isDeploymentAdmin && !currentAdmin ? <button type="button" onClick={() => changeAdministrator(item.username, false)} disabled={Boolean(actionBusy)} className="rounded-xl border border-rose-200/15 px-3 py-2 text-xs font-semibold text-rose-100 hover:bg-rose-200/[.05] disabled:opacity-40">{actionBusy === 'administrator:' + item.username ? 'Saving…' : 'Revoke admin'}</button> : <span className="text-[10px] text-white/30">{currentAdmin ? 'Current session' : 'Protected'}</span>}
+              </div>;
+            })}
+            {administrators.length === 0 && <p className="rounded-xl border border-dashed border-white/10 p-7 text-center text-sm text-white/40">No administrator accounts are visible. Configure at least one username on the server first.</p>}
+          </div>
+        </Panel>
+        <Panel title="Administrator safety" description="Admin access is enforced on the server and cannot be granted by changing browser storage." icon={LockKeyhole}>
+          <div className="space-y-3 text-sm leading-6 text-white/60">
+            <p>Only a signed-in administrator can promote another account. The server checks the current session before saving a role change.</p>
+            <p>Role changes are saved in DOGEUB's server data and recorded in the audit log.</p>
+            <p>Keep at least one trusted account in the Railway <code className="text-cyan-100">DOGEUB_ADMIN_USERNAMES</code> allowlist in case a promoted account needs to be removed.</p>
+          </div>
+        </Panel>
+      </div>}
 
       {tab === 'reports' && <Panel title="Report moderation" description="Review a report before dismissing it or removing its message. Actions are recorded in the audit log." icon={ShieldAlert} count={openReports}>
         {reports.map((report) => <article key={report.id} className="mb-3 rounded-2xl border border-white/[.08] p-4 last:mb-0"><div className="flex flex-wrap items-start justify-between gap-2"><div><p className="font-semibold text-white">{report.reason || 'Other'} <span className="ml-2 rounded-full border border-white/10 px-2 py-0.5 text-[9px] uppercase tracking-wider text-white/45">{report.status || 'open'}</span></p><p className="mt-1 text-xs text-white/40">Reporter @{report.reporter?.username || 'unknown'} · {dateTime(report.createdAt)}</p></div><span className="text-xs text-white/40">Author @{report.message?.sender?.username || 'unavailable'}</span></div><p className="mt-3 break-words rounded-xl bg-black/20 p-3 text-sm leading-6 text-white/65">{report.message?.text || 'The reported message is unavailable.'}</p>{(!report.status || report.status === 'open') && <div className="mt-3 flex flex-wrap gap-2"><button disabled={Boolean(actionBusy)} onClick={() => reviewReport(report, 'dismiss')} className="rounded-xl border border-white/10 px-3 py-2 text-xs hover:bg-white/10 disabled:opacity-40">Dismiss</button><button disabled={Boolean(actionBusy) || !report.message} onClick={() => reviewReport(report, 'remove-message')} className="rounded-xl border border-rose-200/15 bg-rose-300/[.06] px-3 py-2 text-xs font-semibold text-rose-100 hover:bg-rose-300/[.1] disabled:opacity-40">Remove message</button></div>}</article>)}{reports.length === 0 && <p className="rounded-xl border border-dashed border-white/10 p-7 text-center text-sm text-white/40">No reports loaded.</p>}</Panel>}
@@ -393,6 +445,9 @@ export default function AdminPanel() {
 
       {tab === 'site' && <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(280px,.75fr)]">
         <Panel title="Site-wide announcement" description="Publish a short banner for visitors. Updates are stored by the server." icon={BellRing}><form onSubmit={saveSiteControls}><label className="block text-sm text-white/70">Announcement text <span className="text-white/30">({announcement.length}/300)</span><textarea value={announcement} onChange={(event) => setAnnouncement(event.target.value)} maxLength={300} rows={4} placeholder="Write a maintenance notice, service update, or message for visitors…" className="mt-2 block w-full rounded-xl border border-white/10 bg-black/20 p-3 text-sm leading-6 outline-none focus:border-cyan-200/40" /></label><label className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-white/10 p-3"><span><span className="block text-sm font-medium">Publish announcement</span><span className="mt-1 block text-xs text-white/40">Show the message banner across DOGEUB.</span></span><input type="checkbox" checked={announcementEnabled} onChange={(event) => setAnnouncementEnabled(event.target.checked)} disabled={!announcement.trim()} className="h-4 w-4 accent-cyan-300" /></label><label className="mt-2 flex items-center justify-between gap-3 rounded-xl border border-white/10 p-3"><span><span className="block text-sm font-medium">Pause new registrations</span><span className="mt-1 block text-xs text-white/40">Existing accounts remain available; new signup attempts are rejected.</span></span><input type="checkbox" checked={registrationPaused} onChange={(event) => setRegistrationPaused(event.target.checked)} className="h-4 w-4 accent-amber-300" /></label>
+          <div className="mt-4 border-t border-white/10 pt-4"><p className="mb-2 text-xs font-bold uppercase tracking-wider text-cyan-100/70">Maintenance mode</p>
+          <label className="flex items-center justify-between gap-3 rounded-xl border border-rose-200/15 bg-rose-200/[.035] p-3"><span><span className="block text-sm font-semibold">Take DOGEUB offline for visitors</span><span className="mt-1 block text-xs leading-5 text-white/45">Shows a maintenance screen to non-admin visitors and blocks their DOGEUB APIs with HTTP 503. Signed-in administrators can still open this app to turn maintenance off.</span></span><input type="checkbox" checked={maintenanceMode} onChange={(event) => setMaintenanceMode(event.target.checked)} className="h-4 w-4 accent-rose-300" /></label>
+          <label className="mt-2 block text-xs font-medium text-white/60">Maintenance message <span className="text-white/30">({maintenanceMessage.length}/300)</span><textarea value={maintenanceMessage} onChange={(event) => setMaintenanceMessage(event.target.value)} maxLength={300} rows={3} placeholder="DOGEUB is temporarily unavailable while we perform maintenance…" className="mt-2 block w-full rounded-xl border border-white/10 bg-black/20 p-3 text-sm leading-6 outline-none focus:border-rose-200/35" /></label>
           <div className="mt-4 border-t border-white/10 pt-4"><p className="mb-2 text-xs font-bold uppercase tracking-wider text-cyan-100/70">Emergency controls</p>
           <label className="flex items-center justify-between gap-3 rounded-xl border border-white/10 p-3"><span><span className="block text-sm font-medium">Disable the Games section</span><span className="mt-1 block text-xs text-white/40">Blocks DOGEUB game pages and the game library for everyone.</span></span><input type="checkbox" checked={gamesDisabled} onChange={(event) => setGamesDisabled(event.target.checked)} className="h-4 w-4 accent-rose-300" /></label>
           <label className="mt-2 flex items-center justify-between gap-3 rounded-xl border border-white/10 p-3"><span><span className="block text-sm font-medium">Mute the entire server</span><span className="mt-1 block text-xs text-white/40">Non-admins cannot send Global Chat, DM, or group messages while enabled.</span></span><input type="checkbox" checked={serverMuted} onChange={(event) => setServerMuted(event.target.checked)} className="h-4 w-4 accent-amber-300" /></label>

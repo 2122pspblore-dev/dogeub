@@ -12,6 +12,7 @@ import {
   Search,
   Settings,
   Sparkles,
+  ShieldCheck,
   X,
 } from 'lucide-react';
 
@@ -20,6 +21,7 @@ const ITEMS = [
   { name: 'Search the web', detail: 'Search the web or open a URL', icon: Globe, run: (navigate, query) => navigate('/search', { state: { url: /^https?:\/\//i.test(query) ? query : 'https://www.bing.com/search?q=' + encodeURIComponent(query || '') } }) },
   { name: 'Recommended', detail: 'Discover recommended sites and tools', icon: Compass, run: (navigate) => navigate('/recommended') },
   { name: 'Doge Messages', detail: 'Global chat and private messages', icon: MessagesSquare, run: (navigate) => navigate('/messages') },
+  { name: 'Admin Panel', detail: 'Open the DOGEUB administrator control center', icon: ShieldCheck, run: () => window.dispatchEvent(new Event('dogeub-open-admin-panel')) },
   { name: 'Apps & games', detail: 'Browse the app catalog', icon: AppWindow, run: (navigate) => navigate('/materials') },
   { name: 'Most played games', detail: 'Open the game catalog', icon: Gamepad2, run: (navigate) => navigate('/docs') },
   { name: 'Most visited sites', detail: 'Return to the dashboard activity widgets', icon: Home, run: (navigate) => navigate('/') },
