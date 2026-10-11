@@ -90,8 +90,7 @@ export default function AdminPanelWindow() {
           <X size={15} />
         </button>
       </div>}
-  return (
-    <section
+      <section
       role="dialog"
       aria-label="Admin Panel floating window"
       className="fixed flex flex-col overflow-hidden rounded-2xl border border-cyan-200/20 bg-slate-950 text-white shadow-[0_24px_100px_rgba(0,0,0,.65)]"
