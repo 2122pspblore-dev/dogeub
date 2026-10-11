@@ -17,6 +17,8 @@ const PATCH_DATE = '2026-10-11';
 const PATCH_LOGS = [
   'Added resizable Admin Panel windows and changed minimize to hide the existing window without unmounting its content, preserving in-progress state.',
   'Added a Collaboration Center shortcut directly in the Messages sidebar so Global Chat users can jump to team workspaces, project notes, and tasks.',
+  'Expanded Remote Desktop with viewer-side mouse movement, click, scroll, and keyboard event relay; added host-side confirmation and emergency disconnect. Full OS input requires the optional local host agent and is not available from browser-only mode.',
+  'Added an optional local remote-control host agent with origin checks, explicit arming, and key-release cleanup. The host must run it locally; it is not launched by Railway.',
   'Added Remote Desktop app with consent-based local screen preview, visible sharing status, and a clear note that remote connections require a paired host agent and signaling backend.',
   'Added Collaboration Center with browser-saved project workspaces, editable notes, task tracking, JSON export, and shortcuts to DOGEUB Messages and Social Center. Real-time workspace sync is not enabled yet.',
   'Added DOGEUB OS usernames during first-time setup and linked each OS identity to the same unique username in DOGEUB Messages.',
