@@ -780,6 +780,7 @@ export default async function registerMessagesRoutes(app) {
         id: "group:" + group.id, type: "group", groupId: group.id, label: group.name,
         participants: database.groupMembers.filter((member) => member.groupId === group.id).map((member) => publicUser(database.users.find((candidate) => candidate.id === member.userId))).filter(Boolean),
         memberCount: database.groupMembers.filter((member) => member.groupId === group.id).length,
+        isOwner: group.createdBy === admin.id,
         messageCount: groupMessages.length,
         lastMessageAt: groupMessages.reduce((latest, message) => Math.max(latest, Number(message.createdAt) || 0), Number(group.createdAt) || 0),
         joined: isGroupMember(group.id, admin.id)
@@ -802,8 +803,10 @@ export default async function registerMessagesRoutes(app) {
       if (!group) return sendError(reply, 404, "Group conversation not found.");
       if (!isGroupMember(groupId, admin.id)) {
         database.groupMembers.push({ groupId, userId: admin.id, joinedAt: Date.now(), joinedByAdmin: true });
+        const joinNotice = { id: randomUUID(), channel: "group", senderId: admin.id, recipientId: null, groupId, text: "@" + admin.username + " joined this group as a DOGEUB administrator.", attachmentId: null, replyToId: null, pinned: false, isAdminMessage: true, isAdminNotice: true, createdAt: Date.now() };
+        database.messages.push(joinNotice);
         for (const member of database.groupMembers.filter((item) => item.groupId === groupId && item.userId !== admin.id)) {
-          notifyUser(member.userId, "admin-joined-group", "DOGEUB admin joined a group", "@" + admin.username + " joined the group as an administrator. Admin membership is visible in the member list.", admin.id, { groupId });
+          notifyUser(member.userId, "admin-joined-group", "DOGEUB admin joined a group", "@" + admin.username + " joined the group as an administrator. Admin membership is visible in the member list.", admin.id, { groupId, messageId: joinNotice.id });
         }
         recordAdminAction(admin, "admin-joined-group", group.name, "Joined group conversation as an administrator.");
       }
@@ -822,8 +825,10 @@ export default async function registerMessagesRoutes(app) {
       }
       if (!isObserverForConversation(admin.id, pairKey)) {
         database.conversationObservers.push({ userId: admin.id, pairKey, joinedAt: Date.now() });
+        const joinNotice = { id: randomUUID(), channel: "dm", senderId: admin.id, recipientId: userA, groupId: null, dmPairKey: pairKey, text: "@" + admin.username + " joined this direct-message conversation as a DOGEUB administrator observer.", attachmentId: null, replyToId: null, pinned: false, isAdminMessage: true, isAdminNotice: true, createdAt: Date.now() };
+        database.messages.push(joinNotice);
         for (const participantId of pairKey.split(":")) {
-          notifyUser(participantId, "admin-observing-dm", "Administrator joined your conversation", "@" + admin.username + " joined this direct-message conversation as an administrator. Access is recorded in the admin audit log.", admin.id, { pairKey });
+          notifyUser(participantId, "admin-observing-dm", "Administrator joined your conversation", "@" + admin.username + " joined this direct-message conversation as an administrator. Access is recorded in the admin audit log.", admin.id, { pairKey, messageId: joinNotice.id });
         }
         recordAdminAction(admin, "admin-joined-dm", pairKey, "Joined direct conversation in observer mode; participants were notified.");
       }
