@@ -103,11 +103,14 @@ export default async function registerMessagesRoutes(app) {
   if (!Array.isArray(database.notifications)) database.notifications = [];
   if (!Array.isArray(database.adminAudit)) database.adminAudit = [];
   if (!Array.isArray(database.conversationObservers)) database.conversationObservers = [];
-  if (!database.adminSettings || typeof database.adminSettings !== "object") database.adminSettings = { announcement: "", announcementEnabled: false, registrationPaused: false, updatedAt: null, updatedBy: null };
+  if (!database.adminSettings || typeof database.adminSettings !== "object") database.adminSettings = {};
   database.adminSettings = {
     announcement: String(database.adminSettings.announcement || "").slice(0, 300),
     announcementEnabled: database.adminSettings.announcementEnabled === true,
     registrationPaused: database.adminSettings.registrationPaused === true,
+    gamesDisabled: database.adminSettings.gamesDisabled === true,
+    serverMuted: database.adminSettings.serverMuted === true,
+    browsingDisabled: database.adminSettings.browsingDisabled === true,
     updatedAt: database.adminSettings.updatedAt || null,
     updatedBy: database.adminSettings.updatedBy || null
   };
@@ -355,6 +358,19 @@ export default async function registerMessagesRoutes(app) {
       enabled: settings.announcementEnabled === true && Boolean(settings.announcement),
       message: settings.announcementEnabled === true ? settings.announcement : "",
       updatedAt: settings.updatedAt || null
+    });
+  });
+
+  app.get("/api/public/site-status", async (request, reply) => {
+    const username = String(request.query?.username || "").trim().toLowerCase();
+    const matchedUser = username ? findUsername(username) : null;
+    const settings = database.adminSettings;
+    return reply.send({
+      gamesDisabled: settings.gamesDisabled === true,
+      serverMuted: settings.serverMuted === true,
+      browsingDisabled: settings.browsingDisabled === true,
+      banned: Boolean(matchedUser?.isSuspended),
+      banReason: matchedUser?.isSuspended ? String(matchedUser.suspensionReason || "Access to DOGEUB has been disabled by an administrator.") : ""
     });
   });
 
@@ -783,6 +799,9 @@ export default async function registerMessagesRoutes(app) {
     if (Object.prototype.hasOwnProperty.call(changes, "announcement")) database.adminSettings.announcement = String(changes.announcement || "").trim();
     if (Object.prototype.hasOwnProperty.call(changes, "announcementEnabled")) database.adminSettings.announcementEnabled = changes.announcementEnabled === true && Boolean(database.adminSettings.announcement);
     if (Object.prototype.hasOwnProperty.call(changes, "registrationPaused")) database.adminSettings.registrationPaused = changes.registrationPaused === true;
+    if (Object.prototype.hasOwnProperty.call(changes, "gamesDisabled")) database.adminSettings.gamesDisabled = changes.gamesDisabled === true;
+    if (Object.prototype.hasOwnProperty.call(changes, "serverMuted")) database.adminSettings.serverMuted = changes.serverMuted === true;
+    if (Object.prototype.hasOwnProperty.call(changes, "browsingDisabled")) database.adminSettings.browsingDisabled = changes.browsingDisabled === true;
     database.adminSettings.updatedAt = Date.now();
     database.adminSettings.updatedBy = admin.username;
     recordAdminAction(admin, "site-settings-updated", null, "Updated announcement or registration settings.");
@@ -1220,6 +1239,9 @@ export default async function registerMessagesRoutes(app) {
   app.post("/api/messages/messages", async (request, reply) => {
     const user = requireUser(request, reply);
     if (!user) return;
+    if (database.adminSettings.serverMuted && !isAdminUser(user)) {
+      return sendError(reply, 403, "DOGEUB chat is muted server-wide by an administrator.");
+    }
     if (!validateMessageRate(request, reply, user)) return;
     const channel = String(request.body?.channel || "global");
     const text = String(request.body?.text || "").trim().slice(0, MAX_MESSAGE_LENGTH);
