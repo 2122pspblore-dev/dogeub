@@ -2,6 +2,25 @@ import { useEffect, useRef, useState } from 'react';
 import { LockKeyhole, ShieldCheck, Eye, EyeOff, CloudSun, MapPin, RefreshCw } from 'lucide-react';
 
 const PASSWORD_KEY = 'dogeub-password-credential-v1';
+const USERNAME_KEY = 'dogeub-os-username-v1';
+
+function readOSUsername() {
+  try { return String(window.localStorage.getItem(USERNAME_KEY) || '').trim(); } catch { return ''; }
+}
+
+async function messagesAuth(mode, username, password) {
+  const response = await fetch('/api/messages/' + mode, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  });
+  let data = {};
+  try { data = await response.json(); } catch {}
+  if (!response.ok) throw new Error(data.error || 'Could not connect your DOGEUB OS identity to Messages.');
+  if (!data.user?.username) throw new Error('The Messages service did not return a valid account.');
+  return data.user;
+}
 
 function toBase64(bytes) {
   let binary = '';
@@ -31,6 +50,9 @@ function readCredential() {
 
 export default function LockScreen() {
   const [credential, setCredential] = useState(readCredential);
+  const [osUsername, setOSUsername] = useState(readOSUsername);
+  const [usernameDraft, setUsernameDraft] = useState(readOSUsername);
+  const [authMode, setAuthMode] = useState(() => readOSUsername() ? 'login' : 'register');
   const [unlocked, setUnlocked] = useState(false);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -140,13 +162,25 @@ export default function LockScreen() {
       setError('Enter a password to continue.');
       return;
     }
-    if (!credential) {
-      if (password.length < 8) {
-        setError('Use at least 8 characters for your password.');
+    const identitySetup = !osUsername || !credential;
+    const selectedUsername = osUsername || usernameDraft.trim();
+    if (identitySetup) {
+      if (!selectedUsername || !/^[a-zA-Z0-9_]{3,20}$/.test(selectedUsername)) {
+        setError('Choose a unique username with 3–20 letters, numbers, or underscores.');
         return;
       }
-      if (password !== confirmPassword) {
+      if (authMode === 'register' && password.length < 8) {
+        setError('Use at least 8 characters for your account password.');
+        return;
+      }
+      if (authMode === 'register' && password !== confirmPassword) {
         setError('Those passwords do not match.');
+        return;
+      }
+    } else {
+      const hash = await hashPassword(password, credential.salt);
+      if (hash !== credential.hash) {
+        setError('Incorrect password. Try again.');
         return;
       }
     }
@@ -157,30 +191,39 @@ export default function LockScreen() {
         setError('Secure password setup is unavailable in this browser. Open DogeUB over HTTPS and try again.');
         return;
       }
-      if (!credential) {
+      let canonicalUsername = osUsername;
+      if (identitySetup) {
+        const account = await messagesAuth(authMode, selectedUsername, password);
+        canonicalUsername = account.username;
+        window.localStorage.setItem(USERNAME_KEY, canonicalUsername);
+        setOSUsername(canonicalUsername);
+        setUsernameDraft(canonicalUsername);
+      } else {
+        // The local lock and Messages account use the same username/password.
+        // Refresh the Messages cookie when possible, but do not block local unlock
+        // if the server is temporarily unavailable.
+        try { await messagesAuth('login', osUsername, password); } catch {}
+      }
+
+      if (!credential || identitySetup) {
         const saltBytes = window.crypto.getRandomValues(new Uint8Array(16));
         const salt = toBase64(saltBytes);
         const hash = await hashPassword(password, salt);
-        const saved = { salt, hash, version: 1 };
+        const saved = { salt, hash, version: 2 };
         window.localStorage.setItem(PASSWORD_KEY, JSON.stringify(saved));
         setCredential(saved);
-        setUnlocked(true);
-        window.dispatchEvent(new CustomEvent('dogeub-unlocked'));
-        setPassword('');
-        setConfirmPassword('');
-      } else {
-        const hash = await hashPassword(password, credential.salt);
-        if (hash !== credential.hash) {
-          setError('Incorrect password. Try again.');
-          return;
-        }
-        setUnlocked(true);
-        window.dispatchEvent(new CustomEvent('dogeub-unlocked'));
-        setPassword('');
-        setConfirmPassword('');
       }
-    } catch {
-      setError('Could not save or verify your password. Check that browser storage is enabled.');
+      if (canonicalUsername) {
+        window.localStorage.setItem(USERNAME_KEY, canonicalUsername);
+        setOSUsername(canonicalUsername);
+        window.dispatchEvent(new CustomEvent('dogeub-identity-change', { detail: { username: canonicalUsername } }));
+      }
+      setUnlocked(true);
+      window.dispatchEvent(new CustomEvent('dogeub-unlocked'));
+      setPassword('');
+      setConfirmPassword('');
+    } catch (problem) {
+      setError(problem.message || 'Could not save your DOGEUB identity. Check your connection and try again.');
     } finally {
       setBusy(false);
     }
