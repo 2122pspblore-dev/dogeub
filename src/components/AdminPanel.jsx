@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Activity, AlertTriangle, ArrowDownToLine, BellRing, Check, ChevronRight, CircleHelp,
-  Clock3, Command, Cpu, Database, ExternalLink, Gauge, Globe, LayoutDashboard, LoaderCircle,
+  Clock3, Command, Cpu, Database, ExternalLink, Eye, Gauge, Globe, LayoutDashboard, LoaderCircle,
   LockKeyhole, Megaphone, MessageSquare, MessagesSquare, RefreshCw, Search, ShieldAlert, ShieldCheck, UserCheck, UserCog,
   UserRound, UserRoundX, Users, Wrench, X
 } from 'lucide-react';
