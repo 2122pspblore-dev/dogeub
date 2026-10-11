@@ -129,6 +129,17 @@ export default function Messages() {
     return () => { alive = false; };
   }, []);
 
+  useEffect(() => {
+    if (!session?.id) return undefined;
+    const heartbeat = () => apiRequest("/api/messages/presence", { method: "POST", body: JSON.stringify({}) }).catch(() => {});
+    heartbeat();
+    const id = window.setInterval(heartbeat, 30_000);
+    return () => {
+      window.clearInterval(id);
+      apiRequest("/api/messages/presence", { method: "POST", body: JSON.stringify({ hidden: true }) }).catch(() => {});
+    };
+  }, [session?.id]);
+
   const loadConversations = useCallback(async () => {
     try {
       const data = await apiRequest("/api/messages/conversations");
@@ -771,6 +782,7 @@ export default function Messages() {
           <div className="flex items-center gap-2">
             <button type="button" onClick={enableDesktopNotifications} disabled={desktopNotifications === "unsupported"} title={desktopNotifications === "granted" ? "Desktop alerts are enabled when this tab is in the background" : desktopNotifications === "denied" ? "Notifications are blocked in browser site settings" : "Enable desktop message alerts"} aria-label="Enable desktop message notifications" className="flex h-10 items-center gap-2 rounded-xl border border-cyan-100/15 bg-cyan-100/[.05] px-3 text-[11px] font-semibold text-cyan-50/80 transition hover:bg-cyan-100/10 disabled:cursor-not-allowed disabled:opacity-40"><BellRing size={15} />{desktopNotifications === "granted" ? "Alerts on" : desktopNotifications === "denied" ? "Alerts blocked" : desktopNotifications === "unsupported" ? "No alerts" : "Enable alerts"}</button>
             <button type="button" onClick={() => { setProfileUsername(session.username); setAvatarDraft(""); setClearAvatar(false); setProfileOpen(true); }} className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[.04] p-1.5 pr-3 text-left transition hover:bg-white/[.08]"><Avatar user={session} size="sm" /><span className="max-w-28 truncate text-xs font-semibold">@{session.username}</span><Settings size={14} className="text-white/40" /></button>
+            <button type="button" onClick={() => navigate('/social')} title="Open Social Center" className="flex h-10 items-center gap-2 rounded-xl border border-white/10 px-3 text-xs font-semibold text-white/70 transition hover:bg-white/[.07]"><Users size={15} /> Social</button>
             <button type="button" title="Sign out" aria-label="Sign out" onClick={logout} className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 text-white/50 transition hover:border-rose-200/20 hover:bg-rose-200/[.06] hover:text-rose-100"><LogOut size={17} /></button>
           </div>
         </header>
