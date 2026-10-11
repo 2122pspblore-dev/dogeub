@@ -81,8 +81,9 @@ export default async function registerMessagesRoutes(app) {
   if (!Array.isArray(database.readStates)) database.readStates = [];
   if (!Array.isArray(database.reactions)) database.reactions = [];
   if (!Array.isArray(database.mutes)) database.mutes = [];
+  let legacyInviteCodesChanged = false;
   for (const group of database.groups) {
-    if (!group.inviteCode) group.inviteCode = randomBytes(4).toString("hex").toUpperCase();
+    if (!group.inviteCode) { group.inviteCode = randomBytes(4).toString("hex").toUpperCase(); legacyInviteCodesChanged = true; }
   }
   const typingSessions = new Map();
   let sessionSecret = process.env.DOGEUB_CHAT_SECRET || process.env.SESSION_SECRET || "";
@@ -105,6 +106,7 @@ export default async function registerMessagesRoutes(app) {
     });
     return writeQueue;
   };
+  if (legacyInviteCodesChanged) await persist();
 
   // Clean up abandoned uploads from users who picked a file but never sent it.
   const referencedAttachmentIds = new Set(database.messages.map((message) => message.attachmentId).filter(Boolean));
@@ -804,7 +806,7 @@ export default async function registerMessagesRoutes(app) {
     const user = requireUser(request, reply);
     if (!user) return;
     const message = database.messages.find((item) => item.id === String(request.body?.messageId || ""));
-    if (!message || message.senderId !== user.id) return sendError(reply, 404, "You can only edit your own messages.");
+    if (!message || message.senderId !== user.id || !canReadMessage(message, user.id)) return sendError(reply, 404, "You can only edit your own messages in conversations you can access.");
     const text = String(request.body?.text || "").trim().slice(0, MAX_MESSAGE_LENGTH);
     if (!text) return sendError(reply, 400, "Edited messages cannot be empty.");
     message.text = censorProfanity(text);
@@ -817,7 +819,7 @@ export default async function registerMessagesRoutes(app) {
     const user = requireUser(request, reply);
     if (!user) return;
     const message = database.messages.find((item) => item.id === String(request.body?.messageId || ""));
-    if (!message || message.senderId !== user.id) return sendError(reply, 404, "You can only delete your own messages.");
+    if (!message || message.senderId !== user.id || !canReadMessage(message, user.id)) return sendError(reply, 404, "You can only delete your own messages in conversations you can access.");
     database.messages = database.messages.filter((item) => item.id !== message.id);
     database.reactions = database.reactions.filter((item) => item.messageId !== message.id);
     for (const child of database.messages) if (child.replyToId === message.id) child.replyToId = null;
