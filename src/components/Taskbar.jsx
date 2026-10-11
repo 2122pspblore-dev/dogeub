@@ -305,6 +305,14 @@ export default function Taskbar() {
       setQuery('');
       return;
     }
+    const settingsTerms = ['privacy', 'cloak', 'customize', 'theme', 'appearance', 'color', 'browsing', 'search engine', 'advanced', 'cache', 'settings', 'preferences'];
+    if (settingsTerms.some((keyword) => keyword.includes(term) || term.includes(keyword))) {
+      navigate('/settings');
+      setQuery('');
+      setStartOpen(false);
+      setSearchOpen(false);
+      return;
+    }
     navigate('/search', { state: { url: `https://www.bing.com/search?q=${encodeURIComponent(value)}` } });
     setQuery('');
     setStartOpen(false);
