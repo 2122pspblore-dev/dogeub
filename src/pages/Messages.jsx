@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  AlertTriangle, ArrowLeft, BellOff, Check, Copy, FileText, Image, LogOut, MessageCircle,
+  AlertTriangle, ArrowLeft, BellOff, Check, Copy, Crown, FileText, Image, LogOut, MessageCircle,
   MessagesSquare, Paperclip, Pencil, Pin, Plus, Reply, Search, Send, Settings, ShieldCheck,
   Trash2, Users, X, LoaderCircle, LockKeyhole, UserRound, BellRing, Megaphone
 } from "lucide-react";
