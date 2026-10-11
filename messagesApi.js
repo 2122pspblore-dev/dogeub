@@ -79,7 +79,7 @@ export default async function registerMessagesRoutes(app) {
   const secretPath = join(dataDirectory, "session-secret");
   await Promise.all([makeDirectory(attachmentDirectory), makeDirectory(avatarDirectory)]);
 
-  let database = { users: [], messages: [], attachments: [], reports: [], groups: [], groupMembers: [], readStates: [], reactions: [], mutes: [], friendRequests: [], friendships: [], blocks: [], notifications: [], adminAudit: [], adminSettings: { announcement: "", announcementEnabled: false, registrationPaused: false, updatedAt: null, updatedBy: null } };
+  let database = { users: [], messages: [], attachments: [], reports: [], groups: [], groupMembers: [], readStates: [], reactions: [], mutes: [], friendRequests: [], friendships: [], blocks: [], notifications: [], adminAudit: [], conversationObservers: [], adminSettings: { announcement: "", announcementEnabled: false, registrationPaused: false, updatedAt: null, updatedBy: null } };
   try {
     const loaded = JSON.parse(await readFile(statePath, "utf8"));
     if (Array.isArray(loaded.users) && Array.isArray(loaded.messages) && Array.isArray(loaded.attachments)) {
@@ -96,6 +96,7 @@ export default async function registerMessagesRoutes(app) {
   if (!Array.isArray(database.blocks)) database.blocks = [];
   if (!Array.isArray(database.notifications)) database.notifications = [];
   if (!Array.isArray(database.adminAudit)) database.adminAudit = [];
+  if (!Array.isArray(database.conversationObservers)) database.conversationObservers = [];
   if (!database.adminSettings || typeof database.adminSettings !== "object") database.adminSettings = { announcement: "", announcementEnabled: false, registrationPaused: false, updatedAt: null, updatedBy: null };
   database.adminSettings = {
     announcement: String(database.adminSettings.announcement || "").slice(0, 300),
@@ -268,7 +269,10 @@ export default async function registerMessagesRoutes(app) {
       attachment: message.attachmentId ? attachmentForMessage(message.attachmentId) : null,
       reactions: [...reactions.values()],
       receipt,
-      readCount
+      readCount,
+      isAnnouncement: Boolean(message.isAnnouncement),
+      isAdminMessage: Boolean(message.isAdminMessage),
+      isAdminNotice: Boolean(message.isAdminNotice)
     };
   };
   const normalizeUsername = (username) => String(username || "").trim().toLowerCase();
@@ -292,6 +296,8 @@ export default async function registerMessagesRoutes(app) {
     return item;
   };
   const friendKey = (firstId, secondId) => [firstId, secondId].sort().join(":");
+  const dmPairKeyForMessage = (message) => message?.dmPairKey || (message?.channel === "dm" && message.recipientId ? [message.senderId, message.recipientId].sort().join(":") : "");
+  const isObserverForConversation = (userId, pairKey) => database.conversationObservers.some((item) => item.userId === userId && item.pairKey === pairKey);
   const areFriends = (firstId, secondId) => database.friendships.some((item) => item.key === friendKey(firstId, secondId));
   const validateMessageRate = (request, reply, user) => {
     if (!allowRate("message:" + userBucket(request, user), 12, 15000)) {
@@ -747,6 +753,210 @@ export default async function registerMessagesRoutes(app) {
     return reply.send({ ok: true, siteSettings: { ...database.adminSettings } });
   });
 
+
+  app.get("/api/messages/admin/conversations", async (request, reply) => {
+    const admin = requireAdmin(request, reply);
+    if (!admin) return;
+    const q = String(request.query?.q || "").trim().toLowerCase().slice(0, 60);
+    const dmsByPair = new Map();
+    for (const message of database.messages) {
+      if (message.channel !== "dm") continue;
+      const pairKey = dmPairKeyForMessage(message);
+      const ids = pairKey.split(":").filter(Boolean);
+      if (ids.length !== 2 || ids[0] === ids[1]) continue;
+      let item = dmsByPair.get(pairKey);
+      if (!item) {
+        const people = ids.map((id) => database.users.find((candidate) => candidate.id === id)).filter(Boolean);
+        if (people.length !== 2) continue;
+        item = { id: "dm:" + pairKey, type: "dm", pairKey, userIds: ids, participants: people.map((person) => publicUser(person)), label: people.map((person) => "@" + person.username).join(" ↔ "), messageCount: 0, lastMessageAt: 0, joined: isObserverForConversation(admin.id, pairKey) };
+        dmsByPair.set(pairKey, item);
+      }
+      item.messageCount += 1;
+      item.lastMessageAt = Math.max(item.lastMessageAt, Number(message.createdAt) || 0);
+    }
+    const groups = database.groups.map((group) => {
+      const groupMessages = database.messages.filter((message) => message.channel === "group" && message.groupId === group.id);
+      return {
+        id: "group:" + group.id, type: "group", groupId: group.id, label: group.name,
+        participants: database.groupMembers.filter((member) => member.groupId === group.id).map((member) => publicUser(database.users.find((candidate) => candidate.id === member.userId))).filter(Boolean),
+        memberCount: database.groupMembers.filter((member) => member.groupId === group.id).length,
+        messageCount: groupMessages.length,
+        lastMessageAt: groupMessages.reduce((latest, message) => Math.max(latest, Number(message.createdAt) || 0), Number(group.createdAt) || 0),
+        joined: isGroupMember(group.id, admin.id)
+      };
+    });
+    const conversations = [...dmsByPair.values(), ...groups]
+      .filter((item) => !q || (item.label + " " + item.participants.map((person) => person.username).join(" ")).toLowerCase().includes(q))
+      .sort((a, b) => b.lastMessageAt - a.lastMessageAt)
+      .slice(0, 200);
+    return reply.send({ conversations });
+  });
+
+  app.post("/api/messages/admin/conversations/join", async (request, reply) => {
+    const admin = requireAdmin(request, reply);
+    if (!admin) return;
+    const type = String(request.body?.type || "");
+    if (type === "group") {
+      const groupId = String(request.body?.groupId || "");
+      const group = database.groups.find((item) => item.id === groupId);
+      if (!group) return sendError(reply, 404, "Group conversation not found.");
+      if (!isGroupMember(groupId, admin.id)) {
+        database.groupMembers.push({ groupId, userId: admin.id, joinedAt: Date.now(), joinedByAdmin: true });
+        for (const member of database.groupMembers.filter((item) => item.groupId === groupId && item.userId !== admin.id)) {
+          notifyUser(member.userId, "admin-joined-group", "DOGEUB admin joined a group", "@" + admin.username + " joined the group as an administrator. Admin membership is visible in the member list.", admin.id, { groupId });
+        }
+        recordAdminAction(admin, "admin-joined-group", group.name, "Joined group conversation as an administrator.");
+      }
+      try { await persist(); } catch { return sendError(reply, 500, "Could not join that group conversation."); }
+      return reply.send({ ok: true, joined: true });
+    }
+    if (type === "dm") {
+      const userA = String(request.body?.userA || "");
+      const userB = String(request.body?.userB || "");
+      if (!userA || !userB || userA === userB || !database.users.some((user) => user.id === userA) || !database.users.some((user) => user.id === userB)) {
+        return sendError(reply, 400, "Choose a valid two-user conversation.");
+      }
+      const pairKey = [userA, userB].sort().join(":");
+      if (!database.messages.some((message) => message.channel === "dm" && dmPairKeyForMessage(message) === pairKey)) {
+        return sendError(reply, 404, "That direct conversation has no message history.");
+      }
+      if (!isObserverForConversation(admin.id, pairKey)) {
+        database.conversationObservers.push({ userId: admin.id, pairKey, joinedAt: Date.now() });
+        for (const participantId of pairKey.split(":")) {
+          notifyUser(participantId, "admin-observing-dm", "Administrator joined your conversation", "@" + admin.username + " joined this direct-message conversation as an administrator. Access is recorded in the admin audit log.", admin.id, { pairKey });
+        }
+        recordAdminAction(admin, "admin-joined-dm", pairKey, "Joined direct conversation in observer mode; participants were notified.");
+      }
+      try { await persist(); } catch { return sendError(reply, 500, "Could not join that direct conversation."); }
+      return reply.send({ ok: true, joined: true, pairKey });
+    }
+    return sendError(reply, 400, "Choose a group or direct conversation.");
+  });
+
+  app.post("/api/messages/admin/conversations/leave", async (request, reply) => {
+    const admin = requireAdmin(request, reply);
+    if (!admin) return;
+    const type = String(request.body?.type || "");
+    if (type === "dm") {
+      const pairKey = [String(request.body?.userA || ""), String(request.body?.userB || "")].sort().join(":");
+      const before = database.conversationObservers.length;
+      database.conversationObservers = database.conversationObservers.filter((item) => !(item.userId === admin.id && item.pairKey === pairKey));
+      if (database.conversationObservers.length === before) return sendError(reply, 404, "You have not joined that direct conversation.");
+      recordAdminAction(admin, "admin-left-dm", pairKey, "Left direct conversation observer access.");
+    } else if (type === "group") {
+      const groupId = String(request.body?.groupId || "");
+      const group = database.groups.find((item) => item.id === groupId);
+      if (!group || !isGroupMember(groupId, admin.id)) return sendError(reply, 404, "You are not in that group conversation.");
+      if (group.createdBy === admin.id) return sendError(reply, 400, "Group owners cannot leave their own group.");
+      database.groupMembers = database.groupMembers.filter((item) => !(item.groupId === groupId && item.userId === admin.id));
+      for (const member of database.groupMembers.filter((item) => item.groupId === groupId)) {
+        notifyUser(member.userId, "admin-left-group", "DOGEUB admin left a group", "@" + admin.username + " left the group.", admin.id, { groupId });
+      }
+      recordAdminAction(admin, "admin-left-group", group.name, "Left group conversation.");
+    } else return sendError(reply, 400, "Choose a group or direct conversation.");
+    try { await persist(); } catch { return sendError(reply, 500, "Could not leave that conversation."); }
+    return reply.send({ ok: true, joined: false });
+  });
+
+  app.get("/api/messages/admin/conversation-messages", async (request, reply) => {
+    const admin = requireAdmin(request, reply);
+    if (!admin) return;
+    const type = String(request.query?.type || "");
+    let conversationMessages = [];
+    let targetLabel = "";
+    if (type === "group") {
+      const groupId = String(request.query?.groupId || "");
+      const group = database.groups.find((item) => item.id === groupId);
+      if (!group || !isGroupMember(groupId, admin.id)) return sendError(reply, 403, "Join the group from the Conversations tab before opening it.");
+      targetLabel = group.name;
+      conversationMessages = database.messages.filter((message) => message.channel === "group" && message.groupId === groupId);
+    } else if (type === "dm") {
+      const userA = String(request.query?.userA || "");
+      const userB = String(request.query?.userB || "");
+      const pairKey = [userA, userB].sort().join(":");
+      if (!userA || !userB || userA === userB || !isObserverForConversation(admin.id, pairKey)) return sendError(reply, 403, "Join the direct conversation in observer mode before opening it.");
+      targetLabel = pairKey.split(":").map((id) => database.users.find((user) => user.id === id)?.username || "unknown").map((username) => "@" + username).join(" ↔ ");
+      conversationMessages = database.messages.filter((message) => message.channel === "dm" && dmPairKeyForMessage(message) === pairKey);
+    } else return sendError(reply, 400, "Choose a valid conversation type.");
+    recordAdminAction(admin, "admin-viewed-conversation", targetLabel, "Opened conversation content in the Admin Panel.");
+    try { await persist(); } catch { return sendError(reply, 500, "Could not record this conversation access."); }
+    const visible = conversationMessages.slice(-100);
+    return reply.send({ messages: visible.map((message) => messageForClient(message, admin.id)), label: targetLabel, total: conversationMessages.length });
+  });
+
+  app.post("/api/messages/admin/conversations/send", async (request, reply) => {
+    const admin = requireAdmin(request, reply);
+    if (!admin) return;
+    const type = String(request.body?.type || "");
+    const text = String(request.body?.text || "").trim().slice(0, MAX_MESSAGE_LENGTH);
+    if (!text) return sendError(reply, 400, "Write a message first.");
+    let message;
+    let targetLabel = "";
+    const createdNotifications = [];
+    if (type === "group") {
+      const groupId = String(request.body?.groupId || "");
+      const group = database.groups.find((item) => item.id === groupId);
+      if (!group || !isGroupMember(groupId, admin.id)) return sendError(reply, 403, "Join that group before sending an admin message.");
+      targetLabel = group.name;
+      message = { id: randomUUID(), channel: "group", senderId: admin.id, recipientId: null, groupId, text: censorProfanity(text), attachmentId: null, replyToId: null, pinned: false, isAdminMessage: true, createdAt: Date.now() };
+      database.messages.push(message);
+      for (const member of database.groupMembers.filter((item) => item.groupId === groupId && item.userId !== admin.id)) {
+        createdNotifications.push(notifyUser(member.userId, "admin-group-message", "Administrator message in " + group.name, message.text, admin.id, { groupId, messageId: message.id }));
+      }
+    } else if (type === "dm") {
+      const userA = String(request.body?.userA || "");
+      const userB = String(request.body?.userB || "");
+      const pairKey = [userA, userB].sort().join(":");
+      if (!userA || !userB || userA === userB || !isObserverForConversation(admin.id, pairKey)) return sendError(reply, 403, "Join the direct conversation before sending an admin message.");
+      targetLabel = pairKey.split(":").map((id) => database.users.find((user) => user.id === id)?.username || "unknown").map((username) => "@" + username).join(" ↔ ");
+      message = { id: randomUUID(), channel: "dm", senderId: admin.id, recipientId: userA, groupId: null, dmPairKey: pairKey, text: censorProfanity(text), attachmentId: null, replyToId: null, pinned: false, isAdminMessage: true, createdAt: Date.now() };
+      database.messages.push(message);
+      for (const participantId of pairKey.split(":")) {
+        if (participantId !== admin.id) createdNotifications.push(notifyUser(participantId, "admin-dm-message", "Administrator message in your conversation", message.text, admin.id, { pairKey, messageId: message.id }));
+      }
+    } else return sendError(reply, 400, "Choose a group or direct conversation.");
+    if (database.messages.length > 20000) database.messages.splice(0, database.messages.length - 20000);
+    recordAdminAction(admin, "admin-sent-conversation-message", targetLabel, "Sent an admin message to an existing conversation.");
+    try { await persist(); } catch {
+      database.messages = database.messages.filter((item) => item.id !== message.id);
+      database.notifications = database.notifications.filter((item) => !createdNotifications.some((created) => created.id === item.id));
+      return sendError(reply, 500, "The admin message could not be saved.");
+    }
+    return reply.code(201).send({ message: messageForClient(message, admin.id) });
+  });
+
+  app.get("/api/messages/admin/announcements", async (request, reply) => {
+    const admin = requireAdmin(request, reply);
+    if (!admin) return;
+    const announcements = database.messages.filter((message) => message.channel === "global" && message.isAnnouncement)
+      .slice(-50).reverse().map((message) => ({
+        id: message.id, text: message.text, createdAt: message.createdAt,
+        sender: publicUser(database.users.find((user) => user.id === message.senderId))
+      }));
+    return reply.send({ announcements });
+  });
+
+  app.post("/api/messages/admin/announcements", async (request, reply) => {
+    const admin = requireAdmin(request, reply);
+    if (!admin) return;
+    const text = String(request.body?.text || "").trim().slice(0, MAX_MESSAGE_LENGTH);
+    if (!text) return sendError(reply, 400, "Write an announcement first.");
+    const message = { id: randomUUID(), channel: "global", senderId: admin.id, recipientId: null, groupId: null, text: censorProfanity(text), attachmentId: null, replyToId: null, pinned: true, isAnnouncement: true, createdAt: Date.now() };
+    database.messages.push(message);
+    const createdNotifications = [];
+    for (const recipient of database.users) {
+      if (recipient.id !== admin.id) createdNotifications.push(notifyUser(recipient.id, "global-announcement", "DOGEUB global announcement", message.text, admin.id, { messageId: message.id }));
+    }
+    if (database.messages.length > 20000) database.messages.splice(0, database.messages.length - 20000);
+    recordAdminAction(admin, "global-announcement-sent", null, message.text);
+    try { await persist(); } catch {
+      database.messages = database.messages.filter((item) => item.id !== message.id);
+      database.notifications = database.notifications.filter((item) => !createdNotifications.some((created) => created.id === item.id));
+      return sendError(reply, 500, "The announcement could not be saved.");
+    }
+    return reply.code(201).send({ announcement: { id: message.id, text: message.text, createdAt: message.createdAt, sender: publicUser(admin) } });
+  });
+
   app.get("/api/messages/moderation/reports", async (request, reply) => {
     const user = requireUser(request, reply);
     if (!user) return;
@@ -812,12 +1022,23 @@ export default async function registerMessagesRoutes(app) {
     }
     return state.lastReadAt;
   };
-  const canReadMessage = (message, userId) => Boolean(message && (
-    message.channel === "global" ||
-    (message.channel === "dm" && (message.senderId === userId || message.recipientId === userId)) ||
-    (message.channel === "group" && isGroupMember(message.groupId, userId))
-  ));
-  const dmPeerFor = (message, userId) => message.senderId === userId ? message.recipientId : message.senderId;
+  const canReadMessage = (message, userId) => {
+    if (!message) return false;
+    if (message.channel === "global") return true;
+    if (message.channel === "group") return isGroupMember(message.groupId, userId);
+    if (message.channel === "dm") {
+      const pairKey = dmPairKeyForMessage(message);
+      const pairIds = pairKey ? pairKey.split(":") : [];
+      if (pairIds.includes(userId) || message.senderId === userId || message.recipientId === userId) return true;
+      const viewer = database.users.find((candidate) => candidate.id === userId);
+      return Boolean(isAdminUser(viewer) && pairKey && isObserverForConversation(userId, pairKey));
+    }
+    return false;
+  };
+  const dmPeerFor = (message, userId) => {
+    const pairIds = dmPairKeyForMessage(message).split(":");
+    if (pairIds.includes(userId)) return pairIds.find((id) => id && id !== userId) || null;
+    return message.senderId === userId ? message.recipientId : message.senderId;
   const muteMatches = (userId, message) => database.mutes.some((mute) => {
     if (mute.userId !== userId || mute.channel !== message.channel) return false;
     if (message.channel === "dm") return mute.peerId === dmPeerFor(message, userId);
@@ -879,7 +1100,7 @@ export default async function registerMessagesRoutes(app) {
     const notifications = database.messages
       .filter((message) => message.createdAt > since && message.createdAt <= cursor && message.senderId !== user.id && !muteMatches(user.id, message) && (
         message.channel === "global" ||
-        (message.channel === "dm" && message.recipientId === user.id) ||
+        (message.channel === "dm" && (message.recipientId === user.id || dmPairKeyForMessage(message).split(":").includes(user.id))) ||
         (message.channel === "group" && isGroupMember(message.groupId, user.id))
       ))
       .slice(-50)
@@ -898,9 +1119,11 @@ export default async function registerMessagesRoutes(app) {
     for (const message of database.messages) {
       if (message.channel !== "dm") continue;
       let otherId = null;
-      if (message.senderId === user.id) otherId = message.recipientId;
+      const pairIds = dmPairKeyForMessage(message).split(":");
+      if (pairIds.includes(user.id)) otherId = pairIds.find((id) => id && id !== user.id) || null;
+      else if (message.senderId === user.id) otherId = message.recipientId;
       else if (message.recipientId === user.id) otherId = message.senderId;
-      if (!otherId) continue;
+      if (!otherId || otherId === user.id) continue;
       const prior = latestByUser.get(otherId);
       if (!prior || prior.createdAt < message.createdAt) latestByUser.set(otherId, message);
     }
@@ -932,10 +1155,9 @@ export default async function registerMessagesRoutes(app) {
       if (!peerId || !database.users.some((candidate) => candidate.id === peerId) || peerId === user.id) {
         return sendError(reply, 400, "Choose a valid direct-message conversation.");
       }
+      const pairKey = [user.id, peerId].sort().join(":");
       messages = database.messages.filter((message) =>
-        message.channel === "dm" &&
-        ((message.senderId === user.id && message.recipientId === peerId) ||
-         (message.senderId === peerId && message.recipientId === user.id))
+        message.channel === "dm" && dmPairKeyForMessage(message) === pairKey
       );
     } else {
       return sendError(reply, 400, "Unknown message channel.");
@@ -983,12 +1205,13 @@ export default async function registerMessagesRoutes(app) {
       const sameConversation = parent && parent.channel === channel && (
         channel === "global" ||
         (channel === "group" && parent.groupId === groupId) ||
-        (channel === "dm" && [parent.senderId, parent.recipientId].sort().join(":") === [user.id, recipientId].sort().join(":"))
+        (channel === "dm" && dmPairKeyForMessage(parent) === [user.id, recipientId].sort().join(":"))
       );
       if (!sameConversation || !canReadMessage(parent, user.id)) return sendError(reply, 400, "That reply target isn't in this conversation.");
     }
     const message = {
       id: randomUUID(), channel, senderId: user.id, recipientId, groupId,
+      dmPairKey: channel === "dm" ? [user.id, recipientId].sort().join(":") : null,
       text: censorProfanity(text), attachmentId, replyToId, pinned: false, createdAt: Date.now()
     };
     database.messages.push(message);
