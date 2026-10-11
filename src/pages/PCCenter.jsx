@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Cpu, Gauge, Monitor, RefreshCw, ShieldCheck, Wifi } from 'lucide-react';
+import { Cpu, Monitor, RefreshCw, ShieldCheck } from 'lucide-react';
 import Nav from '../layouts/Nav';
 
 const PARTS = [
