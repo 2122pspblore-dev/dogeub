@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  AlertTriangle, ArrowLeft, Check, FileText, Image, LogOut, MessageCircle,
-  MessagesSquare, Paperclip, Plus, Search, Send, Settings, ShieldCheck,
-  Users, X, LoaderCircle, LockKeyhole, UserRound, BellRing
+  AlertTriangle, ArrowLeft, BellOff, Check, Copy, FileText, Image, LogOut, MessageCircle,
+  MessagesSquare, Paperclip, Pencil, Pin, Plus, Reply, Search, Send, Settings, ShieldCheck,
+  Trash2, Users, X, LoaderCircle, LockKeyhole, UserRound, BellRing
 } from "lucide-react";
 import { formatSize, listFiles } from "../utils/fileStore";
 
@@ -79,6 +79,21 @@ export default function Messages() {
   const [joiningGroup, setJoiningGroup] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [messageToast, setMessageToast] = useState(null);
+  const [unread, setUnread] = useState({ global: 0, dms: {}, groups: {} });
+  const [typingUsers, setTypingUsers] = useState([]);
+  const [replyTo, setReplyTo] = useState(null);
+  const [editingMessageId, setEditingMessageId] = useState(null);
+  const [editingDraft, setEditingDraft] = useState("");
+  const [busyMessageAction, setBusyMessageAction] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchDraft, setSearchDraft] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchingMessages, setSearchingMessages] = useState(false);
+  const [searchMode, setSearchMode] = useState(false);
+  const [showPinnedOnly, setShowPinnedOnly] = useState(false);
+  const [groupMembers, setGroupMembers] = useState([]);
+  const [groupToolsOpen, setGroupToolsOpen] = useState(false);
+  const [mutedConversations, setMutedConversations] = useState([]);
   const [desktopNotifications, setDesktopNotifications] = useState(() => typeof window !== "undefined" && "Notification" in window ? window.Notification.permission : "unsupported");
   const [messageDraft, setMessageDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -102,6 +117,8 @@ export default function Messages() {
   const notificationCursorRef = useRef(Date.now());
   const seenNotificationIdsRef = useRef(new Set());
   const toastTimerRef = useRef(null);
+  const typingAnnounceTimerRef = useRef(null);
+  const typingStopTimerRef = useRef(null);
 
   useEffect(() => {
     let alive = true;
@@ -171,6 +188,52 @@ export default function Messages() {
     }
   }, [session, showIncomingNotification]);
 
+  const loadUnread = useCallback(async () => {
+    if (!session) return;
+    try {
+      const data = await apiRequest("/api/messages/unread");
+      setUnread(data.unread || { global: 0, dms: {}, groups: {} });
+    } catch {}
+  }, [session]);
+
+  const loadTyping = useCallback(async () => {
+    if (!session || (activeChannel === "dm" && !selectedPeer) || (activeChannel === "group" && !selectedGroup)) {
+      setTypingUsers([]);
+      return;
+    }
+    const query = activeChannel === "global" ? "?channel=global" :
+      activeChannel === "group" ? "?channel=group&groupId=" + encodeURIComponent(selectedGroup.id) :
+      "?channel=dm&with=" + encodeURIComponent(selectedPeer.id);
+    try {
+      const data = await apiRequest("/api/messages/typing" + query);
+      setTypingUsers(data.users || []);
+    } catch {
+      setTypingUsers([]);
+    }
+  }, [session, activeChannel, selectedPeer, selectedGroup]);
+
+  const loadGroupMembers = useCallback(async (groupId) => {
+    if (!session || !groupId) { setGroupMembers([]); return; }
+    try {
+      const data = await apiRequest("/api/messages/groups/members?groupId=" + encodeURIComponent(groupId));
+      setGroupMembers(data.members || []);
+      if (data.group) {
+        setGroups((previous) => previous.map((item) => item.id === data.group.id ? data.group : item));
+        setSelectedGroup((previous) => previous?.id === data.group.id ? data.group : previous);
+      }
+    } catch {
+      setGroupMembers([]);
+    }
+  }, [session]);
+
+  const loadMutes = useCallback(async () => {
+    if (!session) return;
+    try {
+      const data = await apiRequest("/api/messages/mutes");
+      setMutedConversations(data.mutes || []);
+    } catch {}
+  }, [session]);
+
   const loadMessages = useCallback(async () => {
     if (!session) return;
     if ((activeChannel === "dm" && !selectedPeer) || (activeChannel === "group" && !selectedGroup)) {
@@ -186,14 +249,23 @@ export default function Messages() {
       const data = await apiRequest("/api/messages/messages" + query);
       const next = data.messages || [];
       setMessages((previous) => {
-        if (previous.length === next.length && previous.at(-1)?.id === next.at(-1)?.id) return previous;
+        if (previous.length === next.length && previous.at(-1)?.id === next.at(-1)?.id &&
+            previous.every((item, index) => item.id === next[index]?.id && item.text === next[index]?.text &&
+              item.pinned === next[index]?.pinned && JSON.stringify(item.reactions || []) === JSON.stringify(next[index]?.reactions || []) &&
+              item.receipt === next[index]?.receipt && item.readCount === next[index]?.readCount)) return previous;
         return next;
       });
+      const readBody = activeChannel === "global" ? { channel: "global" } :
+        activeChannel === "group" ? { channel: "group", groupId: selectedGroup.id } :
+        { channel: "dm", peerId: selectedPeer.id };
+      apiRequest("/api/messages/read", { method: "POST", body: JSON.stringify(readBody) })
+        .then(loadUnread)
+        .catch(() => {});
       setAppError("");
     } catch (error) {
       setAppError(error.message);
     }
-  }, [session, activeChannel, selectedPeer, selectedGroup]);
+  }, [session, activeChannel, selectedPeer, selectedGroup, loadUnread]);
 
   useEffect(() => {
     if (!session) return undefined;
@@ -201,16 +273,30 @@ export default function Messages() {
     loadConversations();
     loadGroups();
     loadNotifications();
+    loadUnread();
+    loadMutes();
+    loadTyping();
     const interval = window.setInterval(() => {
       loadMessages();
       loadConversations();
       loadGroups();
       loadNotifications();
+      loadUnread();
+      loadTyping();
     }, 3500);
     return () => window.clearInterval(interval);
-  }, [session, loadMessages, loadConversations, loadGroups, loadNotifications]);
+  }, [session, loadMessages, loadConversations, loadGroups, loadNotifications, loadUnread, loadMutes, loadTyping]);
 
-  useEffect(() => () => window.clearTimeout(toastTimerRef.current), []);
+  useEffect(() => {
+    if (activeChannel === "group" && selectedGroup?.id) loadGroupMembers(selectedGroup.id);
+    else { setGroupMembers([]); setGroupToolsOpen(false); }
+  }, [activeChannel, selectedGroup?.id, loadGroupMembers]);
+
+  useEffect(() => () => {
+    window.clearTimeout(toastTimerRef.current);
+    window.clearTimeout(typingAnnounceTimerRef.current);
+    window.clearTimeout(typingStopTimerRef.current);
+  }, []);
 
   useEffect(() => {
     if (!shouldAutoScroll.current) return;
@@ -240,6 +326,10 @@ export default function Messages() {
   }, [session, userSearch]);
 
   const startConversation = (peer) => {
+    setSearchMode(false);
+    setShowPinnedOnly(false);
+    setSearchResults([]);
+    setReplyTo(null);
     setSelectedGroup(null);
     setSelectedPeer(peer);
     setActiveChannel("dm");
@@ -303,6 +393,7 @@ export default function Messages() {
           channel: activeChannel,
           recipientId: activeChannel === "dm" ? selectedPeer?.id : undefined,
           groupId: activeChannel === "group" ? selectedGroup?.id : undefined,
+          replyToId: replyTo?.id,
           text,
           attachmentId: pendingAttachment?.id
         })
@@ -310,7 +401,9 @@ export default function Messages() {
       setMessageDraft("");
       setPendingAttachment(null);
       shouldAutoScroll.current = true;
-      await Promise.all([loadMessages(), loadConversations()]);
+      setReplyTo(null);
+      stopTyping();
+      await Promise.all([loadMessages(), loadConversations(), loadUnread()]);
       messageInputRef.current?.focus();
     } catch (error) {
       setAppError(error.message);
@@ -424,6 +517,123 @@ export default function Messages() {
     }
   };
 
+  const conversationBody = () => activeChannel === "global" ? { channel: "global" } :
+    activeChannel === "group" ? { channel: "group", groupId: selectedGroup?.id } :
+    { channel: "dm", peerId: selectedPeer?.id };
+
+  const stopTyping = () => {
+    window.clearTimeout(typingAnnounceTimerRef.current);
+    window.clearTimeout(typingStopTimerRef.current);
+    if (session && (activeChannel === "global" || (activeChannel === "dm" && selectedPeer) || (activeChannel === "group" && selectedGroup))) {
+      apiRequest("/api/messages/typing", { method: "POST", body: JSON.stringify({ ...conversationBody(), typing: false }) }).catch(() => {});
+    }
+  };
+
+  const onMessageDraftChange = (value) => {
+    setMessageDraft(value.slice(0, 1200));
+    window.clearTimeout(typingAnnounceTimerRef.current);
+    window.clearTimeout(typingStopTimerRef.current);
+    if (!value.trim()) { stopTyping(); return; }
+    typingAnnounceTimerRef.current = window.setTimeout(() => {
+      apiRequest("/api/messages/typing", { method: "POST", body: JSON.stringify({ ...conversationBody(), typing: true }) }).catch(() => {});
+    }, 300);
+    typingStopTimerRef.current = window.setTimeout(() => {
+      apiRequest("/api/messages/typing", { method: "POST", body: JSON.stringify({ ...conversationBody(), typing: false }) }).catch(() => {});
+    }, 4500);
+  };
+
+  const searchCurrentMessages = async (event) => {
+    event.preventDefault();
+    const q = searchDraft.trim();
+    if (q.length < 2) { setSearchResults([]); setAppError("Enter at least two characters to search messages."); return; }
+    setSearchingMessages(true);
+    setAppError("");
+    try {
+      const query = new URLSearchParams({ q, channel: activeChannel });
+      if (activeChannel === "dm" && selectedPeer) query.set("with", selectedPeer.id);
+      if (activeChannel === "group" && selectedGroup) query.set("groupId", selectedGroup.id);
+      const data = await apiRequest("/api/messages/search?" + query.toString());
+      setSearchResults(data.messages || []);
+      setSearchMode(true);
+      setShowPinnedOnly(false);
+    } catch (error) { setAppError(error.message); }
+    finally { setSearchingMessages(false); }
+  };
+
+  const toggleReaction = async (message, emoji) => {
+    setBusyMessageAction(message.id + ":reaction");
+    try {
+      await apiRequest("/api/messages/reactions", { method: "POST", body: JSON.stringify({ messageId: message.id, emoji }) });
+      await loadMessages();
+    } catch (error) { setAppError(error.message); }
+    finally { setBusyMessageAction(""); }
+  };
+
+  const togglePin = async (message) => {
+    setBusyMessageAction(message.id + ":pin");
+    try {
+      await apiRequest("/api/messages/pin", { method: "POST", body: JSON.stringify({ messageId: message.id, pinned: !message.pinned }) });
+      await loadMessages();
+    } catch (error) { setAppError(error.message); }
+    finally { setBusyMessageAction(""); }
+  };
+
+  const saveEdit = async (event, message) => {
+    event.preventDefault();
+    setBusyMessageAction(message.id + ":edit");
+    try {
+      await apiRequest("/api/messages/edit", { method: "POST", body: JSON.stringify({ messageId: message.id, text: editingDraft }) });
+      setEditingMessageId(null);
+      setEditingDraft("");
+      await loadMessages();
+    } catch (error) { setAppError(error.message); }
+    finally { setBusyMessageAction(""); }
+  };
+
+  const deleteOwnMessage = async (message) => {
+    if (!window.confirm("Delete this message? This cannot be undone.")) return;
+    setBusyMessageAction(message.id + ":delete");
+    try {
+      await apiRequest("/api/messages/delete", { method: "POST", body: JSON.stringify({ messageId: message.id }) });
+      await Promise.all([loadMessages(), loadUnread()]);
+    } catch (error) { setAppError(error.message); }
+    finally { setBusyMessageAction(""); }
+  };
+
+  const toggleActiveMute = async () => {
+    setAppError("");
+    const muted = isActiveMuted;
+    try {
+      await apiRequest("/api/messages/mute", { method: "POST", body: JSON.stringify({ ...conversationBody(), muted: !muted }) });
+      await loadMutes();
+      setNotice(!muted ? "Notifications muted for this conversation." : "Notifications unmuted for this conversation.");
+    } catch (error) { setAppError(error.message); }
+  };
+
+  const manageGroup = async (action, extra = {}) => {
+    if (!selectedGroup) return;
+    setBusyMessageAction("group:" + action + (extra.userId || ""));
+    setAppError("");
+    try {
+      const data = await apiRequest("/api/messages/groups/manage", { method: "POST", body: JSON.stringify({ groupId: selectedGroup.id, action, ...extra }) });
+      setSelectedGroup(data.group);
+      setGroups((previous) => previous.map((item) => item.id === data.group.id ? data.group : item));
+      await loadGroupMembers(data.group.id);
+      setNotice(action === "rename" ? "Group renamed." : action === "kick" ? "Member removed." : "New invite code generated.");
+    } catch (error) { setAppError(error.message); }
+    finally { setBusyMessageAction(""); }
+  };
+
+  const copyInviteCode = async () => {
+    if (!selectedGroup?.inviteCode) return;
+    try {
+      await navigator.clipboard.writeText(selectedGroup.inviteCode);
+      setNotice("Invite code copied. Share it with people you want to invite.");
+    } catch {
+      setNotice("Invite code: " + selectedGroup.inviteCode);
+    }
+  };
+
   const joinGroup = async (event) => {
     event.preventDefault();
     const name = groupNameDraft.trim();
@@ -436,6 +646,9 @@ export default function Messages() {
       setGroups((previous) => previous.some((item) => item.id === group.id)
         ? previous.map((item) => item.id === group.id ? group : item)
         : [...previous, group].sort((a, b) => a.name.localeCompare(b.name)));
+      setSearchMode(false);
+      setShowPinnedOnly(false);
+      setReplyTo(null);
       setGroupNameDraft("");
       setSelectedPeer(null);
       setSelectedGroup(group);
@@ -452,16 +665,26 @@ export default function Messages() {
     }
   };
 
+  const isActiveMuted = mutedConversations.some((item) =>
+    item.channel === activeChannel &&
+    (activeChannel === "global" ||
+      (activeChannel === "dm" && item.peerId === selectedPeer?.id) ||
+      (activeChannel === "group" && item.groupId === selectedGroup?.id))
+  );
+
+  const activeRenderedMessages = searchMode ? searchResults : messages;
+  const visibleMessages = showPinnedOnly ? activeRenderedMessages.filter((message) => message.pinned) : activeRenderedMessages;
+
   const openMessageToast = () => {
     if (!messageToast) return;
     const { kind, message } = messageToast;
     if (kind === "global") {
-      setActiveChannel("global"); setSelectedPeer(null); setSelectedGroup(null); setMessages([]);
+      setActiveChannel("global"); setSelectedPeer(null); setSelectedGroup(null); setMessages([]); setSearchMode(false); setShowPinnedOnly(false);
     } else if (kind === "dm" && message?.sender) {
       startConversation(message.sender);
     } else if (kind === "group") {
       const group = groups.find((item) => item.id === message?.groupId);
-      if (group) { setSelectedPeer(null); setSelectedGroup(group); setActiveChannel("group"); setMessages([]); }
+      if (group) { setSelectedPeer(null); setSelectedGroup(group); setActiveChannel("group"); setMessages([]); setSearchMode(false); setShowPinnedOnly(false); }
     }
     setMessageToast(null);
     shouldAutoScroll.current = true;
@@ -575,10 +798,10 @@ export default function Messages() {
               <div className="mb-3 rounded-xl border border-cyan-100/10 bg-cyan-100/[.035] p-3">
                 <div className="mb-2 flex items-center gap-2"><Users size={14} className="text-cyan-100/70" /><p className="text-[10px] font-bold uppercase tracking-[.18em] text-white/45">Group chats</p><span className="ml-auto text-[10px] text-white/25">{groups.length}</span></div>
                 <form onSubmit={joinGroup} className="flex gap-1.5">
-                  <input value={groupNameDraft} onChange={(event) => setGroupNameDraft(event.target.value.slice(0, 40))} minLength={3} maxLength={40} placeholder="Type a group name…" aria-label="Group name to join or create" className="min-w-0 flex-1 rounded-lg border border-white/10 bg-black/20 px-2.5 py-2 text-[11px] outline-none placeholder:text-white/25 focus:border-cyan-100/30" />
+                  <input value={groupNameDraft} onChange={(event) => setGroupNameDraft(event.target.value.slice(0, 40))} minLength={3} maxLength={40} placeholder="Group name or invite code…" aria-label="Group name or invite code to join or create" className="min-w-0 flex-1 rounded-lg border border-white/10 bg-black/20 px-2.5 py-2 text-[11px] outline-none placeholder:text-white/25 focus:border-cyan-100/30" />
                   <button type="submit" disabled={joiningGroup || groupNameDraft.trim().length < 3} className="rounded-lg bg-cyan-100 px-2.5 py-2 text-[10px] font-bold text-slate-950 hover:bg-white disabled:opacity-40">{joiningGroup ? <Spinner small /> : "Join"}</button>
                 </form>
-                <p className="mt-1.5 text-[9px] leading-4 text-white/30">Existing names join the saved group; new names create one.</p>
+                <p className="mt-1.5 text-[9px] leading-4 text-white/30">Existing group names or invite codes join; new names create one.</p>
                 {groups.length > 0 && <div className="mt-2 space-y-1">{groups.map((group) => <button type="button" key={group.id} onClick={() => { setSelectedPeer(null); setSelectedGroup(group); setActiveChannel("group"); setMessages([]); setPendingAttachment(null); shouldAutoScroll.current = true; }} className={"flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left " + (activeChannel === "group" && selectedGroup?.id === group.id ? "bg-cyan-100/10 text-cyan-50" : "text-white/65 hover:bg-white/[.05]")}><Users size={14} className="shrink-0 text-cyan-100/70" /><span className="min-w-0 flex-1 truncate text-xs font-semibold">{group.name}</span><span className="text-[9px] text-white/30">{group.memberCount}</span></button>)}</div>}
               </div>
               <div className="mb-2 px-1"><p className="text-[10px] font-bold uppercase tracking-[.18em] text-white/30">Direct messages</p></div>
