@@ -800,11 +800,11 @@ export default async function registerMessagesRoutes(app) {
     if (attachment) attachment.messageId = message.id;
     const createdNotifications = [];
     if (channel === "dm" && !muteMatches(recipientId, message)) {
-      createdNotifications.push(notifyUser(recipientId, "dm", "New message from " + user.username, text || "Sent an attachment", user.id, { messageId: message.id }));
+      createdNotifications.push(notifyUser(recipientId, "dm", "New message from " + user.username, message.text || "Sent an attachment", user.id, { messageId: message.id }));
     } else if (channel === "group") {
       const groupName = database.groups.find((item) => item.id === groupId)?.name || "Group chat";
       for (const member of database.groupMembers.filter((item) => item.groupId === groupId && item.userId !== user.id)) {
-        if (!muteMatches(member.userId, message)) createdNotifications.push(notifyUser(member.userId, "group-message", "New message in " + groupName, text || "Sent an attachment", user.id, { groupId, messageId: message.id }));
+        if (!muteMatches(member.userId, message)) createdNotifications.push(notifyUser(member.userId, "group-message", "New message in " + groupName, message.text || "Sent an attachment", user.id, { groupId, messageId: message.id }));
       }
     }
     try {
