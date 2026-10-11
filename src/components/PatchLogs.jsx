@@ -12,9 +12,16 @@ export const isPatchLogsEnabled = () => {
   }
 };
 
-const PATCH_DATE = '2026-10-10';
+const PATCH_DATE = '2026-10-11';
 
 const PATCH_LOGS = [
+  'Added a customizable DOGEUB Studio dashboard with reorderable and hideable widgets, saved shortcuts, sticky notes, and a focus timer.',
+  'Added DOGEUB Toolbox utilities: text transformations and counters, JSON formatting, color picking, QR-code generation, and local image resizing.',
+  'Added PC Center with browser-reported device details, a CPU/GPU class explorer, and a practical PC health checklist.',
+  'Added a Game Library with search, favorites, recently opened games, and user-saved game shortcuts.',
+  'Added Student Center with a saved homework planner, focus timer, and editable flashcards.',
+  'Added Social Center APIs and UI for friends, friend requests, online/away/offline presence, profile bios/status/banner color, blocking, persistent notifications, and a moderator-only report queue.',
+  'Expanded the Messages service with friend/block enforcement and persistent notification events for direct messages and group messages.',
   'Added homescreen widgets: weather and clock (merged in PR #4).',
   'Quick links updated: Discord, GitHub, YouTube, and Gemini AI (PR #5).',
   'Fixed production crash on startup caused by an EACCES error during npm install; start command changed to "node server.js".',
@@ -60,6 +67,8 @@ const PATCH_LOGS = [
   'Added a required five-second post-sign-in notice reminding users that DOGEUB is not responsible for off-task classroom use or cheating with its tools.',
   'Added Doge Messages with global chat, private conversations, unique usernames, custom profile pictures, server-side profanity filtering, reporting, and DogeFiler file attachments.',
   'Doge Messages stores account and chat data on the server. Configure DOGEUB_DATA_DIR to a persistent writable volume in production so accounts, profile pictures, attachments, and history survive redeploys.',
+  'Expanded Doge Messages with per-conversation unread badges, read receipts, typing indicators, emoji reactions, replies, group management and invite codes, in-chat search, pins, message editing/deletion, and mute controls.',
+  'Added incoming global-chat, DM, and group-chat pop-up notifications, optional desktop alerts, and saved group chats that users can join or create by typing a group name.',
 ];
 
 const PatchLogs = () => {

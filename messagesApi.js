@@ -53,11 +53,21 @@ const censorProfanity = (value) => String(value || "").replace(PROFANITY_REGEX, 
 
 function publicUser(user) {
   if (!user) return null;
+  const age = Date.now() - (Number(user.lastSeenAt) || 0);
+  const presence = age < 90_000 ? "online" : age < 5 * 60_000 ? "away" : "offline";
+  const moderators = String(process.env.DOGEUB_MODERATOR_USERNAMES || "")
+    .split(",").map((value) => value.trim().toLowerCase()).filter(Boolean);
   return {
     id: user.id,
     username: user.username,
     avatarUrl: user.avatarFile ? "/api/messages/avatars/" + user.id + "?v=" + (user.avatarUpdatedAt || 0) : null,
-    createdAt: user.createdAt
+    createdAt: user.createdAt,
+    bio: String(user.bio || "").slice(0, 200),
+    statusMessage: String(user.statusMessage || "").slice(0, 80),
+    bannerColor: /^#[0-9a-f]{6}$/i.test(user.bannerColor || "") ? user.bannerColor : "#172554",
+    presence,
+    lastSeenAt: presence === "online" ? null : (Number(user.lastSeenAt) || null),
+    isModerator: moderators.includes(String(user.normalizedUsername || user.username || "").toLowerCase())
   };
 }
 
@@ -69,13 +79,33 @@ export default async function registerMessagesRoutes(app) {
   const secretPath = join(dataDirectory, "session-secret");
   await Promise.all([makeDirectory(attachmentDirectory), makeDirectory(avatarDirectory)]);
 
-  let database = { users: [], messages: [], attachments: [], reports: [] };
+  let database = { users: [], messages: [], attachments: [], reports: [], groups: [], groupMembers: [], readStates: [], reactions: [], mutes: [], friendRequests: [], friendships: [], blocks: [], notifications: [] };
   try {
     const loaded = JSON.parse(await readFile(statePath, "utf8"));
     if (Array.isArray(loaded.users) && Array.isArray(loaded.messages) && Array.isArray(loaded.attachments)) {
       database = { ...database, ...loaded };
     }
   } catch {}
+  if (!Array.isArray(database.groups)) database.groups = [];
+  if (!Array.isArray(database.groupMembers)) database.groupMembers = [];
+  if (!Array.isArray(database.readStates)) database.readStates = [];
+  if (!Array.isArray(database.reactions)) database.reactions = [];
+  if (!Array.isArray(database.mutes)) database.mutes = [];
+  if (!Array.isArray(database.friendRequests)) database.friendRequests = [];
+  if (!Array.isArray(database.friendships)) database.friendships = [];
+  if (!Array.isArray(database.blocks)) database.blocks = [];
+  if (!Array.isArray(database.notifications)) database.notifications = [];
+  const makeInviteCode = () => {
+    let code;
+    do { code = randomBytes(4).toString("hex").toUpperCase(); }
+    while (database.groups.some((group) => group.inviteCode === code));
+    return code;
+  };
+  let legacyInviteCodesChanged = false;
+  for (const group of database.groups) {
+    if (!group.inviteCode) { group.inviteCode = makeInviteCode(); legacyInviteCodesChanged = true; }
+  }
+  const typingSessions = new Map();
   let sessionSecret = process.env.DOGEUB_CHAT_SECRET || process.env.SESSION_SECRET || "";
   if (!sessionSecret) {
     try {
@@ -96,6 +126,7 @@ export default async function registerMessagesRoutes(app) {
     });
     return writeQueue;
   };
+  if (legacyInviteCodesChanged) await persist();
 
   // Clean up abandoned uploads from users who picked a file but never sent it.
   const referencedAttachmentIds = new Set(database.messages.map((message) => message.attachmentId).filter(Boolean));
@@ -168,14 +199,47 @@ export default async function registerMessagesRoutes(app) {
     if (!attachment) return null;
     return { id: attachment.id, name: attachment.name, type: attachment.type, size: attachment.size, url: "/api/messages/attachments/" + attachment.id };
   };
-  const messageForClient = (message) => ({
-    id: message.id,
-    channel: message.channel,
-    text: message.text,
-    createdAt: message.createdAt,
-    sender: publicUser(database.users.find((user) => user.id === message.senderId)),
-    attachment: message.attachmentId ? attachmentForMessage(message.attachmentId) : null
-  });
+  const messageForClient = (message, viewerId = null) => {
+    const parent = message.replyToId ? database.messages.find((item) => item.id === message.replyToId) : null;
+    const sender = publicUser(database.users.find((user) => user.id === message.senderId));
+    const reactions = new Map();
+    for (const reaction of database.reactions.filter((item) => item.messageId === message.id)) {
+      const existing = reactions.get(reaction.emoji) || { emoji: reaction.emoji, count: 0, reacted: false };
+      existing.count += 1;
+      if (viewerId && reaction.userId === viewerId) existing.reacted = true;
+      reactions.set(reaction.emoji, existing);
+    }
+    let receipt = null;
+    if (viewerId && message.senderId === viewerId && message.channel === "dm" && message.recipientId) {
+      receipt = getReadAt(message.recipientId, "dm", message.senderId) >= message.createdAt ? "Read" : "Sent";
+    }
+    let readCount = 0;
+    if (viewerId && message.senderId === viewerId && message.channel === "group" && message.groupId) {
+      readCount = database.groupMembers
+        .filter((member) => member.groupId === message.groupId && member.userId !== viewerId)
+        .filter((member) => getReadAt(member.userId, "group", null, message.groupId) >= message.createdAt).length;
+    }
+    return {
+      id: message.id,
+      channel: message.channel,
+      groupId: message.groupId || null,
+      text: message.text,
+      createdAt: message.createdAt,
+      editedAt: message.editedAt || null,
+      pinned: Boolean(message.pinned),
+      replyToId: message.replyToId || null,
+      replyTo: parent ? {
+        id: parent.id,
+        text: parent.text || (parent.attachmentId ? "Attachment" : ""),
+        sender: publicUser(database.users.find((user) => user.id === parent.senderId))
+      } : null,
+      sender,
+      attachment: message.attachmentId ? attachmentForMessage(message.attachmentId) : null,
+      reactions: [...reactions.values()],
+      receipt,
+      readCount
+    };
+  };
   const normalizeUsername = (username) => String(username || "").trim().toLowerCase();
   const validateUsername = (username) => {
     const normalized = normalizeUsername(username);
@@ -186,6 +250,18 @@ export default async function registerMessagesRoutes(app) {
     return null;
   };
   const findUsername = (username) => database.users.find((user) => user.normalizedUsername === normalizeUsername(username));
+  const hasBlockBetween = (firstId, secondId) => database.blocks.some((item) =>
+    (item.blockerId === firstId && item.blockedId === secondId) ||
+    (item.blockerId === secondId && item.blockedId === firstId)
+  );
+  const notifyUser = (recipientId, type, title, body, actorId = null, metadata = {}) => {
+    const item = { id: randomUUID(), recipientId, type, title: String(title || "").slice(0, 100), body: String(body || "").slice(0, 240), actorId, metadata, createdAt: Date.now(), readAt: null };
+    database.notifications.push(item);
+    if (database.notifications.length > 10000) database.notifications.splice(0, database.notifications.length - 10000);
+    return item;
+  };
+  const friendKey = (firstId, secondId) => [firstId, secondId].sort().join(":");
+  const areFriends = (firstId, secondId) => database.friendships.some((item) => item.key === friendKey(firstId, secondId));
   const validateMessageRate = (request, reply, user) => {
     if (!allowRate("message:" + userBucket(request, user), 12, 15000)) {
       sendError(reply, 429, "You're sending messages too quickly. Take a moment and try again.");
@@ -212,7 +288,7 @@ export default async function registerMessagesRoutes(app) {
     const user = {
       id: randomUUID(), username, normalizedUsername: normalizeUsername(username),
       passwordSalt: salt, passwordHash, avatarFile: null, avatarType: null,
-      avatarUpdatedAt: 0, createdAt: Date.now()
+      avatarUpdatedAt: 0, createdAt: Date.now(), bio: "", statusMessage: "", bannerColor: "#172554", lastSeenAt: Date.now()
     };
     database.users.push(user);
     try {
@@ -247,6 +323,9 @@ export default async function registerMessagesRoutes(app) {
     const user = requireUser(request, reply);
     if (!user) return;
     const changes = request.body || {};
+    if (Object.prototype.hasOwnProperty.call(changes, "bio") && String(changes.bio || "").length > 200) return sendError(reply, 400, "Profile bios must be 200 characters or fewer.");
+    if (Object.prototype.hasOwnProperty.call(changes, "statusMessage") && String(changes.statusMessage || "").length > 80) return sendError(reply, 400, "Status messages must be 80 characters or fewer.");
+    if (Object.prototype.hasOwnProperty.call(changes, "bannerColor") && !/^#[0-9a-f]{6}$/i.test(String(changes.bannerColor || ""))) return sendError(reply, 400, "Choose a valid six-digit hex banner color.");
     const oldUsername = user.username;
     const oldNormalizedUsername = user.normalizedUsername;
     if (Object.prototype.hasOwnProperty.call(changes, "username")) {
@@ -287,6 +366,10 @@ export default async function registerMessagesRoutes(app) {
       user.avatarUpdatedAt = Date.now();
     }
 
+    if (Object.prototype.hasOwnProperty.call(changes, "bio")) user.bio = String(changes.bio || "").trim();
+    if (Object.prototype.hasOwnProperty.call(changes, "statusMessage")) user.statusMessage = String(changes.statusMessage || "").trim();
+    if (Object.prototype.hasOwnProperty.call(changes, "bannerColor")) user.bannerColor = String(changes.bannerColor);
+    user.lastSeenAt = Date.now();
     try {
       await persist();
     } catch {
@@ -303,11 +386,313 @@ export default async function registerMessagesRoutes(app) {
     const query = String(request.query?.q || "").trim().slice(0, 30).toLowerCase();
     if (!query) return reply.send({ users: [] });
     const users = database.users
-      .filter((candidate) => candidate.id !== user.id && candidate.normalizedUsername.includes(query))
+      .filter((candidate) => candidate.id !== user.id && candidate.normalizedUsername.includes(query) && !hasBlockBetween(user.id, candidate.id))
       .sort((a, b) => a.normalizedUsername.localeCompare(b.normalizedUsername))
       .slice(0, 20)
       .map(publicUser);
     return reply.send({ users });
+  });
+
+
+  app.get("/api/messages/public-profile/:username", async (request, reply) => {
+    const target = findUsername(String(request.params?.username || ""));
+    if (!target) return sendError(reply, 404, "That DOGEUB profile was not found.");
+    const viewer = currentUser(request);
+    if (viewer && hasBlockBetween(viewer.id, target.id)) return sendError(reply, 404, "That DOGEUB profile was not found.");
+    return reply.send({ user: publicUser(target), isSelf: viewer?.id === target.id, isFriend: Boolean(viewer && areFriends(viewer.id, target.id)) });
+  });
+
+  app.post("/api/messages/presence", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    user.lastSeenAt = request.body?.hidden === true ? Date.now() - 10 * 60_000 : Date.now();
+    return reply.send({ user: publicUser(user) });
+  });
+
+  app.get("/api/messages/social", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    const friendIds = new Set(database.friendships
+      .filter((item) => item.userIds?.includes(user.id))
+      .flatMap((item) => item.userIds || [])
+      .filter((id) => id !== user.id));
+    const incoming = database.friendRequests.filter((item) => item.toUserId === user.id && item.status === "pending")
+      .map((item) => ({ id: item.id, createdAt: item.createdAt, user: publicUser(database.users.find((candidate) => candidate.id === item.fromUserId)) }))
+      .filter((item) => item.user);
+    const outgoing = database.friendRequests.filter((item) => item.fromUserId === user.id && item.status === "pending")
+      .map((item) => ({ id: item.id, createdAt: item.createdAt, user: publicUser(database.users.find((candidate) => candidate.id === item.toUserId)) }))
+      .filter((item) => item.user);
+    const friends = [...friendIds].map((id) => publicUser(database.users.find((candidate) => candidate.id === id))).filter(Boolean)
+      .sort((a, b) => a.username.localeCompare(b.username));
+    const blocked = database.blocks.filter((item) => item.blockerId === user.id)
+      .map((item) => publicUser(database.users.find((candidate) => candidate.id === item.blockedId))).filter(Boolean);
+    return reply.send({ friends, incoming, outgoing, blocked, user: publicUser(user) });
+  });
+
+  app.post("/api/messages/friend-requests", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    if (!allowRate("friend-request:" + user.id, 20, 60 * 60 * 1000)) return sendError(reply, 429, "Too many friend requests. Try again later.");
+    const targetId = String(request.body?.userId || "");
+    const targetName = String(request.body?.username || "").trim();
+    const target = targetId ? database.users.find((item) => item.id === targetId) : findUsername(targetName);
+    if (!target || target.id === user.id) return sendError(reply, 400, "Choose another DOGEUB user.");
+    if (hasBlockBetween(user.id, target.id)) return sendError(reply, 403, "A block is active between these accounts.");
+    if (areFriends(user.id, target.id)) return sendError(reply, 409, "You are already friends.");
+    const reverse = database.friendRequests.find((item) => item.fromUserId === target.id && item.toUserId === user.id && item.status === "pending");
+    if (reverse) return sendError(reply, 409, "They already sent you a friend request. Accept it from Requests.");
+    if (database.friendRequests.some((item) => item.fromUserId === user.id && item.toUserId === target.id && item.status === "pending")) {
+      return sendError(reply, 409, "You have already sent a friend request to this user.");
+    }
+    const item = { id: randomUUID(), fromUserId: user.id, toUserId: target.id, status: "pending", createdAt: Date.now() };
+    database.friendRequests.push(item);
+    const notification = notifyUser(target.id, "friend-request", "Friend request", user.username + " sent you a friend request.", user.id, { requestId: item.id });
+    try { await persist(); } catch {
+      database.friendRequests = database.friendRequests.filter((entry) => entry.id !== item.id);
+      database.notifications = database.notifications.filter((entry) => entry.id !== notification.id);
+      return sendError(reply, 500, "The friend request could not be saved.");
+    }
+    return reply.code(201).send({ ok: true });
+  });
+
+  app.post("/api/messages/friend-requests/respond", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    const requestId = String(request.body?.requestId || "");
+    const action = String(request.body?.action || "");
+    const item = database.friendRequests.find((entry) => entry.id === requestId && entry.status === "pending");
+    if (!item) return sendError(reply, 404, "That friend request is no longer available.");
+    if (action === "cancel") {
+      if (item.fromUserId !== user.id) return sendError(reply, 403, "Only the sender can cancel this request.");
+    } else if (!["accept", "decline"].includes(action) || item.toUserId !== user.id) {
+      return sendError(reply, 403, "You cannot respond to that friend request.");
+    }
+    if (action === "accept" && hasBlockBetween(item.fromUserId, item.toUserId)) return sendError(reply, 403, "Remove the active block before accepting this request.");
+    database.friendRequests = database.friendRequests.filter((entry) => entry.id !== item.id);
+    let notification = null;
+    if (action === "accept") {
+      const key = friendKey(item.fromUserId, item.toUserId);
+      if (!database.friendships.some((entry) => entry.key === key)) {
+        database.friendships.push({ key, userIds: [item.fromUserId, item.toUserId].sort(), createdAt: Date.now() });
+      }
+      notification = notifyUser(item.fromUserId, "friend-accepted", "Friend request accepted", user.username + " accepted your friend request.", user.id);
+    } else if (action === "decline") {
+      notification = notifyUser(item.fromUserId, "friend-declined", "Friend request update", user.username + " declined your friend request.", user.id);
+    }
+    try { await persist(); } catch {
+      if (notification) database.notifications = database.notifications.filter((entry) => entry.id !== notification.id);
+      return sendError(reply, 500, "The friend request response could not be saved.");
+    }
+    return reply.send({ ok: true });
+  });
+
+  app.post("/api/messages/friends/remove", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    const targetId = String(request.body?.userId || "");
+    if (!targetId || targetId === user.id) return sendError(reply, 400, "Choose a friend to remove.");
+    const key = friendKey(user.id, targetId);
+    const before = database.friendships.length;
+    database.friendships = database.friendships.filter((item) => item.key !== key);
+    if (database.friendships.length === before) return sendError(reply, 404, "That friend relationship was not found.");
+    try { await persist(); } catch { return sendError(reply, 500, "The friend could not be removed."); }
+    return reply.send({ ok: true });
+  });
+
+  app.post("/api/messages/block", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    const targetId = String(request.body?.userId || "");
+    const target = database.users.find((item) => item.id === targetId);
+    if (!target || target.id === user.id) return sendError(reply, 400, "Choose another DOGEUB user.");
+    if (request.body?.blocked === false) {
+      database.blocks = database.blocks.filter((item) => !(item.blockerId === user.id && item.blockedId === target.id));
+    } else {
+      if (!database.blocks.some((item) => item.blockerId === user.id && item.blockedId === target.id)) {
+        database.blocks.push({ blockerId: user.id, blockedId: target.id, createdAt: Date.now() });
+      }
+      const key = friendKey(user.id, target.id);
+      database.friendships = database.friendships.filter((item) => item.key !== key);
+      database.friendRequests = database.friendRequests.filter((item) =>
+        !((item.fromUserId === user.id && item.toUserId === target.id) || (item.fromUserId === target.id && item.toUserId === user.id))
+      );
+    }
+    try { await persist(); } catch { return sendError(reply, 500, "The block setting could not be saved."); }
+    return reply.send({ ok: true });
+  });
+
+  app.get("/api/messages/notification-center", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    const notifications = database.notifications.filter((item) => item.recipientId === user.id)
+      .slice(-100).reverse().map((item) => ({
+        id: item.id, type: item.type, title: item.title, body: item.body,
+        createdAt: item.createdAt, readAt: item.readAt,
+        actor: item.actorId ? publicUser(database.users.find((candidate) => candidate.id === item.actorId)) : null,
+        metadata: item.metadata || {}
+      }));
+    return reply.send({ notifications, unreadCount: notifications.filter((item) => !item.readAt).length });
+  });
+
+  app.post("/api/messages/notification-center/read", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    const id = request.body?.id ? String(request.body.id) : "";
+    const all = request.body?.all === true;
+    let changed = false;
+    for (const item of database.notifications) {
+      if (item.recipientId !== user.id || item.readAt) continue;
+      if (all || item.id === id) { item.readAt = Date.now(); changed = true; }
+    }
+    if (id && !database.notifications.some((item) => item.id === id && item.recipientId === user.id)) return sendError(reply, 404, "Notification not found.");
+    if (changed) {
+      try { await persist(); } catch { return sendError(reply, 500, "Notification state could not be saved."); }
+    }
+    return reply.send({ ok: true });
+  });
+
+  app.get("/api/messages/moderation/reports", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    if (!publicUser(user).isModerator) return sendError(reply, 403, "Moderator access is not enabled for this account.");
+    const reports = database.reports.slice().reverse().slice(0, 200).map((item) => {
+      const message = database.messages.find((entry) => entry.id === item.messageId);
+      return {
+        id: item.id, reason: item.reason, createdAt: item.createdAt, status: item.status || "open",
+        reporter: publicUser(database.users.find((entry) => entry.id === item.reporterId)),
+        message: message ? { id: message.id, text: message.text || (message.attachmentId ? "Attachment" : ""), sender: publicUser(database.users.find((entry) => entry.id === message.senderId)), channel: message.channel } : null
+      };
+    });
+    return reply.send({ reports });
+  });
+
+  app.post("/api/messages/moderation/action", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    if (!publicUser(user).isModerator) return sendError(reply, 403, "Moderator access is not enabled for this account.");
+    const report = database.reports.find((item) => item.id === String(request.body?.reportId || ""));
+    const action = String(request.body?.action || "");
+    if (!report) return sendError(reply, 404, "Report not found.");
+    if (action === "dismiss") {
+      report.status = "dismissed";
+      report.reviewedAt = Date.now();
+    } else if (action === "remove-message") {
+      const message = database.messages.find((item) => item.id === report.messageId);
+      if (!message) return sendError(reply, 404, "The reported message no longer exists.");
+      message.text = "[Message removed by a moderator]";
+      message.attachmentId = null;
+      message.moderatedRemoved = true;
+      database.reactions = database.reactions.filter((item) => item.messageId !== message.id);
+      report.status = "removed";
+      report.reviewedAt = Date.now();
+      notifyUser(message.senderId, "moderation", "Message removed", "A moderator removed one of your messages after review.", user.id, { messageId: message.id });
+    } else return sendError(reply, 400, "Choose dismiss or remove-message.");
+    try { await persist(); } catch { return sendError(reply, 500, "The moderation action could not be saved."); }
+    return reply.send({ ok: true });
+  });
+
+  const publicGroup = (group, viewerId = null) => ({
+    id: group.id,
+    name: group.name,
+    createdAt: group.createdAt,
+    inviteCode: group.inviteCode,
+    isOwner: Boolean(viewerId && group.createdBy === viewerId),
+    memberCount: database.groupMembers.filter((member) => member.groupId === group.id).length
+  });
+  const isGroupMember = (groupId, userId) => database.groupMembers.some((member) => member.groupId === groupId && member.userId === userId);
+  const getReadAt = (userId, channel, peerId = null, groupId = null) => {
+    const state = database.readStates.find((item) => item.userId === userId && item.channel === channel &&
+      (item.peerId || null) === peerId && (item.groupId || null) === groupId);
+    return state?.lastReadAt || 0;
+  };
+  const setReadAt = (userId, channel, peerId = null, groupId = null, timestamp = Date.now()) => {
+    let state = database.readStates.find((item) => item.userId === userId && item.channel === channel &&
+      (item.peerId || null) === peerId && (item.groupId || null) === groupId);
+    if (!state) {
+      state = { userId, channel, peerId, groupId, lastReadAt: timestamp };
+      database.readStates.push(state);
+    } else {
+      state.lastReadAt = Math.max(state.lastReadAt || 0, timestamp);
+    }
+    return state.lastReadAt;
+  };
+  const canReadMessage = (message, userId) => Boolean(message && (
+    message.channel === "global" ||
+    (message.channel === "dm" && (message.senderId === userId || message.recipientId === userId)) ||
+    (message.channel === "group" && isGroupMember(message.groupId, userId))
+  ));
+  const dmPeerFor = (message, userId) => message.senderId === userId ? message.recipientId : message.senderId;
+  const muteMatches = (userId, message) => database.mutes.some((mute) => {
+    if (mute.userId !== userId || mute.channel !== message.channel) return false;
+    if (message.channel === "dm") return mute.peerId === dmPeerFor(message, userId);
+    if (message.channel === "group") return mute.groupId === message.groupId;
+    return message.channel === "global";
+  });
+  const typingScope = (channel, userId, peerId, groupId) => {
+    if (channel === "global") return "global";
+    if (channel === "group") return "group:" + groupId;
+    return "dm:" + [userId, peerId].sort().join(":");
+  };
+
+  app.get("/api/messages/groups", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    const groups = database.groups
+      .filter((group) => isGroupMember(group.id, user.id))
+      .map((group) => publicGroup(group, user.id))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    return reply.send({ groups });
+  });
+
+  // Entering a known name joins that saved group; entering a new name creates it.
+  app.post("/api/messages/groups/join", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    if (!allowRate("groups:" + user.id, 20, 60_000)) return sendError(reply, 429, "Please slow down group joins.");
+    const name = String(request.body?.name || "").trim().replace(/\s+/g, " ");
+    if (name.length < 3 || name.length > 40) return sendError(reply, 400, "Group names must be 3–40 characters.");
+    if (hasProfanity(name)) return sendError(reply, 400, "Please choose a group name without profanity.");
+    const normalizedName = name.toLocaleLowerCase("en-US");
+    let group = database.groups.find((candidate) => candidate.normalizedName === normalizedName || candidate.inviteCode?.toLowerCase() === normalizedName);
+    let created = false;
+    if (!group) {
+      group = { id: randomUUID(), name, normalizedName, createdBy: user.id, inviteCode: makeInviteCode(), createdAt: Date.now() };
+      database.groups.push(group);
+      created = true;
+    }
+    let membership = database.groupMembers.find((item) => item.groupId === group.id && item.userId === user.id);
+    if (!membership) {
+      membership = { groupId: group.id, userId: user.id, joinedAt: Date.now() };
+      database.groupMembers.push(membership);
+    }
+    try {
+      await persist();
+    } catch {
+      if (created) database.groups = database.groups.filter((item) => item.id !== group.id);
+      database.groupMembers = database.groupMembers.filter((item) => item !== membership);
+      return sendError(reply, 500, "That group could not be saved. Check the Messages data directory.");
+    }
+    return reply.send({ group: publicGroup(group, user.id), created, joined: true });
+  });
+
+  app.get("/api/messages/notifications", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    const since = Number(request.query?.since || 0);
+    const cursor = Date.now();
+    const notifications = database.messages
+      .filter((message) => message.createdAt > since && message.createdAt <= cursor && message.senderId !== user.id && !muteMatches(user.id, message) && (
+        message.channel === "global" ||
+        (message.channel === "dm" && message.recipientId === user.id) ||
+        (message.channel === "group" && isGroupMember(message.groupId, user.id))
+      ))
+      .slice(-50)
+      .map((message) => ({
+        kind: message.channel,
+        groupName: message.channel === "group" ? database.groups.find((group) => group.id === message.groupId)?.name || "Group chat" : null,
+        message: messageForClient(message)
+      }));
+    return reply.send({ notifications, cursor });
   });
 
   app.get("/api/messages/conversations", async (request, reply) => {
@@ -341,6 +726,11 @@ export default async function registerMessagesRoutes(app) {
     let messages;
     if (channel === "global") {
       messages = database.messages.filter((message) => message.channel === "global");
+    } else if (channel === "group") {
+      const groupId = String(request.query?.groupId || "");
+      const group = database.groups.find((candidate) => candidate.id === groupId);
+      if (!group || !isGroupMember(groupId, user.id)) return sendError(reply, 404, "Join that group before opening its messages.");
+      messages = database.messages.filter((message) => message.channel === "group" && message.groupId === groupId);
     } else if (channel === "dm") {
       const peerId = String(request.query?.with || "");
       if (!peerId || !database.users.some((candidate) => candidate.id === peerId) || peerId === user.id) {
@@ -354,7 +744,11 @@ export default async function registerMessagesRoutes(app) {
     } else {
       return sendError(reply, 400, "Unknown message channel.");
     }
-    return reply.send({ messages: messages.slice(-100).map(messageForClient) });
+    const recentMessages = messages.slice(-100);
+    const retainedPins = messages.filter((message) => message.pinned).slice(-50);
+    const visibleMessages = [...new Map([...retainedPins, ...recentMessages].map((message) => [message.id, message])).values()]
+      .sort((a, b) => a.createdAt - b.createdAt);
+    return reply.send({ messages: visibleMessages.map((message) => messageForClient(message, user.id)) });
   });
 
   app.post("/api/messages/messages", async (request, reply) => {
@@ -366,11 +760,17 @@ export default async function registerMessagesRoutes(app) {
     const attachmentId = request.body?.attachmentId ? String(request.body.attachmentId) : null;
     if (!text && !attachmentId) return sendError(reply, 400, "Write a message or attach a file.");
     let recipientId = null;
-    if (channel === "dm") {
+    let groupId = null;
+    if (channel === "group") {
+      groupId = String(request.body?.groupId || "");
+      const group = database.groups.find((candidate) => candidate.id === groupId);
+      if (!group || !isGroupMember(groupId, user.id)) return sendError(reply, 403, "Join that group before sending messages there.");
+    } else if (channel === "dm") {
       recipientId = String(request.body?.recipientId || "");
       if (!recipientId || recipientId === user.id || !database.users.some((candidate) => candidate.id === recipientId)) {
         return sendError(reply, 400, "Choose a valid direct-message recipient.");
       }
+      if (hasBlockBetween(user.id, recipientId)) return sendError(reply, 403, "A block is active between these accounts, so direct messages are paused.");
     } else if (channel !== "global") {
       return sendError(reply, 400, "Unknown message channel.");
     }
@@ -381,21 +781,41 @@ export default async function registerMessagesRoutes(app) {
         return sendError(reply, 400, "That attachment is no longer available. Pick it from DogeFiler again.");
       }
     }
+    const replyToId = request.body?.replyToId ? String(request.body.replyToId) : null;
+    if (replyToId) {
+      const parent = database.messages.find((item) => item.id === replyToId);
+      const sameConversation = parent && parent.channel === channel && (
+        channel === "global" ||
+        (channel === "group" && parent.groupId === groupId) ||
+        (channel === "dm" && [parent.senderId, parent.recipientId].sort().join(":") === [user.id, recipientId].sort().join(":"))
+      );
+      if (!sameConversation || !canReadMessage(parent, user.id)) return sendError(reply, 400, "That reply target isn't in this conversation.");
+    }
     const message = {
-      id: randomUUID(), channel, senderId: user.id, recipientId,
-      text: censorProfanity(text), attachmentId, createdAt: Date.now()
+      id: randomUUID(), channel, senderId: user.id, recipientId, groupId,
+      text: censorProfanity(text), attachmentId, replyToId, pinned: false, createdAt: Date.now()
     };
     database.messages.push(message);
     if (database.messages.length > 20000) database.messages.splice(0, database.messages.length - 20000);
     if (attachment) attachment.messageId = message.id;
+    const createdNotifications = [];
+    if (channel === "dm" && !muteMatches(recipientId, message)) {
+      createdNotifications.push(notifyUser(recipientId, "dm", "New message from " + user.username, message.text || "Sent an attachment", user.id, { messageId: message.id }));
+    } else if (channel === "group") {
+      const groupName = database.groups.find((item) => item.id === groupId)?.name || "Group chat";
+      for (const member of database.groupMembers.filter((item) => item.groupId === groupId && item.userId !== user.id)) {
+        if (!muteMatches(member.userId, message)) createdNotifications.push(notifyUser(member.userId, "group-message", "New message in " + groupName, message.text || "Sent an attachment", user.id, { groupId, messageId: message.id }));
+      }
+    }
     try {
       await persist();
     } catch {
       database.messages = database.messages.filter((item) => item.id !== message.id);
+      database.notifications = database.notifications.filter((item) => !createdNotifications.some((created) => created.id === item.id));
       if (attachment) attachment.messageId = null;
       return sendError(reply, 500, "Your message could not be saved. Try again.");
     }
-    return reply.code(201).send({ message: messageForClient(message) });
+    return reply.code(201).send({ message: messageForClient(message, user.id) });
   });
 
   app.post("/api/messages/attachments", { bodyLimit: 8 * 1024 * 1024 }, async (request, reply) => {
@@ -445,7 +865,8 @@ export default async function registerMessagesRoutes(app) {
     const isUploader = attachment.ownerId === user.id;
     const canReadMessage = message && (
       message.channel === "global" ||
-      (message.channel === "dm" && (message.senderId === user.id || message.recipientId === user.id))
+      (message.channel === "dm" && (message.senderId === user.id || message.recipientId === user.id)) ||
+      (message.channel === "group" && isGroupMember(message.groupId, user.id))
     );
     if (!isUploader && !canReadMessage) return sendError(reply, 404, "Attachment not found.");
     let bytes;
@@ -478,6 +899,238 @@ export default async function registerMessagesRoutes(app) {
     reply.header("X-Content-Type-Options", "nosniff");
     reply.header("Cache-Control", "private, max-age=300");
     return reply.send(bytes);
+  });
+
+  app.post("/api/messages/read", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    const channel = String(request.body?.channel || "");
+    let peerId = null;
+    let groupId = null;
+    if (channel === "dm") {
+      peerId = String(request.body?.peerId || "");
+      if (!peerId || peerId === user.id || !database.users.some((candidate) => candidate.id === peerId)) return sendError(reply, 400, "Choose a valid DM conversation.");
+    } else if (channel === "group") {
+      groupId = String(request.body?.groupId || "");
+      if (!isGroupMember(groupId, user.id)) return sendError(reply, 403, "Join that group to mark it as read.");
+    } else if (channel !== "global") return sendError(reply, 400, "Unknown read state.");
+    const lastMessageAt = database.messages.reduce((latest, message) => {
+      const matches = channel === "global" ? message.channel === "global" :
+        channel === "dm" ? message.channel === "dm" && ((message.senderId === user.id && message.recipientId === peerId) || (message.senderId === peerId && message.recipientId === user.id)) :
+        message.channel === "group" && message.groupId === groupId;
+      return matches ? Math.max(latest, message.createdAt) : latest;
+    }, 0);
+    const previousReadAt = getReadAt(user.id, channel, peerId, groupId);
+    const timestamp = Math.max(previousReadAt, lastMessageAt);
+    if (timestamp > previousReadAt) {
+      setReadAt(user.id, channel, peerId, groupId, timestamp);
+      try { await persist(); } catch { return sendError(reply, 500, "Read state could not be saved."); }
+    }
+    return reply.send({ ok: true, lastReadAt: timestamp });
+  });
+
+  app.get("/api/messages/unread", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    const unread = { global: 0, dms: {}, groups: {} };
+    for (const message of database.messages) {
+      if (message.senderId === user.id) continue;
+      if (message.channel === "global" && message.createdAt > getReadAt(user.id, "global")) unread.global += 1;
+      else if (message.channel === "dm" && (message.senderId === user.id || message.recipientId === user.id)) {
+        const peerId = dmPeerFor(message, user.id);
+        if (message.createdAt > getReadAt(user.id, "dm", peerId)) unread.dms[peerId] = (unread.dms[peerId] || 0) + 1;
+      } else if (message.channel === "group" && isGroupMember(message.groupId, user.id) && message.createdAt > getReadAt(user.id, "group", null, message.groupId)) {
+        unread.groups[message.groupId] = (unread.groups[message.groupId] || 0) + 1;
+      }
+    }
+    return reply.send({ unread });
+  });
+
+  app.get("/api/messages/typing", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    const channel = String(request.query?.channel || "global");
+    let peerId = null;
+    let groupId = null;
+    if (channel === "dm") {
+      peerId = String(request.query?.with || "");
+      if (!peerId || peerId === user.id) return sendError(reply, 400, "Choose a DM conversation.");
+    } else if (channel === "group") {
+      groupId = String(request.query?.groupId || "");
+      if (!isGroupMember(groupId, user.id)) return sendError(reply, 403, "Join that group first.");
+    } else if (channel !== "global") return sendError(reply, 400, "Unknown typing channel.");
+    const scope = typingScope(channel, user.id, peerId, groupId);
+    const now = Date.now();
+    for (const [key, item] of typingSessions) if (item.expiresAt < now) typingSessions.delete(key);
+    const users = [...typingSessions.values()].filter((item) => item.scope === scope && item.userId !== user.id && item.expiresAt >= now).map((item) => ({ id: item.userId, username: item.username }));
+    return reply.send({ users });
+  });
+
+  app.post("/api/messages/typing", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    const channel = String(request.body?.channel || "global");
+    let peerId = null;
+    let groupId = null;
+    if (channel === "dm") {
+      peerId = String(request.body?.peerId || "");
+      if (!peerId || peerId === user.id) return sendError(reply, 400, "Choose a DM conversation.");
+    } else if (channel === "group") {
+      groupId = String(request.body?.groupId || "");
+      if (!isGroupMember(groupId, user.id)) return sendError(reply, 403, "Join that group first.");
+    } else if (channel !== "global") return sendError(reply, 400, "Unknown typing channel.");
+    const scope = typingScope(channel, user.id, peerId, groupId);
+    const key = scope + ":" + user.id;
+    if (request.body?.typing === false) typingSessions.delete(key);
+    else typingSessions.set(key, {
+      scope, userId: user.id, username: user.username,
+      expiresAt: Date.now() + 6500
+    });
+    return reply.send({ ok: true });
+  });
+
+  app.get("/api/messages/mutes", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    return reply.send({ mutes: database.mutes.filter((item) => item.userId === user.id) });
+  });
+
+  app.post("/api/messages/mute", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    const channel = String(request.body?.channel || "");
+    let peerId = null;
+    let groupId = null;
+    if (channel === "global") {
+      // Global chat can be muted as a whole.
+    } else if (channel === "dm") {
+      peerId = String(request.body?.peerId || "");
+      if (!peerId || peerId === user.id) return sendError(reply, 400, "Choose a DM conversation.");
+    } else if (channel === "group") {
+      groupId = String(request.body?.groupId || "");
+      if (!isGroupMember(groupId, user.id)) return sendError(reply, 403, "Join that group first.");
+    } else return sendError(reply, 400, "Unknown mute channel.");
+    database.mutes = database.mutes.filter((item) => !(item.userId === user.id && item.channel === channel && (item.peerId || null) === peerId && (item.groupId || null) === groupId));
+    const muted = request.body?.muted === true;
+    if (muted) database.mutes.push({ userId: user.id, channel, peerId, groupId, createdAt: Date.now() });
+    try { await persist(); } catch { return sendError(reply, 500, "Mute preference could not be saved."); }
+    return reply.send({ ok: true, muted });
+  });
+
+  app.get("/api/messages/search", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    if (!allowRate("search:" + user.id, 30, 60_000)) return sendError(reply, 429, "Please slow down message searches.");
+    const q = String(request.query?.q || "").trim().slice(0, 100).toLowerCase();
+    if (q.length < 2) return reply.send({ messages: [] });
+    const channel = String(request.query?.channel || "global");
+    let allowed;
+    if (channel === "global") allowed = database.messages.filter((message) => message.channel === "global");
+    else if (channel === "dm") {
+      const peerId = String(request.query?.with || "");
+      if (!peerId || peerId === user.id) return sendError(reply, 400, "Choose a DM conversation.");
+      allowed = database.messages.filter((message) => message.channel === "dm" && ((message.senderId === user.id && message.recipientId === peerId) || (message.senderId === peerId && message.recipientId === user.id)));
+    } else if (channel === "group") {
+      const groupId = String(request.query?.groupId || "");
+      if (!isGroupMember(groupId, user.id)) return sendError(reply, 403, "Join that group first.");
+      allowed = database.messages.filter((message) => message.channel === "group" && message.groupId === groupId);
+    } else return sendError(reply, 400, "Unknown search channel.");
+    const results = allowed.filter((message) => String(message.text || "").toLowerCase().includes(q)).slice(-50).reverse();
+    return reply.send({ messages: results.map((message) => messageForClient(message, user.id)) });
+  });
+
+  app.post("/api/messages/reactions", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    const messageId = String(request.body?.messageId || "");
+    const emoji = String(request.body?.emoji || "");
+    if (!["👍", "❤️", "😂", "😮", "🎉", "👎"].includes(emoji)) return sendError(reply, 400, "Choose a supported reaction.");
+    const message = database.messages.find((item) => item.id === messageId);
+    if (!canReadMessage(message, user.id)) return sendError(reply, 404, "Message not found.");
+    const existing = database.reactions.find((item) => item.messageId === messageId && item.userId === user.id && item.emoji === emoji);
+    if (existing) database.reactions = database.reactions.filter((item) => item !== existing);
+    else database.reactions.push({ messageId, userId: user.id, emoji, createdAt: Date.now() });
+    try { await persist(); } catch { return sendError(reply, 500, "Reaction could not be saved."); }
+    return reply.send({ ok: true, reactions: database.reactions.filter((item) => item.messageId === messageId) });
+  });
+
+  app.post("/api/messages/edit", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    const message = database.messages.find((item) => item.id === String(request.body?.messageId || ""));
+    if (!message || message.senderId !== user.id || !canReadMessage(message, user.id)) return sendError(reply, 404, "You can only edit your own messages in conversations you can access.");
+    const text = String(request.body?.text || "").trim().slice(0, MAX_MESSAGE_LENGTH);
+    if (!text) return sendError(reply, 400, "Edited messages cannot be empty.");
+    message.text = censorProfanity(text);
+    message.editedAt = Date.now();
+    try { await persist(); } catch { return sendError(reply, 500, "Message edit could not be saved."); }
+    return reply.send({ message: messageForClient(message, user.id) });
+  });
+
+  app.post("/api/messages/delete", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    const message = database.messages.find((item) => item.id === String(request.body?.messageId || ""));
+    if (!message || message.senderId !== user.id || !canReadMessage(message, user.id)) return sendError(reply, 404, "You can only delete your own messages in conversations you can access.");
+    database.messages = database.messages.filter((item) => item.id !== message.id);
+    database.reactions = database.reactions.filter((item) => item.messageId !== message.id);
+    for (const child of database.messages) if (child.replyToId === message.id) child.replyToId = null;
+    try { await persist(); } catch { return sendError(reply, 500, "Message deletion could not be saved."); }
+    return reply.send({ ok: true, messageId: message.id });
+  });
+
+  app.post("/api/messages/pin", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    const message = database.messages.find((item) => item.id === String(request.body?.messageId || ""));
+    if (!canReadMessage(message, user.id)) return sendError(reply, 404, "Message not found.");
+    message.pinned = request.body?.pinned === true;
+    message.pinnedBy = message.pinned ? user.id : null;
+    message.pinnedAt = message.pinned ? Date.now() : null;
+    try { await persist(); } catch { return sendError(reply, 500, "Pin could not be saved."); }
+    return reply.send({ ok: true, pinned: message.pinned });
+  });
+
+  app.get("/api/messages/groups/members", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    const groupId = String(request.query?.groupId || "");
+    if (!isGroupMember(groupId, user.id)) return sendError(reply, 403, "Join that group first.");
+    const group = database.groups.find((item) => item.id === groupId);
+    return reply.send({
+      group: publicGroup(group, user.id),
+      members: database.groupMembers.filter((member) => member.groupId === groupId).map((member) => ({
+        id: member.userId,
+        username: database.users.find((candidate) => candidate.id === member.userId)?.username || "Unknown",
+        owner: group.createdBy === member.userId
+      }))
+    });
+  });
+
+  app.post("/api/messages/groups/manage", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    const groupId = String(request.body?.groupId || "");
+    const group = database.groups.find((item) => item.id === groupId);
+    if (!group || !isGroupMember(groupId, user.id)) return sendError(reply, 404, "Group not found.");
+    if (group.createdBy !== user.id) return sendError(reply, 403, "Only the group owner can manage members or rename the group.");
+    const action = String(request.body?.action || "");
+    if (action === "rename") {
+      const name = String(request.body?.name || "").trim().replace(/\s+/g, " ");
+      if (name.length < 3 || name.length > 40 || hasProfanity(name)) return sendError(reply, 400, "Choose a group name between 3 and 40 characters without profanity.");
+      const normalizedName = name.toLocaleLowerCase("en-US");
+      if (database.groups.some((other) => other.id !== groupId && other.normalizedName === normalizedName)) return sendError(reply, 409, "That group name is already taken.");
+      group.name = name;
+      group.normalizedName = normalizedName;
+    } else if (action === "kick") {
+      const targetId = String(request.body?.userId || "");
+      if (!targetId || targetId === user.id || !isGroupMember(groupId, targetId)) return sendError(reply, 400, "Choose another member to remove.");
+      database.groupMembers = database.groupMembers.filter((item) => !(item.groupId === groupId && item.userId === targetId));
+    } else if (action === "invite-code") {
+      group.inviteCode = makeInviteCode();
+    } else return sendError(reply, 400, "Unknown group management action.");
+    try { await persist(); } catch { return sendError(reply, 500, "Group changes could not be saved."); }
+    return reply.send({ group: publicGroup(group, user.id), ok: true });
   });
 
   app.post("/api/messages/report", async (request, reply) => {
