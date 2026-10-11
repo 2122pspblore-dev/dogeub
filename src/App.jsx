@@ -120,7 +120,7 @@ function useTracking() {
 const ThemedApp = memo(() => {
   const { options, updateOption } = useOptions();
   const location = useLocation();
-  const [siteStatus, setSiteStatus] = useState({ gamesDisabled: false, serverMuted: false, browsingDisabled: false, banned: false, banReason: '' });
+  const [siteStatus, setSiteStatus] = useState({ gamesDisabled: false, serverMuted: false, browsingDisabled: false, maintenanceMode: false, maintenanceMessage: '', maintenanceAdmin: false, maintenanceAuthenticated: false, banned: false, banReason: '' });
   const popunderEnabled = POPUNDER_ENABLED === 'true';
   const [customBackground, setCustomBackground] = useState(() => {
     try { return window.localStorage.getItem('dogeub-site-background') || ''; } catch { return ''; }
@@ -139,6 +139,10 @@ const ThemedApp = memo(() => {
           gamesDisabled: data.gamesDisabled === true,
           serverMuted: data.serverMuted === true,
           browsingDisabled: data.browsingDisabled === true,
+          maintenanceMode: data.maintenanceMode === true,
+          maintenanceMessage: String(data.maintenanceMessage || ''),
+          maintenanceAdmin: data.maintenanceAdmin === true,
+          maintenanceAuthenticated: data.maintenanceAuthenticated === true,
           banned: data.banned === true,
           banReason: String(data.banReason || '')
         });
@@ -280,6 +284,16 @@ const ThemedApp = memo(() => {
             <h1 className="mt-5 text-2xl font-bold">DOGEUB access disabled</h1>
             <p className="mt-3 text-sm leading-6 text-white/65">{siteStatus.banReason || 'An administrator has disabled access for this DOGEUB account.'}</p>
             <p className="mt-5 text-xs text-white/35">If you believe this is a mistake, contact a DOGEUB administrator.</p>
+          </section>
+        </main>
+      ) : siteStatus.maintenanceMode && !siteStatus.maintenanceAdmin && (location.pathname !== '/messages' || siteStatus.maintenanceAuthenticated) ? (
+        <main className="flex min-h-[calc(100vh-58px)] items-center justify-center bg-slate-950 p-6 text-white">
+          <section className="w-full max-w-xl rounded-3xl border border-cyan-200/15 bg-white/[.025] p-8 text-center shadow-2xl">
+            <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl border border-cyan-200/20 bg-cyan-200/[.07] text-cyan-100"><span className="text-2xl">🛠</span></div>
+            <p className="mt-5 text-[10px] font-bold uppercase tracking-[.25em] text-cyan-200">DOGEUB status</p>
+            <h1 className="mt-2 text-2xl font-bold sm:text-3xl">Temporarily unavailable</h1>
+            <p className="mt-3 text-sm leading-6 text-white/60">{siteStatus.maintenanceMessage || 'DOGEUB is temporarily unavailable while we perform maintenance. Please check back soon.'}</p>
+            <p className="mt-5 text-xs text-white/30">Please check back later. Administrators can open the Admin Panel from the Start menu.</p>
           </section>
         </main>
       ) : siteStatus.gamesDisabled && ['/docs', '/docs/r', '/game-library'].includes(location.pathname) ? (
