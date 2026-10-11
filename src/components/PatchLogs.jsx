@@ -15,6 +15,13 @@ export const isPatchLogsEnabled = () => {
 const PATCH_DATE = '2026-10-11';
 
 const PATCH_LOGS = [
+  'Added a customizable DOGEUB Studio dashboard with reorderable and hideable widgets, saved shortcuts, sticky notes, and a focus timer.',
+  'Added DOGEUB Toolbox utilities: text transformations and counters, JSON formatting, color picking, QR-code generation, and local image resizing.',
+  'Added PC Center with browser-reported device details, a CPU/GPU class explorer, and a practical PC health checklist.',
+  'Added a Game Library with search, favorites, recently opened games, and user-saved game shortcuts.',
+  'Added Student Center with a saved homework planner, focus timer, and editable flashcards.',
+  'Added Social Center APIs and UI for friends, friend requests, online/away/offline presence, profile bios/status/banner color, blocking, persistent notifications, and a moderator-only report queue.',
+  'Expanded the Messages service with friend/block enforcement and persistent notification events for direct messages and group messages.',
   'Added homescreen widgets: weather and clock (merged in PR #4).',
   'Quick links updated: Discord, GitHub, YouTube, and Gemini AI (PR #5).',
   'Fixed production crash on startup caused by an EACCES error during npm install; start command changed to "node server.js".',
