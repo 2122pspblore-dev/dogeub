@@ -13,16 +13,20 @@ const makeShortPeerId = () => {
 export default function RemoteDesktop() {
   const localVideo = useRef(null), remoteVideo = useRef(null);
   const peerRef = useRef(null), callRef = useRef(null), streamRef = useRef(null);
-  const requestRef = useRef(null), stoppingRef = useRef(false);
+  const requestRef = useRef(null), stoppingRef = useRef(false), controlSocketRef = useRef(null), controlEnabledRef = useRef(false);
   const [mode, setMode] = useState('idle'), [code, setCode] = useState('');
   const [peerId, setPeerId] = useState(''), [incoming, setIncoming] = useState(false);
   const [connected, setConnected] = useState(false), [status, setStatus] = useState('Not connected');
   const [error, setError] = useState('');
+  const [controlReady, setControlReady] = useState(false), [controlEnabled, setControlEnabled] = useState(false);
 
   const stop = () => {
     stoppingRef.current = true;
     callRef.current?.close();
     requestRef.current?.close();
+    if (controlSocketRef.current?.readyState === WebSocket.OPEN) controlSocketRef.current.send(JSON.stringify({ type: 'disarm' }));
+    controlSocketRef.current?.close(); controlSocketRef.current = null; controlEnabledRef.current = false;
+    setControlReady(false); setControlEnabled(false);
     peerRef.current?.destroy();
     streamRef.current?.getTracks().forEach(t => t.stop());
     callRef.current = requestRef.current = peerRef.current = streamRef.current = null;
@@ -35,6 +39,7 @@ export default function RemoteDesktop() {
   useEffect(() => () => {
     callRef.current?.close();
     requestRef.current?.close();
+    controlSocketRef.current?.close();
     peerRef.current?.destroy();
     streamRef.current?.getTracks().forEach(t => t.stop());
   }, []);
@@ -86,6 +91,10 @@ export default function RemoteDesktop() {
           return;
         }
         requestRef.current = connection;
+        connection.on('data', data => {
+          if (!controlEnabledRef.current || !controlSocketRef.current || controlSocketRef.current.readyState !== WebSocket.OPEN) return;
+          if (data && ['pointer','click','mouse-down','mouse-up','scroll','key-down','key-up','type-text'].includes(data.type)) controlSocketRef.current.send(JSON.stringify(data));
+        });
         connection.on('open', () => {
           if (requestRef.current !== connection) return;
           setIncoming(true);
@@ -202,6 +211,23 @@ export default function RemoteDesktop() {
     setConnected(true);
     setStatus('Approved — sharing screen');
   };
+
+  const enableControl = () => {
+    if (mode !== 'host' || !connected || !requestRef.current) { setError('Connect and approve a viewer before enabling control.'); return; }
+    if (!window.confirm('Enable remote mouse and keyboard control? Only do this for someone you trust.')) return;
+    setError('');
+    try {
+      const socket = new WebSocket('ws://127.0.0.1:8765'); controlSocketRef.current = socket;
+      socket.onopen = () => { socket.send(JSON.stringify({ type: 'arm', confirmed: true })); controlEnabledRef.current = true; setControlEnabled(true); setControlReady(true); setStatus('Remote control enabled — host can disconnect at any time'); };
+      socket.onmessage = event => { try { const message = JSON.parse(event.data); if (message.type === 'agent-error') setError('Host agent: ' + message.message); if (message.type === 'agent-state') setControlReady(message.armed === true); } catch { /* Ignore malformed messages. */ } };
+      socket.onerror = () => { controlEnabledRef.current = false; setControlEnabled(false); setControlReady(false); setError('Host agent not reachable. Run the optional host agent on this computer, then retry.'); };
+      socket.onclose = () => { controlEnabledRef.current = false; setControlEnabled(false); setControlReady(false); };
+    } catch { setError('Could not connect to the local host agent.'); }
+  };
+  const sendInput = payload => { const connection = requestRef.current; if (mode === 'viewer' && connected && connection?.open) { try { connection.send(payload); } catch { /* Connection may be closing. */ } } };
+  const handleScreenPointer = event => { if (mode !== 'viewer' || !connected) return; const rect = event.currentTarget.getBoundingClientRect(); if (!rect.width || !rect.height) return; sendInput({ type: 'pointer', x: Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)), y: Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height)) }); };
+  const handleScreenKeyDown = event => { if (mode !== 'viewer' || !connected || event.repeat) return; if (event.key.length === 1 && !event.ctrlKey && !event.altKey && !event.metaKey) { sendInput({ type: 'type-text', text: event.key }); return; } sendInput({ type: 'key-down', key: event.key === ' ' ? 'Space' : event.key }); };
+  const handleScreenKeyUp = event => { if (mode === 'viewer' && connected) sendInput({ type: 'key-up', key: event.key === ' ' ? 'Space' : event.key }); };
 
   const decline = () => {
     const request = requestRef.current;
