@@ -1,5 +1,5 @@
 import { WebSocketServer } from 'ws';
-import { mouse, keyboard, Button, Key } from '@nut-tree-fork/nut-js';
+import { mouse, keyboard, screen, Point, Button, Key } from '@nut-tree-fork/nut-js';
 
 const PORT = Number(process.env.DOGEUB_CONTROL_PORT || 8765);
 const ALLOWED_ORIGINS = new Set([
@@ -60,8 +60,9 @@ wss.on('connection', (ws, req) => {
       if (message.type === 'pointer') {
         const x = Math.max(0, Math.min(1, Number(message.x)));
         const y = Math.max(0, Math.min(1, Number(message.y)));
-        const screen = await mouse.getScreenSize();
-        await mouse.setPosition({ x: Math.round(x * (screen.width - 1)), y: Math.round(y * (screen.height - 1)) });
+        const width = await screen.width();
+        const height = await screen.height();
+        await mouse.setPosition(new Point(Math.round(x * (width - 1)), Math.round(y * (height - 1))));
       } else if (message.type === 'click') {
         const button = message.button === 'right' ? Button.RIGHT : message.button === 'middle' ? Button.MIDDLE : Button.LEFT;
         await mouse.click(button);
