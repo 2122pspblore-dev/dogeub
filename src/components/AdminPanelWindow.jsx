@@ -4,8 +4,8 @@ import AdminPanel from './AdminPanel';
 
 function getWindowSize() {
   return {
-    width: Math.min(1120, Math.max(280, window.innerWidth - 24)),
-    height: Math.min(820, Math.max(240, window.innerHeight - 88)),
+    width: Math.min(900, Math.max(280, window.innerWidth - 24)),
+    height: Math.min(680, Math.max(240, window.innerHeight - 88)),
   };
 }
 
@@ -80,19 +80,16 @@ export default function AdminPanelWindow() {
 
   if (!open) return null;
 
-  if (minimized) {
-    return (
-      <div className="fixed bottom-[70px] right-3 z-[2147482500] flex items-center gap-1 rounded-xl border border-cyan-200/20 bg-slate-950/95 p-2 text-white shadow-2xl backdrop-blur-xl">
+  return (
+    <>
+      {minimized && <div className="fixed bottom-[70px] right-3 z-[2147482500] flex items-center gap-1 rounded-xl border border-cyan-200/20 bg-slate-950/95 p-2 text-white shadow-2xl backdrop-blur-xl">
         <button type="button" onClick={() => setMinimized(false)} className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold hover:bg-white/10">
           <ShieldCheck size={15} className="text-cyan-200" /> Admin Panel
         </button>
         <button type="button" aria-label="Close Admin Panel" title="Close" onClick={close} className="rounded-lg p-2 text-white/60 hover:bg-white/10 hover:text-white">
           <X size={15} />
         </button>
-      </div>
-    );
-  }
-
+      </div>}
   return (
     <section
       role="dialog"
@@ -101,8 +98,14 @@ export default function AdminPanelWindow() {
       style={{
         left: position.x,
         top: position.y,
-        width: 'min(1120px, calc(100vw - 24px))',
-        height: 'min(820px, calc(100dvh - 88px))',
+        width: 'min(900px, calc(100vw - 24px))',
+        height: 'min(680px, calc(100dvh - 88px))',
+        minWidth: 280,
+        minHeight: 240,
+        maxWidth: 'calc(100vw - 24px)',
+        maxHeight: 'calc(100dvh - 88px)',
+        resize: 'both',
+        display: minimized ? 'none' : 'flex',
         zIndex: 2147482500,
       }}
     >
@@ -129,5 +132,6 @@ export default function AdminPanelWindow() {
         <AdminPanel />
       </div>
     </section>
+    </>
   );
 }
