@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ExternalLink, Gamepad2, Heart, Plus, Search, Trash2 } from 'lucide-react';
+import { ExternalLink, Heart, Plus, Search, Trash2 } from 'lucide-react';
 import Nav from '../layouts/Nav';
 
 const BASE_GAMES = [
