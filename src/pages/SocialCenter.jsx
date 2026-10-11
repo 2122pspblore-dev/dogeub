@@ -94,7 +94,7 @@ export default function SocialCenter() {
     setBio(user.bio || '');
     setStatusMessage(user.statusMessage || '');
     setBannerColor(user.bannerColor || '#172554');
-  }, [user?.id]);
+  }, [user?.id, user?.username, user?.bio, user?.statusMessage, user?.bannerColor]);
   useEffect(() => {
     if (!user?.id) return undefined;
     const heartbeat = () => send('/api/messages/presence', {}).catch(() => {});
