@@ -24,6 +24,7 @@ for (const digit of '0123456789') keyMap[digit] = Key[digit];
 const wss = new WebSocketServer({ host: '127.0.0.1', port: PORT });
 let armed = false;
 const heldKeys = new Map();
+const heldButtons = new Set();
 
 function send(ws, type, extra = {}) {
   if (ws.readyState === ws.OPEN) ws.send(JSON.stringify({ type, ...extra }));
@@ -52,6 +53,8 @@ wss.on('connection', (ws, req) => {
         armed = false;
         for (const key of heldKeys.values()) await keyboard.releaseKey(key).catch(() => {});
         heldKeys.clear();
+        for (const button of heldButtons) await mouse.releaseButton(button).catch(() => {});
+        heldButtons.clear();
         send(ws, 'agent-state', { armed: false });
         return;
       }
@@ -63,9 +66,11 @@ wss.on('connection', (ws, req) => {
         const width = await screen.width();
         const height = await screen.height();
         await mouse.setPosition(new Point(Math.round(x * (width - 1)), Math.round(y * (height - 1))));
-      } else if (message.type === 'click') {
+      } else if (message.type === 'click' || message.type === 'mouse-down' || message.type === 'mouse-up') {
         const button = message.button === 'right' ? Button.RIGHT : message.button === 'middle' ? Button.MIDDLE : Button.LEFT;
-        await mouse.click(button);
+        if (message.type === 'click') await mouse.click(button);
+        else if (message.type === 'mouse-down') { heldButtons.add(button); await mouse.pressButton(button); }
+        else if (heldButtons.has(button)) { await mouse.releaseButton(button); heldButtons.delete(button); }
       } else if (message.type === 'scroll') {
         const amount = Math.max(-10, Math.min(10, Number(message.amount) || 0));
         if (amount > 0) await mouse.scrollDown(amount);
@@ -94,6 +99,8 @@ wss.on('connection', (ws, req) => {
     armed = false;
     for (const key of heldKeys.values()) await keyboard.releaseKey(key).catch(() => {});
     heldKeys.clear();
+    for (const button of heldButtons) await mouse.releaseButton(button).catch(() => {});
+    heldButtons.clear();
   });
 });
 
