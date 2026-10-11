@@ -72,7 +72,8 @@ function publicUser(user) {
     lastSeenAt: presence === "online" ? null : (Number(user.lastSeenAt) || null),
     isModerator: moderators.includes(normalizedUsername),
     isAdmin: admins.includes(normalizedUsername),
-    title: admins.includes(normalizedUsername) ? "DOGEUB Architect" : null
+    title: admins.includes(normalizedUsername) ? "DOGEUB Architect" : null,
+    isGuest: Boolean(user.isGuest)
   };
 }
 
