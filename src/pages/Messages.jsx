@@ -406,6 +406,24 @@ export default function Messages() {
     shouldAutoScroll.current = true;
   };
 
+  const continueAsGuest = async () => {
+    setAuthBusy(true);
+    setAppError("");
+    try {
+      const data = await apiRequest("/api/messages/guest", { method: "POST", body: "{}" });
+      setSession(data.user);
+      setProfileUsername(data.user.username);
+      setAuthPassword("");
+      notificationCursorRef.current = Date.now();
+      seenNotificationIdsRef.current.clear();
+      setNotice("You're chatting as @" + data.user.username + ". Your guest name is saved in this browser session.");
+    } catch (error) {
+      setAppError(error.message);
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+
   const handleAuth = async (event) => {
     event.preventDefault();
     setAuthBusy(true);
@@ -825,7 +843,8 @@ export default function Messages() {
               </div>
               <h2 className="text-2xl font-bold">{authMode === "register" ? (osUsername ? "Create account for @" + osUsername : "Join the chat") : osUsername ? "Sign in as @" + osUsername : "Welcome back"}</h2>
               <p className="mt-2 text-sm leading-6 text-white/45">{authMode === "register" ? "Create a DOGEUB Messages account using the DOGEUB OS username shown above." : osUsername ? "Your DOGEUB Messages account uses the same unique username as your DOGEUB OS profile." : "Sign in with your existing DOGEUB Messages account."}</p>
-              <form onSubmit={handleAuth} className="mt-7 space-y-4">
+              <button type="button" onClick={continueAsGuest} disabled={authBusy} className="mt-7 flex w-full items-center justify-center gap-2 rounded-xl border border-cyan-100/20 bg-cyan-100/[.06] px-4 py-3 text-sm font-semibold text-cyan-50 transition hover:bg-cyan-100/[.12] disabled:opacity-50">Continue as guest — no sign-in needed</button>
+              <form onSubmit={handleAuth} className="mt-3 space-y-4">
                 <label className="block"><span className="mb-2 block text-xs font-semibold uppercase tracking-wider text-white/45">DOGEUB OS username</span><input autoComplete="username" value={osUsername || authUsername} readOnly={Boolean(osUsername)} onChange={(event) => setAuthUsername(event.target.value)} required minLength={3} maxLength={20} pattern="[A-Za-z0-9_]{3,20}" placeholder="e.g. doge_fan" className="w-full rounded-xl border border-white/10 bg-white/[.04] px-4 py-3 text-sm outline-none transition placeholder:text-white/25 focus:border-cyan-100/35 focus:bg-white/[.07] read-only:text-cyan-100" />{osUsername && <span className="mt-2 block text-[10px] text-cyan-100/55">Synced with DOGEUB OS. Change it in your profile to update both.</span>}</label>
                 <label className="block"><span className="mb-2 block text-xs font-semibold uppercase tracking-wider text-white/45">Password</span><input type="password" autoComplete={authMode === "register" ? "new-password" : "current-password"} value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} required minLength={8} maxLength={128} placeholder="At least 8 characters" className="w-full rounded-xl border border-white/10 bg-white/[.04] px-4 py-3 text-sm outline-none transition placeholder:text-white/25 focus:border-cyan-100/35 focus:bg-white/[.07]" /></label>
                 {authMode === "register" && <p className="text-[11px] leading-5 text-white/35">Usernames use 3–20 letters, numbers, or underscores. Passwords are stored as salted hashes.</p>}
