@@ -229,6 +229,8 @@ export default function LockScreen() {
     }
   };
 
+  const identitySetup = !osUsername || !credential;
+
   if (unlocked) return null;
 
   return (
@@ -277,18 +279,31 @@ export default function LockScreen() {
         </div>
         <p className="text-center text-xs font-semibold uppercase tracking-[0.22em] text-sky-300">DogeUB Security</p>
         <h1 id="dogeub-lock-title" className="mt-2 text-center text-2xl font-bold tracking-tight">
-          {credential ? 'Welcome back' : 'Create your password'}
+          {identitySetup ? (authMode === 'register' ? 'Create your DOGEUB account' : 'Sign in to DOGEUB OS') : 'Welcome back, @' + osUsername}
         </h1>
         <p className="mt-2 text-center text-sm leading-6 text-white/60">
-          {credential
-            ? 'DogeUB is locked. Sign in with your password to continue.'
-            : 'Set a password for this browser before using DogeUB. You will need it whenever DogeUB locks.'}
+          {identitySetup
+            ? 'Your unique DOGEUB OS username becomes your Messages username too.'
+            : 'DogeUB is locked. Sign in with your password to continue.'}
         </p>
         <form onSubmit={submit} className="mt-6 space-y-3">
           <p className="rounded-lg border border-sky-400/20 bg-sky-400/10 px-3 py-2 text-xs leading-5 text-sky-100/80">
             Can't select the password box? Press <kbd className="rounded border border-white/20 px-1.5 py-0.5 font-semibold text-white">Esc</kbd> to focus it, then type.
           </p>
-          <label className="block text-xs font-medium text-white/70" htmlFor="dogeub-password">Password</label>
+          {identitySetup && !osUsername && (
+            <>
+              <div className="grid grid-cols-2 gap-1 rounded-xl border border-white/10 bg-black/20 p-1">
+                <button type="button" onClick={() => { setAuthMode('register'); setError(''); }} className={'rounded-lg px-3 py-2 text-xs font-semibold transition ' + (authMode === 'register' ? 'bg-sky-400/20 text-sky-100' : 'text-white/40 hover:text-white')}>Create account</button>
+                <button type="button" onClick={() => { setAuthMode('login'); setError(''); }} className={'rounded-lg px-3 py-2 text-xs font-semibold transition ' + (authMode === 'login' ? 'bg-sky-400/20 text-sky-100' : 'text-white/40 hover:text-white')}>Already have an account</button>
+              </div>
+              <label className="block text-xs font-medium text-white/70" htmlFor="dogeub-os-username">Your DOGEUB OS username
+                <input id="dogeub-os-username" autoComplete="username" value={usernameDraft} onChange={(event) => setUsernameDraft(event.target.value)} disabled={authMode === 'login'} required minLength={3} maxLength={20} pattern="[A-Za-z0-9_]{3,20}" placeholder="e.g. CoolGamer42" className="mt-2 block w-full rounded-xl border border-white/15 bg-black/25 px-3 py-3 text-sm outline-none placeholder:text-white/30 focus:border-sky-400 disabled:opacity-50" />
+              </label>
+              <p className="text-[10px] leading-4 text-white/35">{authMode === 'register' ? '3–20 letters, numbers, or underscores. This username must be unique across DOGEUB Messages.' : 'Sign in using the username associated with your DOGEUB account.'}</p>
+            </>
+          )}
+          {identitySetup && osUsername && <p className="rounded-xl border border-sky-400/15 bg-sky-400/[.06] px-3 py-2 text-xs text-sky-100/80">OS identity: <strong>@{osUsername}</strong></p>}
+          <label className="block text-xs font-medium text-white/70" htmlFor="dogeub-password">{identitySetup ? 'DOGEUB account password' : 'Password'}</label>
           <div className="flex items-center rounded-xl border border-white/15 bg-black/25 px-3 focus-within:border-sky-400">
             <input
               id="dogeub-password"
@@ -300,14 +315,14 @@ export default function LockScreen() {
               type={showPassword ? 'text' : 'password'}
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              placeholder={credential ? 'Enter your password' : 'At least 8 characters'}
+              placeholder={identitySetup && authMode === 'register' ? 'At least 8 characters' : 'Enter your password'}
               className="relative z-10 min-w-0 flex-1 bg-transparent py-3 text-sm outline-none placeholder:text-white/30"
             />
             <button type="button" aria-label={showPassword ? 'Hide password' : 'Show password'} onClick={() => setShowPassword((value) => !value)} className="rounded-lg p-1.5 text-white/50 hover:text-white">
               {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
             </button>
           </div>
-          {!credential && (
+          {identitySetup && authMode === 'register' && (
             <>
               <label className="block pt-1 text-xs font-medium text-white/70" htmlFor="dogeub-confirm-password">Confirm password</label>
               <input
@@ -325,10 +340,10 @@ export default function LockScreen() {
           )}
           {error && <p role="alert" className="rounded-lg bg-red-500/10 px-3 py-2 text-xs leading-5 text-red-200">{error}</p>}
           <button disabled={busy} type="submit" className="flex w-full items-center justify-center gap-2 rounded-xl bg-sky-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-sky-400 disabled:cursor-wait disabled:opacity-60">
-            <LockKeyhole size={16} /> {busy ? 'Please wait…' : credential ? 'Sign in to DogeUB' : 'Create password & continue'}
+            <LockKeyhole size={16} /> {busy ? 'Please wait…' : identitySetup ? (authMode === 'register' ? 'Create account & continue' : 'Sign in & continue') : 'Unlock DogeUB'}
           </button>
         </form>
-        <p className="mt-5 text-center text-[11px] leading-5 text-white/35">This locks the DogeUB page in this browser. It is not a replacement for server-side account security.</p>
+        <p className="mt-5 text-center text-[11px] leading-5 text-white/35">Your DOGEUB OS username is synced with the DOGEUB Messages account on this browser. The page lock is local browser security, not a replacement for server-side account protection.</p>
       </section>
       </div>
     </div>
