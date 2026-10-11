@@ -40,7 +40,7 @@ export default function RemoteDesktop() {
     setStatus('Not connected');
   };
 
-  const wireCall = (call, localStream) => {
+  const wireCall = (call, localStream, incoming = false) => {
     callRef.current = call;
     call.on('stream', (remoteStream) => {
       if (remoteVideoRef.current) remoteVideoRef.current.srcObject = remoteStream;
@@ -98,7 +98,7 @@ export default function RemoteDesktop() {
     if (!incomingCall || !streamRef.current) return;
     const call = incomingCall;
     setIncomingCall(null);
-    wireCall(call, streamRef.current);
+    wireCall(call, streamRef.current, true);
     setStatus('Connection approved — sending your selected screen');
   };
 
