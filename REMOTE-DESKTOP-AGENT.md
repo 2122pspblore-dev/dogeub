@@ -5,11 +5,12 @@ The browser page can share a screen over WebRTC, but a browser cannot directly o
 ## Run it on the host computer
 
 1. Install a current Node.js LTS release.
-2. Get a local copy of this repository and install its dependencies with `npm install`.
-3. In the repository folder, run `node remote-control-agent.js`.
-4. Keep the terminal open while remote control is needed.
-5. On the host computer, open DogeUB Remote Desktop, click **Start hosting**, share the screen, and approve the viewer request.
-6. Only if you want to permit OS input, click **Enable mouse + keyboard control** and confirm the prompt. Use **Disable remote control** or **Emergency Disconnect** to stop.
+2. Get a local copy of this repository.
+3. Open a terminal in the `remote-control-agent` folder and run `npm install`.
+4. Start the agent with `npm start` from that folder.
+5. Keep the terminal open while remote control is needed.
+6. On the host computer, open DogeUB Remote Desktop, click **Start hosting**, share the screen, and approve the viewer request.
+7. Only if you want to permit OS input, click **Enable mouse + keyboard control** and confirm the prompt. Use **Disable remote control** or **Emergency Disconnect** to stop.
 
 The agent binds to loopback only (`127.0.0.1:8765`) and checks the browser Origin against the allowlist in the source. Do not expose this port to the network or change the bind address to `0.0.0.0`. Only share session codes with people you trust.
 
