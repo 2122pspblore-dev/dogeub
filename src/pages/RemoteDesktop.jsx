@@ -13,7 +13,7 @@ const makeShortPeerId = () => {
 export default function RemoteDesktop() {
   const localVideo = useRef(null), remoteVideo = useRef(null);
   const peerRef = useRef(null), callRef = useRef(null), streamRef = useRef(null);
-  const pendingRef = useRef(null), stoppingRef = useRef(false);
+  const requestRef = useRef(null), stoppingRef = useRef(false);
   const [mode, setMode] = useState('idle'), [code, setCode] = useState('');
   const [peerId, setPeerId] = useState(''), [incoming, setIncoming] = useState(false);
   const [connected, setConnected] = useState(false), [status, setStatus] = useState('Not connected');
@@ -22,10 +22,10 @@ export default function RemoteDesktop() {
   const stop = () => {
     stoppingRef.current = true;
     callRef.current?.close();
-    pendingRef.current?.close();
+    requestRef.current?.close();
     peerRef.current?.destroy();
     streamRef.current?.getTracks().forEach(t => t.stop());
-    callRef.current = pendingRef.current = peerRef.current = streamRef.current = null;
+    callRef.current = requestRef.current = peerRef.current = streamRef.current = null;
     if (localVideo.current) localVideo.current.srcObject = null;
     if (remoteVideo.current) remoteVideo.current.srcObject = null;
     setMode('idle'); setPeerId(''); setIncoming(false); setConnected(false);
@@ -34,18 +34,24 @@ export default function RemoteDesktop() {
 
   useEffect(() => () => {
     callRef.current?.close();
-    pendingRef.current?.close();
+    requestRef.current?.close();
     peerRef.current?.destroy();
     streamRef.current?.getTracks().forEach(t => t.stop());
   }, []);
 
-  const wireCall = (call, incomingCall = false) => {
+  const wireCall = (call, answerIncoming = false) => {
     callRef.current = call;
     call.on('stream', stream => {
       if (remoteVideo.current) remoteVideo.current.srcObject = stream;
       setConnected(true); setStatus('Connected — screen is live');
     });
     call.on('close', () => {
+      const wasCurrentCall = callRef.current === call;
+      if (wasCurrentCall) {
+        callRef.current = null;
+        requestRef.current?.close();
+        requestRef.current = null;
+      }
       setConnected(false);
       if (!stoppingRef.current) setStatus('The other computer disconnected');
       if (remoteVideo.current) remoteVideo.current.srcObject = null;
@@ -53,7 +59,7 @@ export default function RemoteDesktop() {
     call.on('error', err => {
       if (!stoppingRef.current) setError(`Connection failed${err?.type ? ` (${err.type})` : ''}. Check both devices and try a new code.`);
     });
-    if (incomingCall) call.answer(streamRef.current);
+    if (answerIncoming) call.answer();
   };
 
   const host = async () => {
@@ -68,11 +74,44 @@ export default function RemoteDesktop() {
       const peer = new window.Peer(makeShortPeerId()); peerRef.current = peer; setMode('host');
       setStatus('Starting connection…');
       peer.on('open', id => { setPeerId(id); setStatus('Ready — waiting for connection'); });
-      peer.on('call', call => {
-        if (callRef.current || pendingRef.current) return call.close();
-        pendingRef.current = call; setIncoming(true); setStatus('Incoming request — approval required');
+      peer.on('connection', connection => {
+        // A data connection is only a request. The host sends no screen
+        // stream until the user explicitly approves it below.
+        if (requestRef.current || callRef.current) {
+          connection.close();
+          return;
+        }
+        if (connection.metadata?.type !== 'dogeub-screen-share-request') {
+          connection.close();
+          return;
+        }
+        requestRef.current = connection;
+        connection.on('open', () => {
+          if (requestRef.current !== connection) return;
+          setIncoming(true);
+          setStatus('Incoming request — approval required');
+        });
+        connection.on('error', err => {
+          if (!stoppingRef.current) {
+            setError(`Connection request failed${err?.type ? ` (${err.type})` : ''}. Try a new code.`);
+          }
+        });
+        connection.on('close', () => {
+          if (requestRef.current !== connection) return;
+          requestRef.current = null;
+          setIncoming(false);
+          if (!stoppingRef.current && !callRef.current) setStatus('Connection request ended');
+        });
       });
-      peer.on('error', err => setError(err?.type === 'unavailable-id' ? 'That short code is already in use. Stop hosting and start again for a new code.' : `Host setup failed${err?.type ? ` (${err.type})` : ''}. Check the internet connection and refresh if needed.`));
+      // The host is always the sender of the screen stream. Reject unsolicited
+      // incoming media calls so sharing never starts without host approval.
+      peer.on('call', call => call.close());
+      peer.on('error', err => {
+        if (stoppingRef.current) return;
+        setError(err?.type === 'unavailable-id'
+          ? 'That short code is already in use. Stop hosting and start again for a new code.'
+          : `Host setup failed${err?.type ? ` (${err.type})` : ''}. Check the internet connection and refresh if needed.`);
+      });
     } catch (err) {
       if (!['NotAllowedError', 'AbortError'].includes(err?.name)) setError('Could not share screen. Check browser permissions.');
     }
@@ -86,36 +125,90 @@ export default function RemoteDesktop() {
     setStatus('Connecting to host…');
     peer.on('open', () => {
       const hostCode = code.trim().toLowerCase();
-      const call = peer.call(hostCode);
-      if (call) wireCall(call);
-      else {
-        setError('Could not create the call. Check the host code and try again; if it repeats, the PeerJS signaling service may be unavailable.');
-        setStatus('Call could not start');
+      let connection;
+      try {
+        connection = peer.connect(hostCode, {
+          reliable: true,
+          metadata: { type: 'dogeub-screen-share-request' },
+        });
+      } catch {
+        setError('Could not send the connection request. Check the host code and try again.');
+        setStatus('Request could not start');
+        return;
       }
+      if (!connection) {
+        setError('Could not send the connection request. Check the host code and try again.');
+        setStatus('Request could not start');
+        return;
+      }
+      requestRef.current = connection;
+      connection.on('open', () => {
+        if (requestRef.current === connection) setStatus('Request sent — waiting for host approval');
+      });
+      connection.on('error', err => {
+        if (stoppingRef.current) return;
+        setError(`Connection request failed${err?.type ? ` (${err.type})` : ''}. Check the host code and both internet connections.`);
+        setStatus('Request failed');
+      });
+      connection.on('close', () => {
+        if (requestRef.current !== connection) return;
+        requestRef.current = null;
+        if (!stoppingRef.current && !callRef.current) setStatus('Request ended before the screen connected');
+      });
+    });
+    peer.on('call', call => {
+      // The host calls back with its screen stream only after approval. The
+      // viewer answers without sharing its own camera or microphone.
+      if (stoppingRef.current || callRef.current) {
+        call.close();
+        return;
+      }
+      wireCall(call, true);
+      setStatus('Approved — connecting to screen…');
     });
     peer.on('error', err => {
       if (stoppingRef.current) return;
       const messages = {
-        'peer-unavailable': 'Host code not found. Make sure hosting is still active and copy the newest 10-character code.',
+        'peer-unavailable': 'Host code not found. Make sure hosting is active and copy the newest 10-character code.',
         'network': 'PeerJS signaling connection failed. Check internet on both laptops and try again.',
         'server-error': 'PeerJS signaling server error. Wait a moment and retry.',
         'socket-error': 'Could not reach the signaling server. Check internet access and try again.',
         'disconnected': 'Disconnected from the signaling server. Stop and start the connection again.',
       };
       setError(messages[err?.type] || `Connection failed${err?.type ? ` (${err.type})` : ''}. Check the code and both internet connections.`);
+      setStatus('Connection failed');
     });
   };
 
   const approve = () => {
-    const call = pendingRef.current;
-    if (!call || !streamRef.current) return;
-    pendingRef.current = null; setIncoming(false); wireCall(call, true);
-    setConnected(true); setStatus('Approved — sharing screen');
+    const request = requestRef.current;
+    const peer = peerRef.current;
+    const stream = streamRef.current;
+    if (!request || !peer || !stream) return;
+    setError('');
+    setIncoming(false);
+    // PeerJS requires a MediaStream for outgoing media calls. Previously the
+    // viewer called peer.call() without one, so PeerJS returned nothing.
+    // Now the approved host calls the viewer with its captured screen stream.
+    const call = peer.call(request.peer, stream);
+    if (!call) {
+      setError('Could not start screen sharing after approval. Stop hosting and try again.');
+      setStatus('Screen sharing could not start');
+      requestRef.current = null;
+      request.close();
+      return;
+    }
+    wireCall(call);
+    setConnected(true);
+    setStatus('Approved — sharing screen');
   };
 
   const decline = () => {
-    pendingRef.current?.close(); pendingRef.current = null;
-    setIncoming(false); setStatus('Connection declined');
+    const request = requestRef.current;
+    requestRef.current = null;
+    request?.close();
+    setIncoming(false);
+    setStatus('Connection declined');
   };
 
   const copy = async () => {
