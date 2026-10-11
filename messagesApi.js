@@ -1334,8 +1334,9 @@ export default async function registerMessagesRoutes(app) {
       if (!isGroupMember(groupId, user.id)) return sendError(reply, 403, "Join that group to mark it as read.");
     } else if (channel !== "global") return sendError(reply, 400, "Unknown read state.");
     const lastMessageAt = database.messages.reduce((latest, message) => {
+      const pairKey = channel === "dm" ? [user.id, peerId].sort().join(":") : "";
       const matches = channel === "global" ? message.channel === "global" :
-        channel === "dm" ? message.channel === "dm" && ((message.senderId === user.id && message.recipientId === peerId) || (message.senderId === peerId && message.recipientId === user.id)) :
+        channel === "dm" ? message.channel === "dm" && dmPairKeyForMessage(message) === pairKey :
         message.channel === "group" && message.groupId === groupId;
       return matches ? Math.max(latest, message.createdAt) : latest;
     }, 0);
@@ -1355,7 +1356,7 @@ export default async function registerMessagesRoutes(app) {
     for (const message of database.messages) {
       if (message.senderId === user.id) continue;
       if (message.channel === "global" && message.createdAt > getReadAt(user.id, "global")) unread.global += 1;
-      else if (message.channel === "dm" && (message.senderId === user.id || message.recipientId === user.id)) {
+      else if (message.channel === "dm" && (message.senderId === user.id || message.recipientId === user.id || dmPairKeyForMessage(message).split(":").includes(user.id))) {
         const peerId = dmPeerFor(message, user.id);
         if (message.createdAt > getReadAt(user.id, "dm", peerId)) unread.dms[peerId] = (unread.dms[peerId] || 0) + 1;
       } else if (message.channel === "group" && isGroupMember(message.groupId, user.id) && message.createdAt > getReadAt(user.id, "group", null, message.groupId)) {
