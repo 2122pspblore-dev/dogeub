@@ -293,7 +293,8 @@ const ThemedApp = memo(() => {
             <p className="mt-5 text-[10px] font-bold uppercase tracking-[.25em] text-cyan-200">DOGEUB status</p>
             <h1 className="mt-2 text-2xl font-bold sm:text-3xl">Temporarily unavailable</h1>
             <p className="mt-3 text-sm leading-6 text-white/60">{siteStatus.maintenanceMessage || 'DOGEUB is temporarily unavailable while we perform maintenance. Please check back soon.'}</p>
-            <p className="mt-5 text-xs text-white/30">Please check back later. Administrators can open the Admin Panel from the Start menu.</p>
+            <p className="mt-5 text-xs text-white/30">Please check back later. Signed-in administrators can open the Admin Panel from the Start menu.</p>
+            <a href="/messages" className="mt-5 inline-flex rounded-xl border border-cyan-200/20 px-4 py-2.5 text-xs font-semibold text-cyan-100 transition hover:bg-cyan-200/[.06]">Administrator sign-in</a>
           </section>
         </main>
       ) : siteStatus.gamesDisabled && ['/docs', '/docs/r', '/game-library'].includes(location.pathname) ? (
