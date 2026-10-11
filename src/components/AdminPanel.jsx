@@ -377,7 +377,7 @@ export default function AdminPanel() {
             <label className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-white/10 bg-black/15 px-3"><UserCog size={15} className="text-white/35" /><input value={adminUsername} onChange={(event) => setAdminUsername(event.target.value)} maxLength={24} autoComplete="off" placeholder="Enter an exact DOGEUB username" className="w-full bg-transparent py-3 text-sm outline-none" /></label>
             <button type="submit" disabled={Boolean(actionBusy) || !adminUsername.trim()} className="rounded-xl bg-cyan-300 px-4 py-3 text-sm font-bold text-slate-950 disabled:opacity-40">{actionBusy.startsWith('administrator:') ? 'Saving…' : 'Grant admin access'}</button>
           </form>
-          <p className="mt-3 rounded-xl border border-amber-200/15 bg-amber-200/[.04] p-3 text-xs leading-5 text-amber-100/75">The person must already have a DOGEUB Messages account. Deployment-configured administrators remain managed in Railway's DOGEUB_ADMIN_USERNAMES setting, and you cannot remove your own current access.</p>
+          <p className="mt-3 rounded-xl border border-amber-200/15 bg-amber-200/[.04] p-3 text-xs leading-5 text-amber-100/75">The person must already have a password-protected DOGEUB Messages account; username-only OS-linked accounts cannot be promoted because they can be claimed by typing the username. Deployment-configured administrators remain managed in Railway's DOGEUB_ADMIN_USERNAMES setting, and you cannot remove your own current access.</p>
           <div className="mt-5 space-y-2">
             {administrators.map((item) => {
               const currentAdmin = String(overview?.admin?.username || '').toLowerCase() === item.username.toLowerCase();
