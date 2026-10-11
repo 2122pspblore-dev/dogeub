@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   AlertTriangle, ArrowLeft, Check, FileText, Image, LogOut, MessageCircle,
   MessagesSquare, Paperclip, Plus, Search, Send, Settings, ShieldCheck,
-  Users, X, LoaderCircle, LockKeyhole, UserRound
+  Users, X, LoaderCircle, LockKeyhole, UserRound, BellRing
 } from "lucide-react";
 import { formatSize, listFiles } from "../utils/fileStore";
 
@@ -74,6 +74,12 @@ export default function Messages() {
   const [selectedPeer, setSelectedPeer] = useState(null);
   const [messages, setMessages] = useState([]);
   const [conversations, setConversations] = useState([]);
+  const [groups, setGroups] = useState([]);
+  const [groupNameDraft, setGroupNameDraft] = useState("");
+  const [joiningGroup, setJoiningGroup] = useState(false);
+  const [selectedGroup, setSelectedGroup] = useState(null);
+  const [messageToast, setMessageToast] = useState(null);
+  const [desktopNotifications, setDesktopNotifications] = useState(() => typeof window !== "undefined" && "Notification" in window ? window.Notification.permission : "unsupported");
   const [messageDraft, setMessageDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [pendingAttachment, setPendingAttachment] = useState(null);
@@ -93,11 +99,14 @@ export default function Messages() {
   const messageListRef = useRef(null);
   const shouldAutoScroll = useRef(true);
   const messageInputRef = useRef(null);
+  const notificationCursorRef = useRef(Date.now());
+  const seenNotificationIdsRef = useRef(new Set());
+  const toastTimerRef = useRef(null);
 
   useEffect(() => {
     let alive = true;
     apiRequest("/api/messages/session")
-      .then((data) => { if (alive) setSession(data.user || null); })
+      .then((data) => { if (alive) { notificationCursorRef.current = Date.now(); setSession(data.user || null); } })
       .catch((error) => { if (alive) setAppError(error.message); })
       .finally(() => { if (alive) setSessionLoading(false); });
     return () => { alive = false; };
@@ -112,15 +121,67 @@ export default function Messages() {
     }
   }, []);
 
+  const loadGroups = useCallback(async () => {
+    try {
+      const data = await apiRequest("/api/messages/groups");
+      setGroups(data.groups || []);
+    } catch (error) {
+      if (error.message && !error.message.startsWith("Sign in to DOGEUB")) setAppError(error.message);
+    }
+  }, []);
+
+  const showIncomingNotification = useCallback((item) => {
+    const message = item.message;
+    const sender = message?.sender?.username || "Someone";
+    const text = message?.text || (message?.attachment ? "Sent an attachment" : "New message");
+    const title = item.kind === "dm"
+      ? "New DM from @" + sender
+      : item.kind === "group"
+        ? "New message in " + (item.groupName || "group chat")
+        : "Global chat · @" + sender;
+    setMessageToast({ id: message?.id, kind: item.kind, title, body: text.slice(0, 110), message, groupName: item.groupName });
+    if (document.hidden && "Notification" in window && window.Notification.permission === "granted") {
+      try {
+        const desktopNotification = new window.Notification(title, {
+          body: text.slice(0, 140),
+          tag: "dogeub-message-" + (message?.id || Date.now())
+        });
+        desktopNotification.onclick = () => window.focus();
+      } catch {}
+    }
+    window.clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = window.setTimeout(() => setMessageToast(null), 7000);
+  }, []);
+
+  const loadNotifications = useCallback(async () => {
+    if (!session) return;
+    try {
+      const since = notificationCursorRef.current || Date.now();
+      const data = await apiRequest("/api/messages/notifications?since=" + since);
+      notificationCursorRef.current = Number(data.cursor) || Date.now();
+      for (const item of data.notifications || []) {
+        const id = item.message?.id;
+        if (!id || seenNotificationIdsRef.current.has(id)) continue;
+        seenNotificationIdsRef.current.add(id);
+        if (seenNotificationIdsRef.current.size > 500) seenNotificationIdsRef.current = new Set([...seenNotificationIdsRef.current].slice(-250));
+        showIncomingNotification(item);
+      }
+    } catch (error) {
+      if (error.message && !error.message.startsWith("Sign in to DOGEUB")) setAppError(error.message);
+    }
+  }, [session, showIncomingNotification]);
+
   const loadMessages = useCallback(async () => {
     if (!session) return;
-    if (activeChannel === "dm" && !selectedPeer) {
+    if ((activeChannel === "dm" && !selectedPeer) || (activeChannel === "group" && !selectedGroup)) {
       setMessages([]);
       return;
     }
     const query = activeChannel === "global"
       ? "?channel=global"
-      : "?channel=dm&with=" + encodeURIComponent(selectedPeer.id);
+      : activeChannel === "group"
+        ? "?channel=group&groupId=" + encodeURIComponent(selectedGroup.id)
+        : "?channel=dm&with=" + encodeURIComponent(selectedPeer.id);
     try {
       const data = await apiRequest("/api/messages/messages" + query);
       const next = data.messages || [];
@@ -132,18 +193,24 @@ export default function Messages() {
     } catch (error) {
       setAppError(error.message);
     }
-  }, [session, activeChannel, selectedPeer]);
+  }, [session, activeChannel, selectedPeer, selectedGroup]);
 
   useEffect(() => {
     if (!session) return undefined;
     loadMessages();
     loadConversations();
+    loadGroups();
+    loadNotifications();
     const interval = window.setInterval(() => {
       loadMessages();
       loadConversations();
+      loadGroups();
+      loadNotifications();
     }, 3500);
     return () => window.clearInterval(interval);
-  }, [session, loadMessages, loadConversations]);
+  }, [session, loadMessages, loadConversations, loadGroups, loadNotifications]);
+
+  useEffect(() => () => window.clearTimeout(toastTimerRef.current), []);
 
   useEffect(() => {
     if (!shouldAutoScroll.current) return;
@@ -173,6 +240,7 @@ export default function Messages() {
   }, [session, userSearch]);
 
   const startConversation = (peer) => {
+    setSelectedGroup(null);
     setSelectedPeer(peer);
     setActiveChannel("dm");
     setUserSearch("");
@@ -193,6 +261,8 @@ export default function Messages() {
         method: "POST",
         body: JSON.stringify({ username: authUsername, password: authPassword })
       });
+      notificationCursorRef.current = Date.now();
+      seenNotificationIdsRef.current.clear();
       setSession(data.user);
       setAuthPassword("");
       setProfileUsername(data.user.username);
@@ -209,6 +279,9 @@ export default function Messages() {
     setSession(null);
     setMessages([]);
     setConversations([]);
+    setGroups([]);
+    setMessageToast(null);
+    seenNotificationIdsRef.current.clear();
     setSelectedPeer(null);
     setActiveChannel("global");
     setPendingAttachment(null);
@@ -229,6 +302,7 @@ export default function Messages() {
         body: JSON.stringify({
           channel: activeChannel,
           recipientId: activeChannel === "dm" ? selectedPeer?.id : undefined,
+          groupId: activeChannel === "group" ? selectedGroup?.id : undefined,
           text,
           attachmentId: pendingAttachment?.id
         })
@@ -331,6 +405,68 @@ export default function Messages() {
     }
   };
 
+  const enableDesktopNotifications = async () => {
+    if (!("Notification" in window)) {
+      setDesktopNotifications("unsupported");
+      setNotice("Desktop notifications aren't supported by this browser.");
+      return;
+    }
+    try {
+      const permission = await window.Notification.requestPermission();
+      setDesktopNotifications(permission);
+      setNotice(permission === "granted"
+        ? "Desktop message notifications are enabled."
+        : permission === "denied"
+          ? "Notifications are blocked. Allow them in your browser's site settings."
+          : "Desktop notifications weren't enabled.");
+    } catch {
+      setNotice("Could not enable desktop notifications in this browser.");
+    }
+  };
+
+  const joinGroup = async (event) => {
+    event.preventDefault();
+    const name = groupNameDraft.trim();
+    if (!name || joiningGroup) return;
+    setJoiningGroup(true);
+    setAppError("");
+    try {
+      const data = await apiRequest("/api/messages/groups/join", { method: "POST", body: JSON.stringify({ name }) });
+      const group = data.group;
+      setGroups((previous) => previous.some((item) => item.id === group.id)
+        ? previous.map((item) => item.id === group.id ? group : item)
+        : [...previous, group].sort((a, b) => a.name.localeCompare(b.name)));
+      setGroupNameDraft("");
+      setSelectedPeer(null);
+      setSelectedGroup(group);
+      setActiveChannel("group");
+      setMessages([]);
+      setPendingAttachment(null);
+      shouldAutoScroll.current = true;
+      setNotice((data.created ? "Created " : "Joined ") + group.name + ".");
+      await Promise.all([loadGroups(), loadMessages()]);
+    } catch (error) {
+      setAppError(error.message);
+    } finally {
+      setJoiningGroup(false);
+    }
+  };
+
+  const openMessageToast = () => {
+    if (!messageToast) return;
+    const { kind, message } = messageToast;
+    if (kind === "global") {
+      setActiveChannel("global"); setSelectedPeer(null); setSelectedGroup(null); setMessages([]);
+    } else if (kind === "dm" && message?.sender) {
+      startConversation(message.sender);
+    } else if (kind === "group") {
+      const group = groups.find((item) => item.id === message?.groupId);
+      if (group) { setSelectedPeer(null); setSelectedGroup(group); setActiveChannel("group"); setMessages([]); }
+    }
+    setMessageToast(null);
+    shouldAutoScroll.current = true;
+  };
+
   const reportMessage = async (message) => {
     setReportingId(message.id);
     try {
@@ -346,10 +482,12 @@ export default function Messages() {
     }
   };
 
-  const activeTitle = activeChannel === "global" ? "Global chat" : selectedPeer?.username || "Direct message";
+  const activeTitle = activeChannel === "global" ? "Global chat" : activeChannel === "group" ? selectedGroup?.name || "Group chat" : selectedPeer?.username || "Direct message";
   const activeSubtitle = activeChannel === "global"
     ? "Everyone signed in can see messages here."
-    : "Private between you and " + (selectedPeer?.username || "this user") + ".";
+    : activeChannel === "group"
+      ? "Saved group chat · " + (selectedGroup?.memberCount || 0) + " members"
+      : "Private between you and " + (selectedPeer?.username || "this user") + ".";
   const previewAvatar = avatarDraft ? avatarDraft : clearAvatar ? null : session?.avatarUrl;
   if (sessionLoading) {
     return <main className="min-h-screen px-4 pb-28 pt-16 text-white"><div className="mx-auto flex max-w-md items-center justify-center gap-3 rounded-3xl border border-white/10 bg-slate-950/70 p-10"><Spinner /><span className="text-sm text-white/60">Connecting to DOGEUB Messages…</span></div></main>;
@@ -408,6 +546,7 @@ export default function Messages() {
             <div className="min-w-0"><h1 className="truncate text-lg font-bold tracking-tight">Doge Messages</h1><p className="text-[11px] text-white/35">Connected as @{session.username}</p></div>
           </div>
           <div className="flex items-center gap-2">
+            <button type="button" onClick={enableDesktopNotifications} disabled={desktopNotifications === "unsupported"} title={desktopNotifications === "granted" ? "Desktop alerts are enabled when this tab is in the background" : desktopNotifications === "denied" ? "Notifications are blocked in browser site settings" : "Enable desktop message alerts"} aria-label="Enable desktop message notifications" className="flex h-10 items-center gap-2 rounded-xl border border-cyan-100/15 bg-cyan-100/[.05] px-3 text-[11px] font-semibold text-cyan-50/80 transition hover:bg-cyan-100/10 disabled:cursor-not-allowed disabled:opacity-40"><BellRing size={15} />{desktopNotifications === "granted" ? "Alerts on" : desktopNotifications === "denied" ? "Alerts blocked" : desktopNotifications === "unsupported" ? "No alerts" : "Enable alerts"}</button>
             <button type="button" onClick={() => { setProfileUsername(session.username); setAvatarDraft(""); setClearAvatar(false); setProfileOpen(true); }} className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[.04] p-1.5 pr-3 text-left transition hover:bg-white/[.08]"><Avatar user={session} size="sm" /><span className="max-w-28 truncate text-xs font-semibold">@{session.username}</span><Settings size={14} className="text-white/40" /></button>
             <button type="button" title="Sign out" aria-label="Sign out" onClick={logout} className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 text-white/50 transition hover:border-rose-200/20 hover:bg-rose-200/[.06] hover:text-rose-100"><LogOut size={17} /></button>
           </div>
@@ -418,7 +557,7 @@ export default function Messages() {
         <div className="grid min-h-[min(730px,calc(100vh-10rem))] overflow-hidden rounded-2xl border border-white/10 bg-slate-950/55 shadow-[0_25px_100px_rgba(0,0,0,.25)] backdrop-blur-2xl lg:grid-cols-[280px_minmax(0,1fr)]">
           <aside className="flex min-h-0 flex-col border-b border-white/10 bg-black/10 lg:border-b-0 lg:border-r">
             <div className="p-3">
-              <button type="button" onClick={() => { setActiveChannel("global"); setSelectedPeer(null); setPendingAttachment(null); setMessages([]); shouldAutoScroll.current = true; }} className={"flex w-full items-center gap-3 rounded-xl border px-3 py-3 text-left transition " + (activeChannel === "global" ? "border-cyan-100/20 bg-cyan-100/[.08]" : "border-transparent hover:bg-white/[.04]")}>
+              <button type="button" onClick={() => { setActiveChannel("global"); setSelectedPeer(null); setSelectedGroup(null); setPendingAttachment(null); setMessages([]); shouldAutoScroll.current = true; }} className={"flex w-full items-center gap-3 rounded-xl border px-3 py-3 text-left transition " + (activeChannel === "global" ? "border-cyan-100/20 bg-cyan-100/[.08]" : "border-transparent hover:bg-white/[.04]")}>
                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-100/10 text-cyan-100"><Users size={19} /></span>
                 <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">Global chat</span><span className="mt-1 block text-[11px] text-white/35">Everyone on DOGEUB</span></span>
                 <span className="h-2 w-2 rounded-full bg-emerald-300 shadow-[0_0_10px_rgba(110,231,183,.5)]" />
@@ -433,6 +572,16 @@ export default function Messages() {
             </div>
 
             <div className="min-h-24 flex-1 overflow-y-auto px-3 pb-3">
+              <div className="mb-3 rounded-xl border border-cyan-100/10 bg-cyan-100/[.035] p-3">
+                <div className="mb-2 flex items-center gap-2"><Users size={14} className="text-cyan-100/70" /><p className="text-[10px] font-bold uppercase tracking-[.18em] text-white/45">Group chats</p><span className="ml-auto text-[10px] text-white/25">{groups.length}</span></div>
+                <form onSubmit={joinGroup} className="flex gap-1.5">
+                  <input value={groupNameDraft} onChange={(event) => setGroupNameDraft(event.target.value.slice(0, 40))} minLength={3} maxLength={40} placeholder="Type a group name…" aria-label="Group name to join or create" className="min-w-0 flex-1 rounded-lg border border-white/10 bg-black/20 px-2.5 py-2 text-[11px] outline-none placeholder:text-white/25 focus:border-cyan-100/30" />
+                  <button type="submit" disabled={joiningGroup || groupNameDraft.trim().length < 3} className="rounded-lg bg-cyan-100 px-2.5 py-2 text-[10px] font-bold text-slate-950 hover:bg-white disabled:opacity-40">{joiningGroup ? <Spinner small /> : "Join"}</button>
+                </form>
+                <p className="mt-1.5 text-[9px] leading-4 text-white/30">Existing names join the saved group; new names create one.</p>
+                {groups.length > 0 && <div className="mt-2 space-y-1">{groups.map((group) => <button type="button" key={group.id} onClick={() => { setSelectedPeer(null); setSelectedGroup(group); setActiveChannel("group"); setMessages([]); setPendingAttachment(null); shouldAutoScroll.current = true; }} className={"flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left " + (activeChannel === "group" && selectedGroup?.id === group.id ? "bg-cyan-100/10 text-cyan-50" : "text-white/65 hover:bg-white/[.05]")}><Users size={14} className="shrink-0 text-cyan-100/70" /><span className="min-w-0 flex-1 truncate text-xs font-semibold">{group.name}</span><span className="text-[9px] text-white/30">{group.memberCount}</span></button>)}</div>}
+              </div>
+              <div className="mb-2 px-1"><p className="text-[10px] font-bold uppercase tracking-[.18em] text-white/30">Direct messages</p></div>
               {conversations.length ? conversations.map((conversation) => {
                 const peer = conversation.user;
                 const active = activeChannel === "dm" && selectedPeer?.id === peer.id;
@@ -451,9 +600,9 @@ export default function Messages() {
 
           <section className="flex min-h-[540px] min-w-0 flex-col">
             <header className="flex items-center gap-3 border-b border-white/10 px-4 py-3.5 sm:px-6">
-              {activeChannel === "dm" && <button type="button" aria-label="Back to global chat" onClick={() => { setActiveChannel("global"); setSelectedPeer(null); }} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 text-white/50 hover:bg-white/[.06] lg:hidden"><ArrowLeft size={16} /></button>}
-              {activeChannel === "global" ? <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-cyan-100/15 bg-cyan-100/[.07] text-cyan-100"><MessagesSquare size={19} /></div> : <Avatar user={selectedPeer} />}
-              <div className="min-w-0 flex-1"><div className="flex items-center gap-2"><h2 className="truncate text-sm font-bold">{activeTitle}</h2>{activeChannel === "global" ? <span className="rounded-full border border-emerald-200/15 bg-emerald-200/[.05] px-2 py-0.5 text-[9px] font-semibold text-emerald-100/70">PUBLIC</span> : <span className="rounded-full border border-violet-200/15 bg-violet-200/[.05] px-2 py-0.5 text-[9px] font-semibold text-violet-100/70">PRIVATE</span>}</div><p className="mt-1 truncate text-[11px] text-white/35">{activeSubtitle}</p></div>
+              {activeChannel !== "global" && <button type="button" aria-label="Back to global chat" onClick={() => { setActiveChannel("global"); setSelectedPeer(null); setSelectedGroup(null); }} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 text-white/50 hover:bg-white/[.06] lg:hidden"><ArrowLeft size={16} /></button>}
+              {activeChannel === "global" ? <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-cyan-100/15 bg-cyan-100/[.07] text-cyan-100"><MessagesSquare size={19} /></div> : activeChannel === "group" ? <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-cyan-100/15 bg-cyan-100/[.07] text-cyan-100"><Users size={19} /></div> : <Avatar user={selectedPeer} />}
+              <div className="min-w-0 flex-1"><div className="flex items-center gap-2"><h2 className="truncate text-sm font-bold">{activeTitle}</h2>{activeChannel === "global" ? <span className="rounded-full border border-emerald-200/15 bg-emerald-200/[.05] px-2 py-0.5 text-[9px] font-semibold text-emerald-100/70">PUBLIC</span> : <span className="rounded-full border border-violet-200/15 bg-violet-200/[.05] px-2 py-0.5 text-[9px] font-semibold text-violet-100/70">{activeChannel === "group" ? "GROUP" : "PRIVATE"}</span>}</div><p className="mt-1 truncate text-[11px] text-white/35">{activeSubtitle}</p></div>
               <span className="hidden items-center gap-1.5 text-[10px] text-white/25 sm:flex"><span className="h-1.5 w-1.5 rounded-full bg-emerald-300/80" /> Live updates</span>
             </header>
 
@@ -462,10 +611,10 @@ export default function Messages() {
               onScroll={(event) => { const element = event.currentTarget; shouldAutoScroll.current = element.scrollHeight - element.scrollTop - element.clientHeight < 100; }}
               className="min-h-0 flex-1 space-y-4 overflow-y-auto px-3 py-4 sm:px-6 sm:py-5"
             >
-              {activeChannel === "dm" && !selectedPeer ? (
-                <div className="flex h-full min-h-64 flex-col items-center justify-center text-center"><LockKeyhole size={28} className="text-violet-100/45" /><h3 className="mt-3 text-sm font-semibold text-white/75">Choose a conversation</h3><p className="mt-1 max-w-xs text-xs leading-5 text-white/35">Search for someone by DOGEUB username to start a private chat.</p></div>
+              {(activeChannel === "dm" && !selectedPeer) || (activeChannel === "group" && !selectedGroup) ? (
+                <div className="flex h-full min-h-64 flex-col items-center justify-center text-center"><Users size={28} className="text-cyan-100/45" /><h3 className="mt-3 text-sm font-semibold text-white/75">Choose a conversation</h3><p className="mt-1 max-w-xs text-xs leading-5 text-white/35">Choose a saved group or search for a user to start chatting.</p></div>
               ) : messages.length === 0 ? (
-                <div className="flex h-full min-h-64 flex-col items-center justify-center px-6 text-center"><div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/[.035] text-white/30">{activeChannel === "global" ? <Users size={24} /> : <MessageCircle size={24} />}</div><h3 className="mt-4 text-sm font-semibold text-white/70">{activeChannel === "global" ? "It's quiet in here." : "Start the conversation."}</h3><p className="mt-1 max-w-xs text-xs leading-5 text-white/35">{activeChannel === "global" ? "Say hello to other DOGEUB users. Messages here are public to signed-in accounts." : "Only you and @" + (selectedPeer?.username || "this user") + " can read this conversation."}</p></div>
+                <div className="flex h-full min-h-64 flex-col items-center justify-center px-6 text-center"><div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/[.035] text-white/30">{activeChannel === "global" ? <Users size={24} /> : <MessageCircle size={24} />}</div><h3 className="mt-4 text-sm font-semibold text-white/70">{activeChannel === "global" ? "It's quiet in here." : "Start the conversation."}</h3><p className="mt-1 max-w-xs text-xs leading-5 text-white/35">{activeChannel === "global" ? "Say hello to other DOGEUB users. Messages here are public to signed-in accounts." : activeChannel === "group" ? "Everyone who joins this saved group can read its messages." : "Only you and @" + (selectedPeer?.username || "this user") + " can read this conversation."}</p></div>
               ) : messages.map((message) => {
                 const own = message.sender?.id === session.id;
                 return <article key={message.id} className="group flex items-start gap-2.5">
@@ -491,12 +640,12 @@ export default function Messages() {
                   value={messageDraft}
                   onChange={(event) => setMessageDraft(event.target.value.slice(0, 1200))}
                   onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }}
-                  placeholder={activeChannel === "global" ? "Message the DOGEUB community…" : selectedPeer ? "Message @" + selectedPeer.username + " privately…" : "Choose a conversation first…"}
-                  disabled={activeChannel === "dm" && !selectedPeer}
+                  placeholder={activeChannel === "global" ? "Message the DOGEUB community…" : activeChannel === "group" ? "Message the " + (selectedGroup?.name || "group") + " group…" : selectedPeer ? "Message @" + selectedPeer.username + " privately…" : "Choose a conversation first…"}
+                  disabled={(activeChannel === "dm" && !selectedPeer) || (activeChannel === "group" && !selectedGroup)}
                   aria-label="Message"
                   className="max-h-32 min-h-10 min-w-0 flex-1 resize-y bg-transparent px-1 py-2.5 text-[13px] leading-5 outline-none placeholder:text-white/25 disabled:opacity-30"
                 />
-                <button type="submit" disabled={sending || (!messageDraft.trim() && !pendingAttachment) || (activeChannel === "dm" && !selectedPeer)} aria-label="Send message" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cyan-100 text-slate-950 transition hover:bg-white disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/25">{sending ? <Spinner small /> : <Send size={17} />}</button>
+                <button type="submit" disabled={sending || (!messageDraft.trim() && !pendingAttachment) || ((activeChannel === "dm" && !selectedPeer) || (activeChannel === "group" && !selectedGroup))} aria-label="Send message" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cyan-100 text-slate-950 transition hover:bg-white disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/25">{sending ? <Spinner small /> : <Send size={17} />}</button>
               </form>
               <div className="mt-2 flex flex-wrap items-center justify-between gap-2 px-1 text-[10px] text-white/25"><span>Enter to send · Shift+Enter for a new line · Profanity filter on</span><span>{messageDraft.length}/1200</span></div>
             </div>
@@ -521,7 +670,12 @@ export default function Messages() {
         </section>
       </div>}
 
-      {profileOpen && <div className="fixed inset-0 z-[17000] flex items-center justify-center bg-black/70 p-3 backdrop-blur-md" onMouseDown={(event) => { if (event.target === event.currentTarget) setProfileOpen(false); }}>
+      {messageToast && <div role="status" aria-live="polite" className="fixed bottom-24 right-4 z-[18000] w-[min(92vw,360px)] overflow-hidden rounded-2xl border border-cyan-100/20 bg-slate-950/95 p-4 text-white shadow-[0_20px_80px_rgba(0,0,0,.55)] backdrop-blur-2xl">
+            <div className="flex items-start gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-cyan-100/15 bg-cyan-100/10 text-cyan-100"><BellRing size={18} /></span><div className="min-w-0 flex-1"><p className="text-xs font-bold">{messageToast.title}</p><p className="mt-1 break-words text-[11px] leading-5 text-white/55">{messageToast.body}</p></div><button type="button" aria-label="Dismiss message notification" onClick={() => setMessageToast(null)} className="text-white/35 hover:text-white"><X size={15} /></button></div>
+            <button type="button" onClick={openMessageToast} className="mt-3 w-full rounded-xl bg-cyan-100 px-3 py-2 text-xs font-bold text-slate-950 transition hover:bg-white">Open conversation</button>
+          </div>}
+
+          {profileOpen && <div className="fixed inset-0 z-[17000] flex items-center justify-center bg-black/70 p-3 backdrop-blur-md" onMouseDown={(event) => { if (event.target === event.currentTarget) setProfileOpen(false); }}>
         <section role="dialog" aria-modal="true" aria-label="Edit Messages profile" className="w-full max-w-md overflow-hidden rounded-2xl border border-white/15 bg-slate-950/95 shadow-2xl">
           <header className="flex items-center gap-3 border-b border-white/10 px-5 py-4"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-100/10 text-violet-100"><UserRound size={18} /></div><div className="flex-1"><h2 className="text-sm font-bold">Your profile</h2><p className="mt-1 text-[11px] text-white/40">Change your username and custom picture.</p></div><button type="button" aria-label="Close profile" onClick={() => setProfileOpen(false)} className="flex h-8 w-8 items-center justify-center rounded-lg text-white/45 hover:bg-white/10 hover:text-white"><X size={16} /></button></header>
           <form onSubmit={saveProfile} className="space-y-5 p-5">
