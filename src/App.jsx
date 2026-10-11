@@ -41,6 +41,7 @@ const importPCCenter = () => import('./pages/PCCenter');
 const importGameLibrary = () => import('./pages/GameLibrary');
 const importStudentCenter = () => import('./pages/StudentCenter');
 const importSocialCenter = () => import('./pages/SocialCenter');
+const importPublicProfile = () => import('./pages/PublicProfile');
 
 const Home = lazyLoad(importHome);
 const Apps = lazyLoad(importApps);
@@ -56,6 +57,7 @@ const PCCenter = lazyLoad(importPCCenter);
 const GameLibrary = lazyLoad(importGameLibrary);
 const StudentCenter = lazyLoad(importStudentCenter);
 const SocialCenter = lazyLoad(importSocialCenter);
+const PublicProfile = lazyLoad(importPublicProfile);
 const Player = lazyLoad(() => import('./pages/Player'));
 
 initPreload('/materials', importApps);
@@ -195,6 +197,7 @@ const ThemedApp = memo(() => {
       { path: '/game-library', element: <GameLibrary /> },
       { path: '/student-center', element: <StudentCenter /> },
       { path: '/social', element: <SocialCenter /> },
+      { path: '/profile/:username', element: <PublicProfile /> },
       { path: '/portal/k12/*', element: <NotFound /> },
       { path: '/ham/*', element: <NotFound /> },
       { path: '*', element: <NotFound /> },
