@@ -312,6 +312,25 @@ export default async function registerMessagesRoutes(app) {
     return true;
   };
 
+  app.post("/api/messages/guest", async (request, reply) => {
+    const ip = request.ip || "unknown";
+    if (!allowRate("guest:" + ip, 20, 60 * 60 * 1000)) return sendError(reply, 429, "Too many guest sessions from this connection. Try again later.");
+    const username = "Guest_" + randomBytes(4).toString("hex").slice(0, 8);
+    const user = {
+      id: randomUUID(), username, normalizedUsername: normalizeUsername(username),
+      passwordSalt: "", passwordHash: "", avatarFile: null, avatarType: null,
+      avatarUpdatedAt: 0, createdAt: Date.now(), bio: "", statusMessage: "",
+      bannerColor: "#172554", lastSeenAt: Date.now(), isGuest: true
+    };
+    database.users.push(user);
+    try { await persist(); } catch {
+      database.users = database.users.filter((item) => item.id !== user.id);
+      return sendError(reply, 500, "Could not start a guest Messages session. Try again.");
+    }
+    setSession(reply, user.id);
+    return reply.code(201).send({ user: publicUser(user), guest: true });
+  });
+
   app.get("/api/messages/session", async (request, reply) => {
     const user = currentUser(request);
     return reply.send({ user: user?.isSuspended ? null : publicUser(user) });
