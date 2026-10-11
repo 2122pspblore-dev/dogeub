@@ -16,6 +16,7 @@ export default function RemoteDesktop() {
   const [error, setError] = useState('');
   const [status, setStatus] = useState('Not connected');
   const [copied, setCopied] = useState(false);
+  const stoppingRef = useRef(false);
 
   useEffect(() => () => {
     callRef.current?.close();
@@ -24,6 +25,8 @@ export default function RemoteDesktop() {
   }, []);
 
   const stopSession = () => {
+    // Set this first so close events triggered by our own disconnect don't overwrite the final status.
+    stoppingRef.current = true;
     callRef.current?.close();
     callRef.current = null;
     peerRef.current?.destroy();
@@ -36,7 +39,8 @@ export default function RemoteDesktop() {
     setConnected(false);
     setPeerId('');
     setMode('idle');
-    setStatus('Not connected');
+    setError('');
+    setStatus('Disconnected — this session has ended');
   };
 
   const wireCall = (call, localStream, incoming = false) => {
@@ -48,17 +52,19 @@ export default function RemoteDesktop() {
     });
     call.on('close', () => {
       setConnected(false);
-      setStatus('Peer disconnected');
+      if (!stoppingRef.current) setStatus('The other computer disconnected');
       if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
     });
-    call.on('error', () => {
-      setError('The peer connection failed. Check the code and try again.');
+    call.on('error', (err) => {
+      if (stoppingRef.current) return;
+      setError(`The screen connection failed${err?.type ? ` (${err.type})` : ''}. Check both devices are online, refresh both pages, and try a new code.`);
       setConnected(false);
     });
     if (incoming) call.answer(localStream);
   };
 
   const startHosting = async () => {
+    stoppingRef.current = false;
     setError('');
     const Peer = window.Peer;
     if (!Peer) { setError('Remote Desktop connection library did not load. Refresh and try again.'); return; }
@@ -80,6 +86,11 @@ export default function RemoteDesktop() {
         setStatus('Ready — waiting for someone to connect');
       });
       peer.on('call', (call) => {
+        // Only allow one pending/active viewer at a time.
+        if (callRef.current || incomingCall) {
+          call.close();
+          return;
+        }
         setIncomingCall(call);
         setStatus('Incoming connection — approval required');
       });
@@ -109,6 +120,7 @@ export default function RemoteDesktop() {
   };
 
   const joinSession = () => {
+    stoppingRef.current = false;
     setError('');
     const Peer = window.Peer;
     if (!Peer) { setError('Remote Desktop connection library did not load. Refresh and try again.'); return; }
@@ -130,7 +142,8 @@ export default function RemoteDesktop() {
       wireCall(call, null, false);
     });
     peer.on('error', (err) => {
-      setError(err?.type === 'peer-unavailable' ? 'That host code is offline or incorrect.' : 'Could not connect. Check the code and try again.');
+      if (stoppingRef.current) return;
+      setError(err?.type === 'peer-unavailable' ? 'That host code is offline or incorrect. Start hosting first and use the newest code.' : `Could not connect${err?.type ? ` (${err.type})` : ''}. Check both devices have internet, refresh both pages, and try again.`);
     });
   };
 
@@ -148,7 +161,7 @@ export default function RemoteDesktop() {
     <div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-[10px] font-bold uppercase tracking-[.25em] text-cyan-300">DOGEUB CONNECT</p><h1 className="mt-2 text-3xl font-bold sm:text-4xl">Remote Desktop</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">Share a screen between two browsers using a connection code. The host must approve every incoming connection before the screen is sent.</p></div><span className="inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-300/[.07] px-3 py-2 text-xs text-emerald-100"><ShieldCheck size={15}/> Host approval required</span></div>
     <div className="mt-7 grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(300px,.8fr)]">
       <section className="overflow-hidden rounded-3xl border border-white/10 bg-slate-950/65 shadow-2xl">
-        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-5 py-4"><div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-xl border border-cyan-200/15 bg-cyan-200/[.08] text-cyan-100"><MonitorUp size={19}/></span><div><h2 className="font-semibold">{mode === 'viewer' ? 'Remote screen' : 'Your shared screen'}</h2><p className="mt-0.5 text-xs text-slate-500">{status}</p></div></div>{mode !== 'idle' && <button onClick={stopSession} className="inline-flex items-center gap-2 rounded-xl bg-rose-300 px-4 py-2.5 text-xs font-bold text-slate-950 hover:bg-rose-200"><Square size={14}/> Disconnect</button>}</header>
+        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-5 py-4"><div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-xl border border-cyan-200/15 bg-cyan-200/[.08] text-cyan-100"><MonitorUp size={19}/></span><div><h2 className="font-semibold">{mode === 'viewer' ? 'Remote screen' : 'Your shared screen'}</h2><p className="mt-0.5 text-xs text-slate-500">{status}</p></div></div>{mode !== 'idle' && <button onClick={stopSession} aria-label="Emergency disconnect and stop screen sharing" title="Immediately end this session and stop sharing" className="inline-flex items-center gap-2 rounded-xl bg-rose-500 px-4 py-2.5 text-xs font-extrabold text-white ring-2 ring-rose-300/30 hover:bg-rose-400 focus:outline-none focus:ring-4 focus:ring-rose-300/50"><Square size={14}/> EMERGENCY DISCONNECT</button>}</header>
         <div className="relative grid min-h-[260px] place-items-center bg-[radial-gradient(ellipse_at_top,rgba(34,211,238,.10),transparent_55%),#050914] p-4 sm:min-h-[420px]">
           <video ref={mode === 'viewer' ? remoteVideoRef : localVideoRef} autoPlay playsInline muted={mode !== 'viewer'} className={(connected || (mode === 'host' && !!streamRef.current) ? 'block' : 'hidden') + ' max-h-[65vh] w-full rounded-xl bg-black object-contain'} />
           {!connected && !(mode === 'host' && streamRef.current) && <div className="max-w-sm text-center"><div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl border border-white/10 bg-white/[.04] text-slate-500"><Monitor size={28}/></div><h3 className="mt-4 text-sm font-semibold">Ready to connect</h3><p className="mt-2 text-xs leading-5 text-slate-500">Start hosting on the computer being shared, or enter its code from the other computer.</p></div>}
@@ -163,8 +176,8 @@ export default function RemoteDesktop() {
         {error && <p role="alert" className="rounded-xl border border-rose-300/20 bg-rose-300/[.06] p-3 text-xs leading-5 text-rose-100">{error}</p>}
       </aside>
     </div>
-    <section className="mt-5 grid gap-3 sm:grid-cols-3">{[{title:'Approval first',body:'Incoming calls are never answered automatically.'},{title:'Encrypted peer link',body:'WebRTC encrypts media in transit; the signaling provider helps peers connect.'},{title:'View-only for now',body:'This version streams the selected screen but does not send mouse or keyboard input.'}].map((item) => <article key={item.title} className="rounded-2xl border border-white/10 bg-white/[.025] p-4"><h3 className="text-sm font-semibold">{item.title}</h3><p className="mt-2 text-xs leading-5 text-slate-500">{item.body}</p></article>)}</section>
-    <div className="mt-5 flex items-start gap-2 text-xs leading-5 text-slate-500"><AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-200"/>This is view-only remote screen sharing, not full mouse/keyboard control. Connection setup uses PeerJS's public signaling service, so availability depends on that third-party service. Only share the code with someone you trust.</div>
+    <section className="mt-5 grid gap-3 sm:grid-cols-3">{[{title:'Approval first',body:'Incoming calls are never answered automatically.'},{title:'Emergency disconnect',body:'The red button ends the call, destroys the peer connection, and stops the screen capture.'},{title:'Mouse/keyboard control',body:'Not available in a browser-only page. Full desktop input requires a separately installed host app with explicit approval.'}].map((item) => <article key={item.title} className="rounded-2xl border border-white/10 bg-white/[.025] p-4"><h3 className="text-sm font-semibold">{item.title}</h3><p className="mt-2 text-xs leading-5 text-slate-500">{item.body}</p></article>)}</section>
+    <div className="mt-5 flex items-start gap-2 text-xs leading-5 text-slate-500"><AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-200"/>This page provides view-only screen sharing. A webpage cannot move the real Windows mouse or type into other desktop apps; that requires a separate, permission-based host app. Connection setup uses PeerJS's public signaling service, so availability depends on that third-party service. Only share the code with someone you trust.</div>
     <p className="mt-3 text-xs text-slate-600"><CircleHelp size={13} className="mr-1 inline"/>Both computers need internet access and Dogeub open in a supported browser over HTTPS. The host must keep this page open while sharing.</p>
   </main></div>;
 }
