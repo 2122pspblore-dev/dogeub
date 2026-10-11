@@ -218,16 +218,83 @@ export default function RemoteDesktop() {
     setError('');
     try {
       const socket = new WebSocket('ws://127.0.0.1:8765'); controlSocketRef.current = socket;
-      socket.onopen = () => { socket.send(JSON.stringify({ type: 'arm', confirmed: true })); controlEnabledRef.current = true; setControlEnabled(true); setControlReady(true); setStatus('Remote control enabled — host can disconnect at any time'); };
-      socket.onmessage = event => { try { const message = JSON.parse(event.data); if (message.type === 'agent-error') setError('Host agent: ' + message.message); if (message.type === 'agent-state') setControlReady(message.armed === true); } catch { /* Ignore malformed messages. */ } };
-      socket.onerror = () => { controlEnabledRef.current = false; setControlEnabled(false); setControlReady(false); setError('Host agent not reachable. Run the optional host agent on this computer, then retry.'); };
+      socket.onopen = () => {
+        // Do not enable forwarding until the local agent confirms it is armed.
+        socket.send(JSON.stringify({ type: 'arm', confirmed: true }));
+        setStatus('Waiting for host agent confirmation…');
+      };
+      socket.onmessage = event => {
+        try {
+          const message = JSON.parse(event.data);
+          if (message.type === 'agent-error') {
+            controlEnabledRef.current = false;
+            setControlEnabled(false);
+            setControlReady(false);
+            setError('Host agent: ' + message.message);
+          }
+          if (message.type === 'agent-state') {
+            const armed = message.armed === true;
+            controlReady && !armed ? setError('Host agent did not enable control. Retry on the computer being shared.') : null;
+            setControlReady(armed);
+            controlEnabledRef.current = armed;
+            setControlEnabled(armed);
+            if (armed) setStatus('Remote control enabled — host can disconnect at any time');
+          }
+        } catch { /* Ignore malformed messages. */ }
+      };
+      socket.onerror = () => {
+        controlEnabledRef.current = false; setControlEnabled(false); setControlReady(false);
+        setError('Host agent not reachable on this computer. Start the agent on the computer being shared, then retry.');
+      };
       socket.onclose = () => { controlEnabledRef.current = false; setControlEnabled(false); setControlReady(false); };
     } catch { setError('Could not connect to the local host agent.'); }
   };
   const sendInput = payload => { const connection = requestRef.current; if (mode === 'viewer' && connected && connection?.open) { try { connection.send(payload); } catch { /* Connection may be closing. */ } } };
-  const handleScreenPointer = event => { if (mode !== 'viewer' || !connected) return; const rect = event.currentTarget.getBoundingClientRect(); if (!rect.width || !rect.height) return; sendInput({ type: 'pointer', x: Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)), y: Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height)) }); };
-  const handleScreenKeyDown = event => { if (mode !== 'viewer' || !connected || event.repeat) return; if (event.key.length === 1 && !event.ctrlKey && !event.altKey && !event.metaKey) { sendInput({ type: 'type-text', text: event.key }); return; } sendInput({ type: 'key-down', key: event.key === ' ' ? 'Space' : event.key }); };
-  const handleScreenKeyUp = event => { if (mode === 'viewer' && connected) sendInput({ type: 'key-up', key: event.key === ' ' ? 'Space' : event.key }); };
+  const handleScreenPointer = event => {
+    if (mode !== 'viewer' || !connected) return;
+    const video = event.currentTarget;
+    const rect = video.getBoundingClientRect();
+    const sourceWidth = video.videoWidth;
+    const sourceHeight = video.videoHeight;
+    if (!rect.width || !rect.height || !sourceWidth || !sourceHeight) return;
+    // object-contain can letterbox the video; map against the actual picture,
+    // not the full HTML video element, or clicks land in the wrong place.
+    const scale = Math.min(rect.width / sourceWidth, rect.height / sourceHeight);
+    const displayedWidth = sourceWidth * scale;
+    const displayedHeight = sourceHeight * scale;
+    const offsetX = (rect.width - displayedWidth) / 2;
+    const offsetY = (rect.height - displayedHeight) / 2;
+    const localX = event.clientX - rect.left - offsetX;
+    const localY = event.clientY - rect.top - offsetY;
+    if (localX < 0 || localY < 0 || localX > displayedWidth || localY > displayedHeight) return;
+    sendInput({ type: 'pointer', x: Math.max(0, Math.min(1, localX / displayedWidth)), y: Math.max(0, Math.min(1, localY / displayedHeight)) });
+  };
+  const handleScreenKeyDown = event => {
+    if (mode !== 'viewer' || !connected || event.repeat) return;
+    // Keep ordinary typing and shortcuts from acting on the Chromebook page.
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.key.length === 1 && !event.ctrlKey && !event.altKey && !event.metaKey) {
+      sendInput({ type: 'type-text', text: event.key });
+      return;
+    }
+    sendInput({ type: 'key-down', key: event.key === ' ' ? 'Space' : event.key });
+  };
+  const handleScreenKeyUp = event => {
+    if (mode !== 'viewer' || !connected) return;
+    event.preventDefault();
+    event.stopPropagation();
+    sendInput({ type: 'key-up', key: event.key === ' ' ? 'Space' : event.key });
+  };
+  const enterRemoteFullscreen = async event => {
+    if (mode !== 'viewer') return;
+    try {
+      await event.currentTarget.requestFullscreen?.();
+      // Chrome's Keyboard Lock can forward more keys while fullscreen.
+      // ChromeOS/browser-reserved shortcuts may still be unavailable.
+      await navigator.keyboard?.lock?.();
+    } catch { /* Fullscreen/keyboard lock can be unavailable in managed browsers. */ }
+  };
 
   const decline = () => {
     const request = requestRef.current;
@@ -256,7 +323,7 @@ export default function RemoteDesktop() {
             {mode !== 'idle' && <button onClick={stop} className="rounded-xl bg-rose-500 px-4 py-2 text-xs font-extrabold text-white hover:bg-rose-400"><PhoneOff size={14} className="mr-2 inline"/>EMERGENCY DISCONNECT</button>}
           </header>
           <div className="grid min-h-[300px] place-items-center bg-black/50 p-3">
-            <video ref={mode === 'viewer' ? remoteVideo : localVideo} autoPlay playsInline muted={mode !== 'viewer'} tabIndex={mode === 'viewer' ? 0 : -1} onPointerMove={handleScreenPointer} onPointerDown={event => { if (mode !== 'viewer') return; event.currentTarget.focus(); handleScreenPointer(event); sendInput({ type: 'mouse-down', button: event.button === 2 ? 'right' : event.button === 1 ? 'middle' : 'left' }); }} onPointerUp={event => { if (mode === 'viewer') sendInput({ type: 'mouse-up', button: event.button === 2 ? 'right' : event.button === 1 ? 'middle' : 'left' }); }} onDoubleClick={event => { if (mode === 'viewer') event.currentTarget.requestFullscreen?.(); }} onContextMenu={event => { if (mode === 'viewer') event.preventDefault(); }} onWheel={event => { if (mode === 'viewer') { event.preventDefault(); sendInput({ type: 'scroll', amount: Math.sign(event.deltaY) * 3 }); } }} onKeyDown={handleScreenKeyDown} onKeyUp={handleScreenKeyUp} className={(connected || (mode === 'host' && streamRef.current) ? 'block' : 'hidden') + ' max-h-[65vh] w-full rounded-xl object-contain'}/>
+            <video ref={mode === 'viewer' ? remoteVideo : localVideo} autoPlay playsInline muted={mode !== 'viewer'} tabIndex={mode === 'viewer' ? 0 : -1} onPointerMove={handleScreenPointer} onPointerDown={event => { if (mode !== 'viewer') return; event.preventDefault(); event.currentTarget.focus(); try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* Capture may be unavailable. */ } handleScreenPointer(event); sendInput({ type: 'mouse-down', button: event.button === 2 ? 'right' : event.button === 1 ? 'middle' : 'left' }); }} onPointerUp={event => { if (mode === 'viewer') { event.preventDefault(); handleScreenPointer(event); sendInput({ type: 'mouse-up', button: event.button === 2 ? 'right' : event.button === 1 ? 'middle' : 'left' }); try { event.currentTarget.releasePointerCapture(event.pointerId); } catch { /* Capture may already be released. */ } } }} onDoubleClick={enterRemoteFullscreen} onContextMenu={event => { if (mode === 'viewer') event.preventDefault(); }} onWheel={event => { if (mode === 'viewer') { event.preventDefault(); sendInput({ type: 'scroll', amount: Math.sign(event.deltaY) * 3 }); } }} onKeyDown={handleScreenKeyDown} onKeyUp={handleScreenKeyUp} className={(connected || (mode === 'host' && streamRef.current) ? 'block' : 'hidden') + ' max-h-[65vh] w-full rounded-xl object-contain'}/>
             {!connected && !(mode === 'host' && streamRef.current) && <div className="p-8 text-center text-slate-400"><Monitor size={32} className="mx-auto mb-3"/><p className="text-sm">Start hosting or enter a connection code.</p></div>}
           </div>
         </section>
@@ -267,13 +334,13 @@ export default function RemoteDesktop() {
           </>}
           {mode === 'host' && <section className={panel}><h2 className="font-semibold">Connection code</h2><div className="my-3 flex items-center gap-2 rounded-xl bg-black/30 p-3"><code className="flex-1 break-all text-sm text-cyan-100">{peerId || 'Creating code…'}</code><button onClick={copy} disabled={!peerId} aria-label="Copy code" className="rounded-lg p-2 hover:bg-white/10 disabled:opacity-40"><Copy size={16}/></button></div>
             {incoming && <div className="rounded-xl border border-amber-200/20 p-3"><p className="text-sm">Someone wants to view your screen.</p><div className="mt-3 grid grid-cols-2 gap-2"><button onClick={approve} className="rounded-lg bg-emerald-200 p-2 text-sm font-bold text-slate-950">Approve</button><button onClick={decline} className="rounded-lg border border-white/15 p-2 text-sm">Decline</button></div></div>}
-            {connected && <div className="mt-4 rounded-xl border border-white/10 p-3"><h3 className="font-semibold">Remote control</h3><p className="my-2 text-xs text-slate-400">OS-level input requires the optional host agent installed on this computer.</p><div className="text-xs text-slate-400">{controlReady ? 'Host agent armed' : 'Host agent not connected'}</div><button onClick={enableControl} className={button + ' mt-3 border border-emerald-300/30 hover:bg-emerald-300/10'}>Enable mouse + keyboard control</button>{controlEnabled && <button onClick={() => { controlSocketRef.current?.send(JSON.stringify({type:'disarm'})); controlSocketRef.current?.close(); controlSocketRef.current = null; controlEnabledRef.current = false; setControlEnabled(false); setControlReady(false); }} className={button + ' mt-2 border border-rose-300/30'}>Disable remote control</button>}</div>}
+            {connected && <div className="mt-4 rounded-xl border border-white/10 p-3"><h3 className="font-semibold">Remote control</h3><p className="my-2 text-xs text-slate-400">The Chromebook can stay browser-only; install and run the optional agent on the computer being controlled.</p><div className="text-xs text-slate-400">{controlReady ? 'Host agent armed' : 'Host agent not connected'}</div><button onClick={enableControl} className={button + ' mt-3 border border-emerald-300/30 hover:bg-emerald-300/10'}>Enable mouse + keyboard control</button>{controlEnabled && <button onClick={() => { controlSocketRef.current?.send(JSON.stringify({type:'disarm'})); controlSocketRef.current?.close(); controlSocketRef.current = null; controlEnabledRef.current = false; setControlEnabled(false); setControlReady(false); }} className={button + ' mt-2 border border-rose-300/30'}>Disable remote control</button>}</div>}
           </section>}
           {mode === 'viewer' && <section className={panel}><p className="text-sm text-slate-300">Request sent. The host must approve before the screen appears. After connecting, click the screen to focus it; input requires host approval.</p><button onClick={stop} className={button + ' mt-3 border border-white/15'}>Cancel request</button></section>}
           {error && <p role="alert" className="rounded-xl border border-rose-300/20 bg-rose-300/10 p-3 text-sm text-rose-100">{error}</p>}
         </aside>
       </div>
-      <p className="mt-5 text-xs leading-5 text-slate-500">Remote input requires the optional local host agent on the computer being controlled; browser-only mode stays view-only. The host must approve sharing and separately enable control. Only control computers you own or have permission to access.</p>
+      <p className="mt-5 text-xs leading-5 text-slate-500">Built to use from a ChromeOS browser without a Chromebook extension or app. For full desktop input, the computer being controlled must run the optional host agent; browser-only hosting stays view-only. Some ChromeOS/browser-reserved shortcuts cannot be forwarded. Only control computers you own or have permission to access.</p>
     </main>
   </div>;
 }
