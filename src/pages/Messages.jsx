@@ -139,6 +139,15 @@ export default function Messages() {
         ? "New message in " + (item.groupName || "group chat")
         : "Global chat · @" + sender;
     setMessageToast({ id: message?.id, kind: item.kind, title, body: text.slice(0, 110), message, groupName: item.groupName });
+    if (document.hidden && "Notification" in window && window.Notification.permission === "granted") {
+      try {
+        const desktopNotification = new window.Notification(title, {
+          body: text.slice(0, 140),
+          tag: "dogeub-message-" + (message?.id || Date.now())
+        });
+        desktopNotification.onclick = () => window.focus();
+      } catch {}
+    }
     window.clearTimeout(toastTimerRef.current);
     toastTimerRef.current = window.setTimeout(() => setMessageToast(null), 7000);
   }, []);
