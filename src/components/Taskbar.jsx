@@ -21,6 +21,12 @@ const apps = [
   { name: 'Startup / Shutdown', description: 'Preview the DOGEUB OS power animations', icon: Power, studio: true, tab: 'power' },
 ];
 
+const OS_USERNAME_KEY = 'dogeub-os-username-v1';
+
+function readOSUsername() {
+  try { return window.localStorage.getItem(OS_USERNAME_KEY) || ''; } catch { return ''; }
+}
+
 function formatClock(date) {
   return {
     time: date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
@@ -32,6 +38,7 @@ export default function Taskbar() {
   const navigate = useNavigate();
   const location = useLocation();
   const [startOpen, setStartOpen] = useState(false);
+  const [osUsername, setOSUsername] = useState(readOSUsername);
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [clock, setClock] = useState(() => formatClock(new Date()));
@@ -102,6 +109,17 @@ export default function Taskbar() {
   const [startBackground, setStartBackground] = useState(() => {
     try { return window.localStorage.getItem('dogeub-site-background') || ''; } catch { return ''; }
   });
+
+  useEffect(() => {
+    const syncIdentity = () => setOSUsername(readOSUsername());
+    window.addEventListener('dogeub-identity-change', syncIdentity);
+    window.addEventListener('storage', syncIdentity);
+    syncIdentity();
+    return () => {
+      window.removeEventListener('dogeub-identity-change', syncIdentity);
+      window.removeEventListener('storage', syncIdentity);
+    };
+  }, []);
 
   useEffect(() => {
     const timer = window.setInterval(() => setClock(formatClock(new Date())), 15000);
@@ -321,7 +339,7 @@ export default function Taskbar() {
             {startBackground && <button onClick={clearStartBackground} className="rounded-lg px-3 py-2 text-xs text-white/70 hover:bg-white/10 hover:text-white">Remove image</button>}
           </div>
           <div className="mt-3 flex items-center justify-between border-t border-white/10 pt-3 text-xs text-white/65">
-            <span className="flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-sky-500/30">D</span> DogeUB user</span>
+            <button onClick={() => { if (!osUsername) window.dispatchEvent(new Event('dogeub-lock')); }} className="flex items-center gap-2 rounded-lg pr-2 text-left hover:text-white" title={osUsername ? 'DOGEUB OS identity' : 'Set up your DOGEUB OS username'}><span className="flex h-7 w-7 items-center justify-center rounded-full bg-sky-500/30 font-bold">{(osUsername || 'D')[0]?.toUpperCase()}</span><span className="max-w-32 truncate">{osUsername ? '@' + osUsername : 'Set up username'}</span></button>
             <div className="flex items-center gap-1">
               <button title="Lock DogeUB (Alt+L)" aria-label="Lock DogeUB" onClick={() => { setStartOpen(false); window.dispatchEvent(new Event('dogeub-lock')); }} className="rounded-lg p-2 hover:bg-sky-500/20 hover:text-sky-200"><LockKeyhole size={16} /></button>
               <button title="Power off / close page" onClick={() => setPowerConfirm(true)} className="rounded-lg p-2 hover:bg-red-500/25"><Power size={16} /></button>

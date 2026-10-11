@@ -15,6 +15,11 @@ export const isPatchLogsEnabled = () => {
 const PATCH_DATE = '2026-10-11';
 
 const PATCH_LOGS = [
+  'Added DOGEUB OS usernames during first-time setup and linked each OS identity to the same unique username in DOGEUB Messages.',
+  'Synced username changes between the OS taskbar profile and DOGEUB Messages so the site no longer labels people as a generic DogeUB user.',
+  'Expanded the Admin Panel with a conversation browser that can join group chats or observe direct-message conversations. Private-conversation joins create visible notices, notify participants, and are logged.',
+  'Added global announcement broadcasts from the Admin Panel. Broadcasts are pinned and labelled in Global Chat and sent to other accounts in their notification center.',
+  'Added admin conversation replies with visible admin labels, moderator notices, refreshed read receipts/unread counts for observed DMs, and protections against deleting administrator access notices.',
   'Added a restricted Admin Panel section to Settings with a code gate, site metrics, account suspension controls, report review, site-wide announcements, registration pause, and an admin audit log.',
   'Protected administrative APIs with the server-side DOGEUB_ADMIN_USERNAMES allowlist. The Settings passcode is a UI gate only and is not used as server authorization.',
   'Added a public announcement banner that displays the current enabled message from the Messages service and can be dismissed per page session.',

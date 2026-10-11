@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Activity, AlertTriangle, ArrowDownToLine, BellRing, Check, ChevronRight, CircleHelp,
-  Clock3, Command, Cpu, Database, ExternalLink, Gauge, Globe, LayoutDashboard, LoaderCircle,
-  LockKeyhole, MessageSquare, RefreshCw, Search, ShieldAlert, ShieldCheck, UserCheck, UserCog,
+  Clock3, Command, Cpu, Database, ExternalLink, Eye, Gauge, Globe, LayoutDashboard, LoaderCircle,
+  LockKeyhole, Megaphone, MessageSquare, MessagesSquare, RefreshCw, Search, ShieldAlert, ShieldCheck, UserCheck, UserCog,
   UserRound, UserRoundX, Users, Wrench, X
 } from 'lucide-react';
 
@@ -11,6 +11,8 @@ const TABS = [
   { id: 'overview', label: 'Overview', icon: Gauge },
   { id: 'users', label: 'Users', icon: Users },
   { id: 'reports', label: 'Reports', icon: ShieldAlert },
+  { id: 'conversations', label: 'Conversations', icon: MessagesSquare },
+  { id: 'broadcast', label: 'Announcements', icon: Megaphone },
   { id: 'site', label: 'Site controls', icon: Globe },
   { id: 'audit', label: 'Audit log', icon: Activity },
 ];
@@ -74,6 +76,13 @@ export default function AdminPanel() {
   const [users, setUsers] = useState([]);
   const [reports, setReports] = useState([]);
   const [audit, setAudit] = useState([]);
+  const [conversations, setConversations] = useState([]);
+  const [selectedConversation, setSelectedConversation] = useState(null);
+  const [conversationMessages, setConversationMessages] = useState([]);
+  const [conversationSearch, setConversationSearch] = useState('');
+  const [conversationText, setConversationText] = useState('');
+  const [announcementHistory, setAnnouncementHistory] = useState([]);
+  const [broadcastText, setBroadcastText] = useState('');
   const [userQuery, setUserQuery] = useState('');
   const [announcement, setAnnouncement] = useState('');
   const [announcementEnabled, setAnnouncementEnabled] = useState(false);
@@ -93,14 +102,18 @@ export default function AdminPanel() {
       setAnnouncement(result.siteSettings?.announcement || '');
       setAnnouncementEnabled(Boolean(result.siteSettings?.announcementEnabled));
       setRegistrationPaused(Boolean(result.siteSettings?.registrationPaused));
-      const [usersResult, reportsResult, auditResult] = await Promise.all([
+      const [usersResult, reportsResult, auditResult, conversationsResult, announcementsResult] = await Promise.all([
         adminRequest('/api/messages/admin/users'),
         adminRequest('/api/messages/admin/reports'),
         adminRequest('/api/messages/admin/audit'),
+        adminRequest('/api/messages/admin/conversations'),
+        adminRequest('/api/messages/admin/announcements'),
       ]);
       setUsers(usersResult.users || []);
       setReports(reportsResult.reports || []);
       setAudit(auditResult.entries || []);
+      setConversations(conversationsResult.conversations || []);
+      setAnnouncementHistory(announcementsResult.announcements || []);
       setLastUpdated(Date.now());
     } catch (problem) {
       setError(problem.message || 'Unable to load the admin overview.');
@@ -155,6 +168,96 @@ export default function AdminPanel() {
     await loadOverview();
     setNotice(action === 'dismiss' ? 'Report dismissed.' : 'Reported message removed.');
   });
+
+  const refreshConversations = async (query = conversationSearch) => {
+    const result = await adminRequest('/api/messages/admin/conversations?q=' + encodeURIComponent(query.trim()));
+    setConversations(result.conversations || []);
+    if (selectedConversation) {
+      const updated = (result.conversations || []).find((item) => item.id === selectedConversation.id);
+      if (updated) setSelectedConversation(updated);
+    }
+  };
+  const getConversationQuery = (conversation) => {
+    const params = new URLSearchParams({ type: conversation.type });
+    if (conversation.type === 'group') params.set('groupId', conversation.groupId);
+    else {
+      params.set('userA', conversation.userIds[0]);
+      params.set('userB', conversation.userIds[1]);
+    }
+    return params.toString();
+  };
+  const openConversation = async (conversation) => {
+    setSelectedConversation(conversation);
+    setConversationMessages([]);
+    const data = await adminRequest('/api/messages/admin/conversation-messages?' + getConversationQuery(conversation));
+    setConversationMessages(data.messages || []);
+  };
+  const joinConversation = (conversation) => runAction('conversation:' + conversation.id, async () => {
+    await adminRequest('/api/messages/admin/conversations/join', {
+      method: 'POST',
+      body: JSON.stringify(conversation.type === 'group'
+        ? { type: 'group', groupId: conversation.groupId }
+        : { type: 'dm', userA: conversation.userIds[0], userB: conversation.userIds[1] }),
+    });
+    const joined = { ...conversation, joined: true };
+    setSelectedConversation(joined);
+    await refreshConversations();
+    const data = await adminRequest('/api/messages/admin/conversation-messages?' + getConversationQuery(joined));
+    setConversationMessages(data.messages || []);
+    setNotice(conversation.type === 'dm' ? 'Joined direct conversation in transparent observer mode; participants were notified.' : 'Joined the group conversation as a visible member.');
+  });
+  const leaveConversation = (conversation) => runAction('leave:' + conversation.id, async () => {
+    if (!window.confirm(conversation.type === 'dm'
+      ? 'Stop observing this direct conversation? The join and leave remain in the audit log.'
+      : 'Leave this group conversation as an administrator?')) return;
+    await adminRequest('/api/messages/admin/conversations/leave', {
+      method: 'POST',
+      body: JSON.stringify(conversation.type === 'group'
+        ? { type: 'group', groupId: conversation.groupId }
+        : { type: 'dm', userA: conversation.userIds[0], userB: conversation.userIds[1] }),
+    });
+    setSelectedConversation(null);
+    setConversationMessages([]);
+    await refreshConversations();
+    setNotice('Left the selected conversation.');
+  });
+  const sendConversationMessage = (event) => {
+    event.preventDefault();
+    if (!selectedConversation || !conversationText.trim()) return;
+    runAction('conversation-send', async () => {
+      await adminRequest('/api/messages/admin/conversations/send', {
+        method: 'POST',
+        body: JSON.stringify({
+          type: selectedConversation.type,
+          groupId: selectedConversation.groupId,
+          userA: selectedConversation.userIds?.[0],
+          userB: selectedConversation.userIds?.[1],
+          text: conversationText,
+        }),
+      });
+      setConversationText('');
+      const data = await adminRequest('/api/messages/admin/conversation-messages?' + getConversationQuery(selectedConversation));
+      setConversationMessages(data.messages || []);
+      await refreshConversations();
+      setNotice('Admin message sent into the selected conversation.');
+    });
+  };
+  const sendGlobalAnnouncement = (event) => {
+    event.preventDefault();
+    if (!broadcastText.trim()) return;
+    runAction('broadcast', async () => {
+      await adminRequest('/api/messages/admin/announcements', {
+        method: 'POST',
+        body: JSON.stringify({ text: broadcastText }),
+      });
+      setBroadcastText('');
+      const data = await adminRequest('/api/messages/admin/announcements');
+      setAnnouncementHistory(data.announcements || []);
+      await loadOverview();
+      setNotice('Global announcement published to DOGEUB Global Chat and notification center.');
+    });
+  };
+
   const saveSiteControls = (event) => {
     event.preventDefault();
     runAction('settings', async () => {
@@ -238,6 +341,46 @@ export default function AdminPanel() {
 
       {tab === 'reports' && <Panel title="Report moderation" description="Review a report before dismissing it or removing its message. Actions are recorded in the audit log." icon={ShieldAlert} count={openReports}>
         {reports.map((report) => <article key={report.id} className="mb-3 rounded-2xl border border-white/[.08] p-4 last:mb-0"><div className="flex flex-wrap items-start justify-between gap-2"><div><p className="font-semibold text-white">{report.reason || 'Other'} <span className="ml-2 rounded-full border border-white/10 px-2 py-0.5 text-[9px] uppercase tracking-wider text-white/45">{report.status || 'open'}</span></p><p className="mt-1 text-xs text-white/40">Reporter @{report.reporter?.username || 'unknown'} · {dateTime(report.createdAt)}</p></div><span className="text-xs text-white/40">Author @{report.message?.sender?.username || 'unavailable'}</span></div><p className="mt-3 break-words rounded-xl bg-black/20 p-3 text-sm leading-6 text-white/65">{report.message?.text || 'The reported message is unavailable.'}</p>{(!report.status || report.status === 'open') && <div className="mt-3 flex flex-wrap gap-2"><button disabled={Boolean(actionBusy)} onClick={() => reviewReport(report, 'dismiss')} className="rounded-xl border border-white/10 px-3 py-2 text-xs hover:bg-white/10 disabled:opacity-40">Dismiss</button><button disabled={Boolean(actionBusy) || !report.message} onClick={() => reviewReport(report, 'remove-message')} className="rounded-xl border border-rose-200/15 bg-rose-300/[.06] px-3 py-2 text-xs font-semibold text-rose-100 hover:bg-rose-300/[.1] disabled:opacity-40">Remove message</button></div>}</article>)}{reports.length === 0 && <p className="rounded-xl border border-dashed border-white/10 p-7 text-center text-sm text-white/40">No reports loaded.</p>}</Panel>}
+
+
+      {tab === 'conversations' && <div className="grid gap-5 xl:grid-cols-[minmax(300px,.82fr)_minmax(0,1.18fr)]">
+        <Panel title="Conversation browser" description="Join saved group chats as a visible member or observe direct messages. Private-conversation joins notify both participants and are written to the audit log." icon={MessagesSquare} action={<button onClick={() => runAction('conversations-refresh', () => refreshConversations())} className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-xs hover:bg-white/10"><RefreshCw size={13} /> Refresh</button>}>
+          <form onSubmit={(event) => { event.preventDefault(); runAction('conversation-search', () => refreshConversations(conversationSearch)); }} className="mb-4 flex gap-2">
+            <label className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-white/10 bg-black/15 px-3"><Search size={14} className="text-white/35" /><input value={conversationSearch} onChange={(event) => setConversationSearch(event.target.value)} placeholder="Find a person or group…" className="w-full bg-transparent py-2.5 text-sm outline-none" /></label>
+            <button type="submit" className="rounded-xl bg-cyan-300 px-3 text-xs font-bold text-slate-950">Search</button>
+          </form>
+          <div className="max-h-[68vh] space-y-2 overflow-y-auto pr-1">
+            {conversations.map((conversation) => <article key={conversation.id} className={'rounded-2xl border p-3 transition ' + (selectedConversation?.id === conversation.id ? 'border-cyan-200/30 bg-cyan-200/[.045]' : 'border-white/[.07] bg-white/[.015]')}>
+              <div className="flex items-start gap-3"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white/[.05] text-cyan-100">{conversation.type === 'group' ? <Users size={16} /> : <MessageSquare size={16} />}</span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><p className="break-words text-sm font-semibold">{conversation.label}</p><span className="rounded-full border border-white/10 px-2 py-0.5 text-[9px] uppercase tracking-wider text-white/40">{conversation.type === 'dm' ? 'Direct' : 'Group'}</span>{conversation.joined && <span className="rounded-full border border-emerald-200/15 px-2 py-0.5 text-[9px] uppercase tracking-wider text-emerald-100">Joined</span>}</div><p className="mt-1 text-[10px] text-white/40">{fmt(conversation.messageCount)} messages · {conversation.type === 'group' ? fmt(conversation.memberCount) + ' members' : 'Last activity ' + dateTime(conversation.lastMessageAt)}</p></div></div>
+              <div className="mt-3 flex flex-wrap gap-2"><button disabled={Boolean(actionBusy)} onClick={() => conversation.joined ? runAction('open:' + conversation.id, () => openConversation(conversation)) : (setSelectedConversation(conversation), setConversationMessages([]))} className="rounded-lg border border-white/10 px-3 py-2 text-[10px] font-semibold hover:bg-white/10 disabled:opacity-40">{conversation.joined ? 'Open conversation' : 'View details'}</button>{!conversation.joined && <button disabled={Boolean(actionBusy)} onClick={() => joinConversation(conversation)} className="rounded-lg bg-cyan-300 px-3 py-2 text-[10px] font-bold text-slate-950 disabled:opacity-40">Join & inspect</button>}{conversation.joined && !(conversation.type === 'group' && conversation.isOwner) && <button disabled={Boolean(actionBusy)} onClick={() => leaveConversation(conversation)} className="rounded-lg border border-rose-200/15 px-3 py-2 text-[10px] text-rose-100/80 hover:bg-rose-200/[.05] disabled:opacity-40">Leave</button>}{conversation.type === 'group' && conversation.isOwner && <span className="rounded-lg border border-violet-200/15 px-3 py-2 text-[10px] text-violet-100/60">Owner</span>}</div>
+            </article>)}
+            {conversations.length === 0 && <p className="rounded-xl border border-dashed border-white/10 p-7 text-center text-sm text-white/40">No direct-message history or saved groups match that search.</p>}
+          </div>
+        </Panel>
+        <Panel title={selectedConversation ? selectedConversation.label : 'Conversation inspector'} description={selectedConversation?.type === 'dm' ? 'Administrator observer mode · private access is audited and participants are notified.' : selectedConversation?.type === 'group' ? 'Messages are shown as a group member. Your administrator username is visible to the group.' : 'Choose a conversation on the left, then join it to inspect messages.'} icon={Eye}>
+          {selectedConversation ? <>
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200/15 bg-amber-200/[.04] p-3 text-xs leading-5 text-amber-100/80"><span>{selectedConversation.type === 'dm' ? 'The two participants receive a notification when you join. Your admin replies are labelled and visible in their DM thread.' : 'Your account is added to the group member list when you join.'}</span><span className="rounded-full border border-white/10 px-2 py-1">{fmt(conversationMessages.length)} loaded</span></div>
+            {selectedConversation.joined ? <div className="max-h-[45vh] space-y-3 overflow-y-auto rounded-2xl border border-white/[.06] bg-black/15 p-3">
+              {conversationMessages.map((message) => <article key={message.id} className={'rounded-xl border p-3 ' + (message.isAnnouncement ? 'border-amber-200/15 bg-amber-200/[.04]' : message.isAdminMessage ? 'border-cyan-200/15 bg-cyan-200/[.04]' : 'border-white/[.06] bg-white/[.02]')}><div className="flex flex-wrap items-center gap-2"><p className="text-xs font-semibold">@{message.sender?.username || 'unknown'}</p>{message.isAdminMessage && <span className="rounded-full border border-cyan-200/15 px-1.5 py-0.5 text-[8px] uppercase tracking-wider text-cyan-100">Admin</span>}<span className="ml-auto text-[9px] text-white/30">{dateTime(message.createdAt)}</span></div><p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-white/75">{message.text || (message.attachment ? 'Attachment: ' + message.attachment.name : 'Message')}</p></article>)}
+              {conversationMessages.length === 0 && <p className="p-6 text-center text-sm text-white/40">No messages in this conversation yet.</p>}
+            </div> : <div className="rounded-2xl border border-dashed border-white/10 p-8 text-center"><LockKeyhole size={24} className="mx-auto text-cyan-100/55" /><p className="mt-3 text-sm font-semibold">Join to inspect</p><p className="mt-1 text-xs leading-5 text-white/40">The conversation content is not loaded until you explicitly join. Joining is recorded and notifies participants for direct messages.</p><button onClick={() => joinConversation(selectedConversation)} disabled={Boolean(actionBusy)} className="mt-4 rounded-xl bg-cyan-300 px-4 py-2 text-xs font-bold text-slate-950 disabled:opacity-40">Join conversation</button></div>}
+            {selectedConversation.joined && <form onSubmit={sendConversationMessage} className="mt-3"><label className="block text-xs font-medium text-white/50">Send as administrator <span className="text-white/30">({conversationText.length}/1200)</span><textarea value={conversationText} onChange={(event) => setConversationText(event.target.value)} rows={3} maxLength={1200} placeholder="Write a message into this conversation…" className="mt-2 block w-full resize-y rounded-xl border border-white/10 bg-black/20 p-3 text-sm leading-6 text-white outline-none focus:border-cyan-200/35" /></label><div className="mt-2 flex flex-wrap items-center justify-between gap-3"><p className="text-[10px] text-white/35">Admin messages are visibly labelled and notifications are sent to participants.</p><button type="submit" disabled={Boolean(actionBusy) || !conversationText.trim()} className="rounded-xl bg-cyan-300 px-4 py-2.5 text-xs font-bold text-slate-950 disabled:opacity-40">{actionBusy === 'conversation-send' ? 'Sending…' : 'Send message'}</button></div></form>}
+          </> : <div className="flex min-h-64 flex-col items-center justify-center text-center"><MessagesSquare size={30} className="text-cyan-100/35" /><p className="mt-3 text-sm font-semibold text-white/65">Select a conversation</p><p className="mt-1 max-w-sm text-xs leading-5 text-white/35">The inspector can show the last 100 messages after you join. Direct-message access is transparent and recorded in the audit log.</p></div>}
+        </Panel>
+      </div>}
+
+      {tab === 'broadcast' && <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(300px,.8fr)]">
+        <Panel title="Global announcement broadcaster" description="Publish directly to DOGEUB Global Chat. The message is pinned, labelled as an announcement, and sent to other accounts through the notification center." icon={Megaphone}>
+          <form onSubmit={sendGlobalAnnouncement}>
+            <label className="block text-sm text-white/70">Announcement message <span className="text-white/30">({broadcastText.length}/1200)</span><textarea value={broadcastText} onChange={(event) => setBroadcastText(event.target.value)} maxLength={1200} rows={6} required placeholder="Example: DOGEUB will be updated at 6 PM. Save your work before then…" className="mt-2 block w-full rounded-2xl border border-white/10 bg-black/20 p-4 text-sm leading-6 outline-none focus:border-cyan-200/35" /></label>
+            <div className="mt-4 rounded-xl border border-amber-200/15 bg-amber-200/[.04] p-3 text-xs leading-5 text-amber-100/75">This is a public broadcast. It appears in Global Chat under your admin username and is sent to other accounts as a notification. Do not include passwords, private user data, or anything that should not be public.</div>
+            <button type="submit" disabled={Boolean(actionBusy) || !broadcastText.trim()} className="mt-4 inline-flex items-center gap-2 rounded-xl bg-cyan-300 px-4 py-3 text-sm font-bold text-slate-950 disabled:opacity-40"><Megaphone size={15} />{actionBusy === 'broadcast' ? 'Publishing…' : 'Publish global announcement'}</button>
+          </form>
+        </Panel>
+        <Panel title="Recent broadcasts" description="The latest 50 global announcement messages." icon={BellRing} action={<button onClick={() => runAction('announcement-history', async () => { const data = await adminRequest('/api/messages/admin/announcements'); setAnnouncementHistory(data.announcements || []); })} className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-xs hover:bg-white/10"><RefreshCw size={13} /> Refresh</button>}>
+          <div className="max-h-[60vh] space-y-3 overflow-y-auto pr-1">{announcementHistory.map((item) => <article key={item.id} className="rounded-2xl border border-amber-200/15 bg-amber-200/[.025] p-4"><div className="flex flex-wrap items-center justify-between gap-2"><p className="flex items-center gap-2 text-xs font-semibold"><Megaphone size={13} className="text-amber-200" />@{item.sender?.username || 'admin'}</p><time className="text-[10px] text-white/35">{dateTime(item.createdAt)}</time></div><p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-white/75">{item.text}</p></article>)}{announcementHistory.length === 0 && <p className="rounded-xl border border-dashed border-white/10 p-7 text-center text-sm text-white/40">No global announcements have been sent yet.</p>}</div>
+        </Panel>
+      </div>}
 
       {tab === 'site' && <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(280px,.75fr)]">
         <Panel title="Site-wide announcement" description="Publish a short banner for visitors. Updates are stored by the server." icon={BellRing}><form onSubmit={saveSiteControls}><label className="block text-sm text-white/70">Announcement text <span className="text-white/30">({announcement.length}/300)</span><textarea value={announcement} onChange={(event) => setAnnouncement(event.target.value)} maxLength={300} rows={4} placeholder="Write a maintenance notice, service update, or message for visitors…" className="mt-2 block w-full rounded-xl border border-white/10 bg-black/20 p-3 text-sm leading-6 outline-none focus:border-cyan-200/40" /></label><label className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-white/10 p-3"><span><span className="block text-sm font-medium">Publish announcement</span><span className="mt-1 block text-xs text-white/40">Show the message banner across DOGEUB.</span></span><input type="checkbox" checked={announcementEnabled} onChange={(event) => setAnnouncementEnabled(event.target.checked)} disabled={!announcement.trim()} className="h-4 w-4 accent-cyan-300" /></label><label className="mt-2 flex items-center justify-between gap-3 rounded-xl border border-white/10 p-3"><span><span className="block text-sm font-medium">Pause new registrations</span><span className="mt-1 block text-xs text-white/40">Existing accounts remain available; new signup attempts are rejected.</span></span><input type="checkbox" checked={registrationPaused} onChange={(event) => setRegistrationPaused(event.target.checked)} className="h-4 w-4 accent-amber-300" /></label><button type="submit" disabled={Boolean(actionBusy)} className="mt-4 rounded-xl bg-cyan-300 px-4 py-2.5 text-sm font-bold text-slate-950 disabled:opacity-50">{actionBusy === 'settings' ? 'Saving…' : 'Save site controls'}</button></form></Panel>

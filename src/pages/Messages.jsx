@@ -3,12 +3,24 @@ import { useNavigate } from "react-router-dom";
 import {
   AlertTriangle, ArrowLeft, BellOff, Check, Copy, FileText, Image, LogOut, MessageCircle,
   MessagesSquare, Paperclip, Pencil, Pin, Plus, Reply, Search, Send, Settings, ShieldCheck,
-  Trash2, Users, X, LoaderCircle, LockKeyhole, UserRound, BellRing
+  Trash2, Users, X, LoaderCircle, LockKeyhole, UserRound, BellRing, Megaphone
 } from "lucide-react";
 import { formatSize, listFiles } from "../utils/fileStore";
 
 const MAX_ATTACHMENT_BYTES = 4 * 1024 * 1024;
 const MAX_AVATAR_BYTES = 512 * 1024;
+const OS_USERNAME_KEY = "dogeub-os-username-v1";
+
+function readOSUsername() {
+  try { return String(window.localStorage.getItem(OS_USERNAME_KEY) || "").trim(); } catch { return ""; }
+}
+
+function saveOSUsername(username) {
+  const value = String(username || "").trim();
+  if (!value) return;
+  try { window.localStorage.setItem(OS_USERNAME_KEY, value); } catch {}
+  window.dispatchEvent(new CustomEvent("dogeub-identity-change", { detail: { username: value } }));
+}
 
 async function apiRequest(path, options = {}) {
   const response = await fetch(path, {
@@ -64,8 +76,9 @@ export default function Messages() {
   const navigate = useNavigate();
   const [session, setSession] = useState(null);
   const [sessionLoading, setSessionLoading] = useState(true);
-  const [authMode, setAuthMode] = useState("register");
-  const [authUsername, setAuthUsername] = useState("");
+  const [osUsername, setOsUsername] = useState(readOSUsername);
+  const [authMode, setAuthMode] = useState(() => readOSUsername() ? "login" : "register");
+  const [authUsername, setAuthUsername] = useState(readOSUsername);
   const [authPassword, setAuthPassword] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
   const [appError, setAppError] = useState("");
@@ -121,9 +134,50 @@ export default function Messages() {
   const typingStopTimerRef = useRef(null);
 
   useEffect(() => {
+    const syncIdentity = () => {
+      const name = readOSUsername();
+      setOsUsername(name);
+      setAuthUsername(name);
+      if (name) setAuthMode("login");
+    };
+    window.addEventListener("dogeub-identity-change", syncIdentity);
+    window.addEventListener("storage", syncIdentity);
+    return () => {
+      window.removeEventListener("dogeub-identity-change", syncIdentity);
+      window.removeEventListener("storage", syncIdentity);
+    };
+  }, []);
+
+  useEffect(() => {
     let alive = true;
     apiRequest("/api/messages/session")
-      .then((data) => { if (alive) { notificationCursorRef.current = Date.now(); setSession(data.user || null); } })
+      .then(async (data) => {
+        if (!alive) return;
+        const account = data.user || null;
+        const localName = readOSUsername();
+        if (account && localName && account.username.toLowerCase() !== localName.toLowerCase()) {
+          try { await apiRequest("/api/messages/logout", { method: "POST", body: "{}" }); } catch {}
+          if (alive) {
+            setSession(null);
+            setOsUsername(localName);
+            setAuthUsername(localName);
+            setAuthMode("login");
+            setAppError("This browser's DOGEUB OS identity is @" + localName + ". Sign in with that same username to continue.");
+          }
+          return;
+        }
+        if (account && !localName) {
+          saveOSUsername(account.username);
+          setOsUsername(account.username);
+          setAuthUsername(account.username);
+        } else if (localName) {
+          setOsUsername(localName);
+          setAuthUsername(localName);
+          setAuthMode("login");
+        }
+        notificationCursorRef.current = Date.now();
+        setSession(account);
+      })
       .catch((error) => { if (alive) setAppError(error.message); })
       .finally(() => { if (alive) setSessionLoading(false); });
     return () => { alive = false; };
@@ -357,17 +411,28 @@ export default function Messages() {
     setAuthBusy(true);
     setAppError("");
     try {
+      const requiredUsername = readOSUsername();
+      const username = requiredUsername || authUsername.trim();
+      if (!username) throw new Error("Set up a DOGEUB OS username before signing into Messages.");
       const endpoint = authMode === "register" ? "/api/messages/register" : "/api/messages/login";
       const data = await apiRequest(endpoint, {
         method: "POST",
-        body: JSON.stringify({ username: authUsername, password: authPassword })
+        body: JSON.stringify({ username, password: authPassword })
       });
+      if (requiredUsername && data.user.username.toLowerCase() !== requiredUsername.toLowerCase()) {
+        await apiRequest("/api/messages/logout", { method: "POST", body: "{}" }).catch(() => {});
+        throw new Error("Messages must use your DOGEUB OS username, @" + requiredUsername + ".");
+      }
+      saveOSUsername(data.user.username);
+      setOsUsername(data.user.username);
+      setAuthUsername(data.user.username);
+      setAuthMode("login");
       notificationCursorRef.current = Date.now();
       seenNotificationIdsRef.current.clear();
       setSession(data.user);
       setAuthPassword("");
       setProfileUsername(data.user.username);
-      setNotice(authMode === "register" ? "Welcome to DOGEUB Messages." : "You're signed in.");
+      setNotice(authMode === "register" ? "Welcome to DOGEUB Messages. Your OS and Messages usernames now match." : "You're signed in.");
     } catch (error) {
       setAppError(error.message);
     } finally {
@@ -476,10 +541,14 @@ export default function Messages() {
       if (clearAvatar) body.clearAvatar = true;
       const data = await apiRequest("/api/messages/profile", { method: "PATCH", body: JSON.stringify(body) });
       setSession(data.user);
+      saveOSUsername(data.user.username);
+      setOsUsername(data.user.username);
+      setAuthUsername(data.user.username);
+      setProfileUsername(data.user.username);
       setAvatarDraft("");
       setClearAvatar(false);
       setProfileOpen(false);
-      setNotice("Profile updated.");
+      setNotice("Profile updated. Your DOGEUB OS username was synced.");
       await loadConversations();
       await loadMessages();
     } catch (error) {
@@ -750,20 +819,20 @@ export default function Messages() {
             </div>
 
             <div className="p-6 sm:p-10">
-              <div className="mb-6 flex rounded-xl border border-white/10 bg-black/20 p-1">
+              {!osUsername && <div className="mb-6 flex rounded-xl border border-white/10 bg-black/20 p-1">
                 <button type="button" onClick={() => { setAuthMode("register"); setAppError(""); }} className={"flex-1 rounded-lg px-3 py-2.5 text-sm font-semibold transition " + (authMode === "register" ? "bg-white/10 text-white" : "text-white/40 hover:text-white")}>Create account</button>
                 <button type="button" onClick={() => { setAuthMode("login"); setAppError(""); }} className={"flex-1 rounded-lg px-3 py-2.5 text-sm font-semibold transition " + (authMode === "login" ? "bg-white/10 text-white" : "text-white/40 hover:text-white")}>Sign in</button>
-              </div>
-              <h2 className="text-2xl font-bold">{authMode === "register" ? "Join the chat" : "Welcome back"}</h2>
-              <p className="mt-2 text-sm leading-6 text-white/45">{authMode === "register" ? "Create your DOGEUB Messages username." : "Sign in with your existing Messages account."}</p>
+              </div>}
+              <h2 className="text-2xl font-bold">{osUsername ? "Sign in as @" + osUsername : authMode === "register" ? "Join the chat" : "Welcome back"}</h2>
+              <p className="mt-2 text-sm leading-6 text-white/45">{osUsername ? "Your DOGEUB Messages account uses the same unique username as your DOGEUB OS profile." : authMode === "register" ? "Create your DOGEUB OS and Messages identity." : "Sign in with your existing DOGEUB Messages account."}</p>
               <form onSubmit={handleAuth} className="mt-7 space-y-4">
-                <label className="block"><span className="mb-2 block text-xs font-semibold uppercase tracking-wider text-white/45">Username</span><input autoComplete="username" value={authUsername} onChange={(event) => setAuthUsername(event.target.value)} required minLength={3} maxLength={20} pattern="[A-Za-z0-9_]{3,20}" placeholder="e.g. doge_fan" className="w-full rounded-xl border border-white/10 bg-white/[.04] px-4 py-3 text-sm outline-none transition placeholder:text-white/25 focus:border-cyan-100/35 focus:bg-white/[.07]" /></label>
+                <label className="block"><span className="mb-2 block text-xs font-semibold uppercase tracking-wider text-white/45">DOGEUB OS username</span><input autoComplete="username" value={osUsername || authUsername} readOnly={Boolean(osUsername)} onChange={(event) => setAuthUsername(event.target.value)} required minLength={3} maxLength={20} pattern="[A-Za-z0-9_]{3,20}" placeholder="e.g. doge_fan" className="w-full rounded-xl border border-white/10 bg-white/[.04] px-4 py-3 text-sm outline-none transition placeholder:text-white/25 focus:border-cyan-100/35 focus:bg-white/[.07] read-only:text-cyan-100" />{osUsername && <span className="mt-2 block text-[10px] text-cyan-100/55">Synced with DOGEUB OS. Change it in your profile to update both.</span>}</label>
                 <label className="block"><span className="mb-2 block text-xs font-semibold uppercase tracking-wider text-white/45">Password</span><input type="password" autoComplete={authMode === "register" ? "new-password" : "current-password"} value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} required minLength={8} maxLength={128} placeholder="At least 8 characters" className="w-full rounded-xl border border-white/10 bg-white/[.04] px-4 py-3 text-sm outline-none transition placeholder:text-white/25 focus:border-cyan-100/35 focus:bg-white/[.07]" /></label>
                 {authMode === "register" && <p className="text-[11px] leading-5 text-white/35">Usernames use 3–20 letters, numbers, or underscores. Passwords are stored as salted hashes.</p>}
                 {appError && <p role="alert" className="rounded-xl border border-rose-300/20 bg-rose-300/[.06] px-3 py-2.5 text-xs leading-5 text-rose-100/90">{appError}</p>}
                 <button type="submit" disabled={authBusy} className="flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-100 px-4 py-3 text-sm font-bold text-slate-950 transition hover:bg-white disabled:cursor-wait disabled:opacity-60">{authBusy ? <Spinner small /> : <MessagesSquare size={17} />}{authMode === "register" ? "Create Messages account" : "Sign in to Messages"}</button>
               </form>
-              <p className="mt-5 text-center text-[11px] leading-5 text-white/30">This account is for DOGEUB Messages. It is separate from your browser, email, and other accounts.</p>
+              <p className="mt-5 text-center text-[11px] leading-5 text-white/30">Your DOGEUB OS and Messages share the same unique username. The account is separate from your email and other services.</p>
             </div>
           </div>
         </div>
@@ -871,12 +940,12 @@ export default function Messages() {
               ) : visibleMessages.map((message) => {
                 const own = message.sender?.id === session.id;
                 const actionBusy = busyMessageAction.startsWith(message.id + ":");
-                return <article id={"message-" + message.id} key={message.id} className={"group flex items-start gap-2.5 " + (message.pinned ? "rounded-xl bg-amber-100/[.025] p-1.5" : "")}>
+                return <article id={"message-" + message.id} key={message.id} className={"group flex items-start gap-2.5 " + (message.pinned ? "rounded-xl bg-amber-100/[.025] p-1.5" : "") + (message.isAnnouncement ? " rounded-xl border border-amber-200/20 bg-amber-200/[.035] p-2.5" : "") + (message.isAdminMessage ? " rounded-xl border border-cyan-200/15 bg-cyan-200/[.025] p-2.5" : "")}>
                   <Avatar user={message.sender} size="sm" />
                   <div className="min-w-0 max-w-[min(92%,680px)] flex-1">
-                    <div className="mb-1 flex flex-wrap items-baseline gap-x-2 gap-y-0.5"><span className="text-xs font-bold text-white/85">{message.sender?.username || "Unknown user"}</span><time className="text-[9px] text-white/25" title={new Date(message.createdAt).toLocaleString()}>{relativeTime(message.createdAt)}</time>{own && <span className="text-[9px] uppercase tracking-wider text-cyan-100/40">you</span>}{message.editedAt && <span className="text-[9px] italic text-white/25">edited</span>}{message.pinned && <span className="inline-flex items-center gap-1 text-[9px] text-amber-100/75"><Pin size={10} /> pinned</span>}</div>
+                    <div className="mb-1 flex flex-wrap items-baseline gap-x-2 gap-y-0.5"><span className="text-xs font-bold text-white/85">{message.sender?.username || "Unknown user"}</span><time className="text-[9px] text-white/25" title={new Date(message.createdAt).toLocaleString()}>{relativeTime(message.createdAt)}</time>{own && <span className="text-[9px] uppercase tracking-wider text-cyan-100/40">you</span>}{message.isAnnouncement && <span className="inline-flex items-center gap-1 rounded-full border border-amber-200/20 bg-amber-200/[.07] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-amber-100"><Megaphone size={10} /> Global announcement</span>}{message.isAdminNotice && <span className="rounded-full border border-amber-200/20 bg-amber-200/[.07] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-amber-100">Admin access notice</span>}{message.isAdminMessage && !message.isAdminNotice && <span className="rounded-full border border-cyan-200/20 bg-cyan-200/[.07] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-cyan-100">Admin message</span>}{message.editedAt && <span className="text-[9px] italic text-white/25">edited</span>}{message.pinned && <span className="inline-flex items-center gap-1 text-[9px] text-amber-100/75"><Pin size={10} /> pinned</span>}</div>
                     {message.replyTo && <div className="mb-1 rounded-lg border-l-2 border-cyan-100/35 bg-white/[.025] px-2.5 py-1.5 text-[10px] text-white/45"><span className="font-semibold text-cyan-50/70">Reply to @{message.replyTo.sender?.username || "user"}</span><p className="mt-0.5 truncate">{message.replyTo.text || "Message"}</p></div>}
-                    {editingMessageId === message.id ? <form onSubmit={(event) => saveEdit(event, message)} className="mt-1 flex gap-2"><input autoFocus value={editingDraft} onChange={(event) => setEditingDraft(event.target.value.slice(0, 1200))} maxLength={1200} className="min-w-0 flex-1 rounded-xl border border-cyan-100/20 bg-black/25 px-3 py-2 text-xs outline-none" /><button type="submit" disabled={actionBusy || !editingDraft.trim()} className="rounded-lg bg-cyan-100 px-3 py-2 text-[10px] font-bold text-slate-950 disabled:opacity-40">Save</button><button type="button" onClick={() => { setEditingMessageId(null); setEditingDraft(""); }} className="rounded-lg border border-white/10 px-2 py-2 text-[10px] text-white/50">Cancel</button></form> : message.text && <p className="whitespace-pre-wrap break-words rounded-2xl rounded-tl-md border border-white/[.06] bg-white/[.035] px-3.5 py-2.5 text-[13px] leading-6 text-white/80">{message.text}</p>}
+                    {editingMessageId === message.id ? <form onSubmit={(event) => saveEdit(event, message)} className="mt-1 flex gap-2"><input autoFocus value={editingDraft} onChange={(event) => setEditingDraft(event.target.value.slice(0, 1200))} maxLength={1200} className="min-w-0 flex-1 rounded-xl border border-cyan-100/20 bg-black/25 px-3 py-2 text-xs outline-none" /><button type="submit" disabled={actionBusy || !editingDraft.trim()} className="rounded-lg bg-cyan-100 px-3 py-2 text-[10px] font-bold text-slate-950 disabled:opacity-40">Save</button><button type="button" onClick={() => { setEditingMessageId(null); setEditingDraft(""); }} className="rounded-lg border border-white/10 px-2 py-2 text-[10px] text-white/50">Cancel</button></form> : message.text && <p className={"whitespace-pre-wrap break-words rounded-2xl rounded-tl-md border px-3.5 py-2.5 text-[13px] leading-6 " + (message.isAnnouncement ? "border-amber-200/15 bg-amber-200/[.05] text-amber-50" : message.isAdminMessage ? "border-cyan-200/15 bg-cyan-200/[.04] text-cyan-50" : "border-white/[.06] bg-white/[.035] text-white/80")}>{message.text}</p>}
                     {message.attachment && <a href={message.attachment.url} className="mt-1.5 flex max-w-md items-center gap-3 rounded-xl border border-cyan-100/10 bg-cyan-100/[.035] px-3 py-3 transition hover:border-cyan-100/25 hover:bg-cyan-100/[.07]"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-cyan-100/10 text-cyan-100">{message.attachment.type?.startsWith("image/") ? <Image size={18} /> : <FileText size={18} />}</span><span className="min-w-0 flex-1"><span className="block truncate text-xs font-semibold text-white/80">{message.attachment.name}</span><span className="mt-1 block text-[10px] text-white/35">{formatSize(message.attachment.size)} · download</span></span><Paperclip size={15} className="shrink-0 text-white/30" /></a>}
                     <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                       {(message.reactions || []).map((reaction) => <button key={reaction.emoji} type="button" disabled={actionBusy} onClick={() => toggleReaction(message, reaction.emoji)} className={"rounded-lg border px-2 py-1 text-[10px] " + (reaction.reacted ? "border-cyan-100/35 bg-cyan-100/10 text-cyan-50" : "border-white/10 bg-white/[.025] text-white/60")}>{reaction.emoji} {reaction.count}</button>)}

@@ -2,6 +2,25 @@ import { useEffect, useRef, useState } from 'react';
 import { LockKeyhole, ShieldCheck, Eye, EyeOff, CloudSun, MapPin, RefreshCw } from 'lucide-react';
 
 const PASSWORD_KEY = 'dogeub-password-credential-v1';
+const USERNAME_KEY = 'dogeub-os-username-v1';
+
+function readOSUsername() {
+  try { return String(window.localStorage.getItem(USERNAME_KEY) || '').trim(); } catch { return ''; }
+}
+
+async function messagesAuth(mode, username, password) {
+  const response = await fetch('/api/messages/' + mode, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  });
+  let data = {};
+  try { data = await response.json(); } catch {}
+  if (!response.ok) throw new Error(data.error || 'Could not connect your DOGEUB OS identity to Messages.');
+  if (!data.user?.username) throw new Error('The Messages service did not return a valid account.');
+  return data.user;
+}
 
 function toBase64(bytes) {
   let binary = '';
@@ -31,6 +50,9 @@ function readCredential() {
 
 export default function LockScreen() {
   const [credential, setCredential] = useState(readCredential);
+  const [osUsername, setOSUsername] = useState(readOSUsername);
+  const [usernameDraft, setUsernameDraft] = useState(readOSUsername);
+  const [authMode, setAuthMode] = useState(() => readOSUsername() ? 'login' : 'register');
   const [unlocked, setUnlocked] = useState(false);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -140,13 +162,25 @@ export default function LockScreen() {
       setError('Enter a password to continue.');
       return;
     }
-    if (!credential) {
-      if (password.length < 8) {
-        setError('Use at least 8 characters for your password.');
+    const identitySetup = !osUsername || !credential;
+    const selectedUsername = osUsername || usernameDraft.trim();
+    if (identitySetup) {
+      if (!selectedUsername || !/^[a-zA-Z0-9_]{3,20}$/.test(selectedUsername)) {
+        setError('Choose a unique username with 3–20 letters, numbers, or underscores.');
         return;
       }
-      if (password !== confirmPassword) {
+      if (authMode === 'register' && password.length < 8) {
+        setError('Use at least 8 characters for your account password.');
+        return;
+      }
+      if (authMode === 'register' && password !== confirmPassword) {
         setError('Those passwords do not match.');
+        return;
+      }
+    } else {
+      const hash = await hashPassword(password, credential.salt);
+      if (hash !== credential.hash) {
+        setError('Incorrect password. Try again.');
         return;
       }
     }
@@ -157,34 +191,45 @@ export default function LockScreen() {
         setError('Secure password setup is unavailable in this browser. Open DogeUB over HTTPS and try again.');
         return;
       }
-      if (!credential) {
+      let canonicalUsername = osUsername;
+      if (identitySetup) {
+        const account = await messagesAuth(authMode, selectedUsername, password);
+        canonicalUsername = account.username;
+        window.localStorage.setItem(USERNAME_KEY, canonicalUsername);
+        setOSUsername(canonicalUsername);
+        setUsernameDraft(canonicalUsername);
+      } else {
+        // The local lock and Messages account use the same username/password.
+        // Refresh the Messages cookie when possible, but do not block local unlock
+        // if the server is temporarily unavailable.
+        try { await messagesAuth('login', osUsername, password); } catch {}
+      }
+
+      if (!credential || identitySetup) {
         const saltBytes = window.crypto.getRandomValues(new Uint8Array(16));
         const salt = toBase64(saltBytes);
         const hash = await hashPassword(password, salt);
-        const saved = { salt, hash, version: 1 };
+        const saved = { salt, hash, version: 2 };
         window.localStorage.setItem(PASSWORD_KEY, JSON.stringify(saved));
         setCredential(saved);
-        setUnlocked(true);
-        window.dispatchEvent(new CustomEvent('dogeub-unlocked'));
-        setPassword('');
-        setConfirmPassword('');
-      } else {
-        const hash = await hashPassword(password, credential.salt);
-        if (hash !== credential.hash) {
-          setError('Incorrect password. Try again.');
-          return;
-        }
-        setUnlocked(true);
-        window.dispatchEvent(new CustomEvent('dogeub-unlocked'));
-        setPassword('');
-        setConfirmPassword('');
       }
-    } catch {
-      setError('Could not save or verify your password. Check that browser storage is enabled.');
+      if (canonicalUsername) {
+        window.localStorage.setItem(USERNAME_KEY, canonicalUsername);
+        setOSUsername(canonicalUsername);
+        window.dispatchEvent(new CustomEvent('dogeub-identity-change', { detail: { username: canonicalUsername } }));
+      }
+      setUnlocked(true);
+      window.dispatchEvent(new CustomEvent('dogeub-unlocked'));
+      setPassword('');
+      setConfirmPassword('');
+    } catch (problem) {
+      setError(problem.message || 'Could not save your DOGEUB identity. Check your connection and try again.');
     } finally {
       setBusy(false);
     }
   };
+
+  const identitySetup = !osUsername || !credential;
 
   if (unlocked) return null;
 
@@ -234,18 +279,31 @@ export default function LockScreen() {
         </div>
         <p className="text-center text-xs font-semibold uppercase tracking-[0.22em] text-sky-300">DogeUB Security</p>
         <h1 id="dogeub-lock-title" className="mt-2 text-center text-2xl font-bold tracking-tight">
-          {credential ? 'Welcome back' : 'Create your password'}
+          {identitySetup ? (authMode === 'register' ? 'Create your DOGEUB account' : 'Sign in to DOGEUB OS') : 'Welcome back, @' + osUsername}
         </h1>
         <p className="mt-2 text-center text-sm leading-6 text-white/60">
-          {credential
-            ? 'DogeUB is locked. Sign in with your password to continue.'
-            : 'Set a password for this browser before using DogeUB. You will need it whenever DogeUB locks.'}
+          {identitySetup
+            ? 'Your unique DOGEUB OS username becomes your Messages username too.'
+            : 'DogeUB is locked. Sign in with your password to continue.'}
         </p>
         <form onSubmit={submit} className="mt-6 space-y-3">
           <p className="rounded-lg border border-sky-400/20 bg-sky-400/10 px-3 py-2 text-xs leading-5 text-sky-100/80">
             Can't select the password box? Press <kbd className="rounded border border-white/20 px-1.5 py-0.5 font-semibold text-white">Esc</kbd> to focus it, then type.
           </p>
-          <label className="block text-xs font-medium text-white/70" htmlFor="dogeub-password">Password</label>
+          {identitySetup && !osUsername && (
+            <>
+              <div className="grid grid-cols-2 gap-1 rounded-xl border border-white/10 bg-black/20 p-1">
+                <button type="button" onClick={() => { setAuthMode('register'); setError(''); }} className={'rounded-lg px-3 py-2 text-xs font-semibold transition ' + (authMode === 'register' ? 'bg-sky-400/20 text-sky-100' : 'text-white/40 hover:text-white')}>Create account</button>
+                <button type="button" onClick={() => { setAuthMode('login'); setError(''); }} className={'rounded-lg px-3 py-2 text-xs font-semibold transition ' + (authMode === 'login' ? 'bg-sky-400/20 text-sky-100' : 'text-white/40 hover:text-white')}>Already have an account</button>
+              </div>
+              <label className="block text-xs font-medium text-white/70" htmlFor="dogeub-os-username">Your DOGEUB OS username
+                <input id="dogeub-os-username" autoComplete="username" value={usernameDraft} onChange={(event) => setUsernameDraft(event.target.value)} required minLength={3} maxLength={20} pattern="[A-Za-z0-9_]{3,20}" placeholder="e.g. CoolGamer42" className="mt-2 block w-full rounded-xl border border-white/15 bg-black/25 px-3 py-3 text-sm outline-none placeholder:text-white/30 focus:border-sky-400 disabled:opacity-50" />
+              </label>
+              <p className="text-[10px] leading-4 text-white/35">{authMode === 'register' ? '3–20 letters, numbers, or underscores. This username must be unique across DOGEUB Messages.' : 'Sign in using the username associated with your DOGEUB account.'}</p>
+            </>
+          )}
+          {identitySetup && osUsername && <p className="rounded-xl border border-sky-400/15 bg-sky-400/[.06] px-3 py-2 text-xs text-sky-100/80">OS identity: <strong>@{osUsername}</strong></p>}
+          <label className="block text-xs font-medium text-white/70" htmlFor="dogeub-password">{identitySetup ? 'DOGEUB account password' : 'Password'}</label>
           <div className="flex items-center rounded-xl border border-white/15 bg-black/25 px-3 focus-within:border-sky-400">
             <input
               id="dogeub-password"
@@ -257,14 +315,14 @@ export default function LockScreen() {
               type={showPassword ? 'text' : 'password'}
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              placeholder={credential ? 'Enter your password' : 'At least 8 characters'}
+              placeholder={identitySetup && authMode === 'register' ? 'At least 8 characters' : 'Enter your password'}
               className="relative z-10 min-w-0 flex-1 bg-transparent py-3 text-sm outline-none placeholder:text-white/30"
             />
             <button type="button" aria-label={showPassword ? 'Hide password' : 'Show password'} onClick={() => setShowPassword((value) => !value)} className="rounded-lg p-1.5 text-white/50 hover:text-white">
               {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
             </button>
           </div>
-          {!credential && (
+          {identitySetup && authMode === 'register' && (
             <>
               <label className="block pt-1 text-xs font-medium text-white/70" htmlFor="dogeub-confirm-password">Confirm password</label>
               <input
@@ -282,10 +340,10 @@ export default function LockScreen() {
           )}
           {error && <p role="alert" className="rounded-lg bg-red-500/10 px-3 py-2 text-xs leading-5 text-red-200">{error}</p>}
           <button disabled={busy} type="submit" className="flex w-full items-center justify-center gap-2 rounded-xl bg-sky-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-sky-400 disabled:cursor-wait disabled:opacity-60">
-            <LockKeyhole size={16} /> {busy ? 'Please wait…' : credential ? 'Sign in to DogeUB' : 'Create password & continue'}
+            <LockKeyhole size={16} /> {busy ? 'Please wait…' : identitySetup ? (authMode === 'register' ? 'Create account & continue' : 'Sign in & continue') : 'Unlock DogeUB'}
           </button>
         </form>
-        <p className="mt-5 text-center text-[11px] leading-5 text-white/35">This locks the DogeUB page in this browser. It is not a replacement for server-side account security.</p>
+        <p className="mt-5 text-center text-[11px] leading-5 text-white/35">Your DOGEUB OS username is synced with the DOGEUB Messages account on this browser. The page lock is local browser security, not a replacement for server-side account protection.</p>
       </section>
       </div>
     </div>
