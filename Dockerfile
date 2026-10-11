@@ -42,7 +42,11 @@ COPY --from=build /app/Checkfailed.html ./Checkfailed.html
 COPY --from=build /app/placeholder.svg ./placeholder.svg
 
 # Run as non-root (the official node image defines a 'node' user)
-USER node
+COPY --chmod=755 entrypoint.sh ./entrypoint.sh
+
+# Start as root only long enough to fix ownership of the persistent volume,
+# then entrypoint.sh drops privileges and runs the API as the unprivileged node user.
+USER root
 
 EXPOSE 3000
-CMD ["node", "server.js"]
+ENTRYPOINT ["/app/entrypoint.sh"]
