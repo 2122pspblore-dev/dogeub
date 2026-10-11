@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import Peer from 'peerjs';
 import { Monitor, MonitorUp, ShieldCheck, Square, Wifi, CircleHelp, Copy, Check, AlertTriangle, Link2, PhoneCall, PhoneOff, UserRoundCheck } from 'lucide-react';
 import Nav from '../layouts/Nav';
 
@@ -61,6 +60,8 @@ export default function RemoteDesktop() {
 
   const startHosting = async () => {
     setError('');
+    const Peer = window.Peer;
+    if (!Peer) { setError('Remote Desktop connection library did not load. Refresh and try again.'); return; }
     if (!navigator.mediaDevices?.getDisplayMedia) {
       setError('Screen sharing requires a supported browser over HTTPS.');
       return;
@@ -109,6 +110,8 @@ export default function RemoteDesktop() {
 
   const joinSession = () => {
     setError('');
+    const Peer = window.Peer;
+    if (!Peer) { setError('Remote Desktop connection library did not load. Refresh and try again.'); return; }
     const id = connectCode.trim();
     if (!id) {
       setError('Enter the host connection code first.');
