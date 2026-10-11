@@ -666,9 +666,12 @@ export default async function registerMessagesRoutes(app) {
         message.channel === "group" && message.groupId === groupId;
       return matches ? Math.max(latest, message.createdAt) : latest;
     }, 0);
-    const timestamp = Math.max(Date.now(), lastMessageAt);
-    setReadAt(user.id, channel, peerId, groupId, timestamp);
-    try { await persist(); } catch { return sendError(reply, 500, "Read state could not be saved."); }
+    const previousReadAt = getReadAt(user.id, channel, peerId, groupId);
+    const timestamp = Math.max(previousReadAt, lastMessageAt);
+    if (timestamp > previousReadAt) {
+      setReadAt(user.id, channel, peerId, groupId, timestamp);
+      try { await persist(); } catch { return sendError(reply, 500, "Read state could not be saved."); }
+    }
     return reply.send({ ok: true, lastReadAt: timestamp });
   });
 
