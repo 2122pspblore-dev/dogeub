@@ -1,5 +1,5 @@
 const CACHE_NAME = "dogeub-lite-v1";
-const STATIC_PATHS = ["/lite/", "/lite/index.html", "/lite/manifest.webmanifest", "/logo-os.svg"];
+const STATIC_PATHS = ["/lite/index.html", "/lite/manifest.webmanifest", "/logo-os.svg"];
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_PATHS)).then(() => self.skipWaiting()));
 });
