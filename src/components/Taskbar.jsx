@@ -9,6 +9,7 @@ import {
 const apps = [
   { name: 'Home', description: 'DogeUB homepage', icon: Home, path: '/' },
   { name: 'Browser', description: 'Browse the web', icon: Globe, path: '/search' },
+  { name: 'YouTube', description: 'Open YouTube', icon: Youtube, url: 'https://www.youtube.com' },
   { name: 'Apps', description: 'Explore apps and tools', icon: Grid3X3, path: '/materials' },
   { name: 'Docs & Resources', description: 'Games and resources', icon: BookOpen, path: '/docs' },
   { name: 'Recommended', description: 'Discover recommended sites and tools', icon: Compass, path: '/recommended' },
@@ -301,6 +302,12 @@ export default function Taskbar() {
     }
     if (app.hub) {
       window.dispatchEvent(new CustomEvent('dogeub-open-hub', { detail: { tab: 'control' } }));
+      setStartOpen(false);
+      setSearchOpen(false);
+      return;
+    }
+    if (app.url) {
+      navigate('/search', { state: { url: app.url } });
       setStartOpen(false);
       setSearchOpen(false);
       return;
