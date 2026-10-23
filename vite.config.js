@@ -202,6 +202,7 @@ export default defineConfig(({ command }) => {
         input: {
           main: resolve(__dirname, 'index.html'),
           lite: resolve(__dirname, 'lite/index.html'),
+          download: resolve(__dirname, 'download/index.html'),
         },
         output: {
           entryFileNames: '[hash].js',
