@@ -13,6 +13,7 @@ import PatchLogs from './components/PatchLogs';
 import AdminAnnouncement from './components/AdminAnnouncement';
 import LockScreen from './components/LockScreen';
 import DogeHub from './components/DogeHub';
+import DogeAssistant from './components/DogeAssistant';
 import PetBuddy from './components/PetBuddy';
 import DogeNexus from './components/DogeNexus';
 import PortalTransitions from './components/PortalTransitions';
@@ -315,6 +316,7 @@ const ThemedApp = memo(() => {
       <AdminAnnouncement />
       <PortalTransitions />
       <Taskbar />
+      <DogeAssistant />
       <AdminPanelWindow />
       <DogeHub />
       <DogeNexus />

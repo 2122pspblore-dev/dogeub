@@ -10,6 +10,7 @@ const apps = [
   { name: 'Home', description: 'DogeUB homepage', icon: Home, path: '/' },
   { name: 'Browser', description: 'Browse the web', icon: Globe, path: '/search' },
   { name: 'YouTube', description: 'Open YouTube', icon: Youtube, url: 'https://www.youtube.com' },
+  { name: 'Doge AI', description: 'Your personal AI assistant for DOGEUB', icon: Sparkles, assistant: true },
   { name: 'Apps', description: 'Explore apps and tools', icon: Grid3X3, path: '/materials' },
   { name: 'Docs & Resources', description: 'Games and resources', icon: BookOpen, path: '/docs' },
   { name: 'Recommended', description: 'Discover recommended sites and tools', icon: Compass, path: '/recommended' },
@@ -264,6 +265,12 @@ export default function Taskbar() {
   };
 
   const openApp = (app) => {
+    if (app.assistant) {
+      window.dispatchEvent(new Event('dogeub-open-assistant'));
+      setStartOpen(false);
+      setSearchOpen(false);
+      return;
+    }
     if (app.widgets) {
       window.dispatchEvent(new Event('dogeub-open-emoji-widgets'));
       setStartOpen(false);
