@@ -198,6 +198,10 @@ $('#installBtn').addEventListener('click', async () => {
 });
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/lite/sw.js', { scope: '/lite/' }).catch(() => {});
+    navigator.serviceWorker.register('/lite/sw.js', { scope: '/lite/' }).then(() => {
+      if (!navigator.serviceWorker.controller) {
+        navigator.serviceWorker.addEventListener('controllerchange', () => window.location.reload(), { once: true });
+      }
+    }).catch(() => {});
   });
 }
