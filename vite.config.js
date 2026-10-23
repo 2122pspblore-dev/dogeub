@@ -201,6 +201,7 @@ export default defineConfig(({ command }) => {
       rollupOptions: {
         input: {
           main: resolve(__dirname, 'index.html'),
+          lite: resolve(__dirname, 'lite/index.html'),
         },
         output: {
           entryFileNames: '[hash].js',
