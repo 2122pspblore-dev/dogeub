@@ -3,20 +3,30 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { getCachedSpecs, getDeviceSpecs, specsToText } from '../utils/deviceSpecs';
 import {
   AppWindow, BatteryFull, Globe, Home, Search, Settings, BatteryCharging,
-  Wifi, WifiOff, Music2, X, Youtube, BookOpen, Grid3X3, Power, ChevronUp, Cpu, LockKeyhole, Sparkles, Smile, FolderOpen, Keyboard, Zap, Command, MessagesSquare, ShieldCheck, Monitor, UsersRound
+  Wifi, WifiOff, Music2, X, Youtube, BookOpen, Grid3X3, Power, ChevronUp, Cpu, LockKeyhole, Sparkles, Smile, FolderOpen, Keyboard, Zap, Command, MessagesSquare, ShieldCheck, Monitor, UsersRound, Compass, Gamepad2, GraduationCap, Wrench, Bell, Layers
 } from 'lucide-react';
 
 const apps = [
   { name: 'Home', description: 'DogeUB homepage', icon: Home, path: '/' },
   { name: 'Browser', description: 'Browse the web', icon: Globe, path: '/search' },
-  { name: 'Apps', description: 'Explore apps', icon: Grid3X3, path: '/materials' },
-  { name: 'Docs', description: 'Games and resources', icon: BookOpen, path: '/docs' },
+  { name: 'Apps', description: 'Explore apps and tools', icon: Grid3X3, path: '/materials' },
+  { name: 'Docs & Resources', description: 'Games and resources', icon: BookOpen, path: '/docs' },
+  { name: 'Recommended', description: 'Discover recommended sites and tools', icon: Compass, path: '/recommended' },
+  { name: 'Game Library', description: 'Browse the game library', icon: Gamepad2, path: '/game-library' },
+  { name: 'Student Center', description: 'School tools and resources', icon: GraduationCap, path: '/student-center' },
+  { name: 'Social Center', description: 'Community and social tools', icon: UsersRound, path: '/social' },
+  { name: 'Toolbox', description: 'Utilities and productivity tools', icon: Wrench, path: '/toolbox' },
+  { name: 'PC Center', description: 'Device information and PC tools', icon: Cpu, path: '/pc-center' },
+  { name: 'Dashboard Studio', description: 'Build and customize your dashboard', icon: Monitor, path: '/dashboard' },
   { name: 'DogeFiler', description: 'Import, organize, preview and export files', icon: FolderOpen, path: '/files' },
   { name: 'Doge Messages', description: 'Global chat and private messages', icon: MessagesSquare, path: '/messages' },
   { name: 'Remote Desktop', description: 'Screen sharing and device connection setup', icon: Monitor, path: '/remote-desktop' },
   { name: 'Collaboration Center', description: 'Project workspaces, notes, and team links', icon: UsersRound, path: '/collaboration-center' },
   { name: 'Doge Shortcuts', description: 'Browse all DogeUB keyboard shortcuts', icon: Keyboard, path: '/shortcuts' },
   { name: 'Settings', description: 'Customize DogeUB', icon: Settings, path: '/settings' },
+  { name: 'Emoji & Widgets', description: 'Emoji picker and personal widgets', icon: Smile, widgets: true },
+  { name: 'Notification Center', description: 'View and manage notifications', icon: Bell, notificationCenter: true },
+  { name: 'HoloSpace', description: 'Switch between Main, School, Games, and Projects', icon: Layers, workspace: true },
   { name: 'Admin Panel', description: 'Administrator control center', icon: ShieldCheck, adminPanel: true },
   { name: 'Quick Launcher', description: 'Search apps with Ctrl + Shift + P', icon: Command, launcher: true },
   { name: 'Doge Hub', description: 'Control center, files, widgets, notes and themes', icon: AppWindow, hub: true },
@@ -253,6 +263,24 @@ export default function Taskbar() {
   };
 
   const openApp = (app) => {
+    if (app.widgets) {
+      window.dispatchEvent(new Event('dogeub-open-emoji-widgets'));
+      setStartOpen(false);
+      setSearchOpen(false);
+      return;
+    }
+    if (app.notificationCenter) {
+      window.dispatchEvent(new Event('dogeub-open-notification-center'));
+      setStartOpen(false);
+      setSearchOpen(false);
+      return;
+    }
+    if (app.workspace) {
+      window.dispatchEvent(new Event('dogeub-open-holospace'));
+      setStartOpen(false);
+      setSearchOpen(false);
+      return;
+    }
     if (app.launcher) {
       window.dispatchEvent(new Event('dogeub-open-quick-launcher'));
       setStartOpen(false);
@@ -342,7 +370,7 @@ export default function Taskbar() {
       )}
 
       {startOpen && (
-        <section role="dialog" aria-label="Start menu" className="fixed bottom-[4.6rem] left-1/2 z-[10999] w-[min(92vw,420px)] -translate-x-1/2 overflow-hidden rounded-2xl border border-white/15 bg-[#172033]/[.97] p-4 text-white shadow-2xl backdrop-blur-2xl">
+        <section role="dialog" aria-label="Start menu" className="fixed bottom-[4.6rem] left-1/2 z-[10999] flex max-h-[82vh] w-[min(94vw,760px)] -translate-x-1/2 flex-col overflow-hidden rounded-2xl border border-white/15 bg-[#172033]/[.97] p-4 text-white shadow-2xl backdrop-blur-2xl">
           <div className="mb-3 flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm font-semibold"><Grid3X3 size={17} /> Start</div>
             <span className="text-xs text-white/45">DOGEUB</span>
@@ -352,26 +380,38 @@ export default function Taskbar() {
             <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search apps, settings, or the web" aria-label="Search apps, settings, or the web" className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-white/40" />
             <kbd className="hidden rounded border border-white/10 px-1.5 py-1 text-[10px] text-white/40 sm:inline">↵</kbd>
           </form>
-          <div className="mt-3 max-h-[min(45vh,360px)] overflow-y-auto">
+          <div className="mt-3 min-h-0 flex-1 overflow-y-auto pr-1">
             {!query.trim() ? (
               <>
-                <div className="mb-2 text-xs font-semibold text-white/50">Suggested</div>
-                <div className="grid grid-cols-2 gap-1">
-                  {[apps[0], apps[1], apps[2], apps[9]].map((app) => {
-                    const Icon = app.icon;
-                    return <button key={app.name} onClick={() => openApp(app)} className="flex items-center gap-3 rounded-xl p-3 text-left hover:bg-white/10"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#243a59] text-sky-200"><Icon size={18} /></span><span className="min-w-0"><span className="block truncate text-sm">{app.name}</span><span className="block truncate text-[11px] text-white/45">{app.description}</span></span></button>;
-                  })}
+                <div className="mb-2 flex items-center justify-between">
+                  <div className="text-xs font-semibold text-white/55">All apps</div>
+                  <span className="text-[10px] text-white/35">{apps.length} apps · select to open</span>
                 </div>
-                <div className="mt-3 border-t border-white/10 pt-3">
-                  <div className="mb-2 text-xs font-semibold text-white/50">Settings</div>
-                  <button onClick={() => openApp(apps.find((app) => app.name === 'Settings'))} className="flex w-full items-center gap-3 rounded-xl p-2 text-left hover:bg-white/10"><Settings size={18} className="text-sky-300" /><span className="text-sm">All settings</span><span className="ml-auto text-xs text-white/35">›</span></button>
+                <div className="grid grid-cols-3 gap-1 sm:grid-cols-4 md:grid-cols-5">
+                  {apps.map((app) => {
+                    const Icon = app.icon;
+                    return (
+                      <button
+                        key={app.name}
+                        type="button"
+                        onClick={() => openApp(app)}
+                        title={app.description}
+                        className="group flex min-h-[82px] min-w-0 flex-col items-center justify-center gap-2 rounded-xl border border-transparent px-2 py-2 text-center transition hover:border-sky-300/20 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
+                      >
+                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-[#243a59] text-sky-200 transition group-hover:border-sky-200/30 group-hover:bg-sky-400/15">
+                          <Icon size={19} />
+                        </span>
+                        <span className="max-w-full truncate text-[11px] font-medium sm:text-xs">{app.name}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </>
             ) : (
               <>
                 {(() => {
                   const term = query.trim().toLowerCase();
-                  const appMatches = apps.filter((app) => (app.name + ' ' + app.description).toLowerCase().includes(term)).slice(0, 6);
+                  const appMatches = apps.filter((app) => (app.name + ' ' + app.description).toLowerCase().includes(term)).slice(0, 10);
                   const settings = [
                     { name: 'All settings', description: 'Open DOGEUB settings', keywords: 'settings customize preferences', path: '/settings' },
                     { name: 'Privacy', description: 'Cloaking and privacy options', keywords: 'privacy title cloak about blank', path: '/settings' },
@@ -381,9 +421,12 @@ export default function Taskbar() {
                   ].filter((item) => (item.name + ' ' + item.description + ' ' + item.keywords).toLowerCase().includes(term)).slice(0, 5);
                   return <>
                     {appMatches.length > 0 && <div className="mb-1 text-xs font-semibold text-white/50">Apps</div>}
-                    {appMatches.map((app) => { const Icon = app.icon; return <button key={app.name} onClick={() => openApp(app)} className="flex w-full items-center gap-3 rounded-xl p-2.5 text-left hover:bg-white/10"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#243a59] text-sky-200"><Icon size={17} /></span><span className="min-w-0 flex-1"><span className="block text-sm">{app.name}</span><span className="block truncate text-[11px] text-white/45">{app.description}</span></span><span className="text-xs text-white/30">App</span></button>; })}
+                    {appMatches.map((app) => {
+                      const Icon = app.icon;
+                      return <button key={app.name} type="button" onClick={() => openApp(app)} className="flex w-full items-center gap-3 rounded-xl p-2.5 text-left hover:bg-white/10"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#243a59] text-sky-200"><Icon size={17} /></span><span className="min-w-0 flex-1"><span className="block text-sm">{app.name}</span><span className="block truncate text-[11px] text-white/45">{app.description}</span></span><span className="text-xs text-white/30">App</span></button>;
+                    })}
                     {settings.length > 0 && <div className="mb-1 mt-3 border-t border-white/10 pt-3 text-xs font-semibold text-white/50">Settings</div>}
-                    {settings.map((item) => <button key={item.name} onClick={() => { navigate(item.path); setStartOpen(false); setSearchOpen(false); setQuery(''); }} className="flex w-full items-center gap-3 rounded-xl p-2.5 text-left hover:bg-white/10"><Settings size={17} className="shrink-0 text-sky-300" /><span className="min-w-0 flex-1"><span className="block text-sm">{item.name}</span><span className="block truncate text-[11px] text-white/45">{item.description}</span></span><span className="text-xs text-white/30">Setting</span></button>)}
+                    {settings.map((item) => <button key={item.name} type="button" onClick={() => { navigate(item.path); setStartOpen(false); setSearchOpen(false); setQuery(''); }} className="flex w-full items-center gap-3 rounded-xl p-2.5 text-left hover:bg-white/10"><Settings size={17} className="shrink-0 text-sky-300" /><span className="min-w-0 flex-1"><span className="block text-sm">{item.name}</span><span className="block truncate text-[11px] text-white/45">{item.description}</span></span><span className="text-xs text-white/30">Setting</span></button>)}
                     <div className="mt-3 border-t border-white/10 pt-3">
                       <button type="button" onClick={() => submitStartSearch()} className="flex w-full items-center gap-3 rounded-xl p-2.5 text-left hover:bg-sky-500/15"><Globe size={18} className="shrink-0 text-emerald-300" /><span className="min-w-0 flex-1"><span className="block text-sm">Search the web for “{query.trim()}”</span><span className="block text-[11px] text-white/45">Open Bing web results</span></span><span className="text-xs text-white/30">Web</span></button>
                     </div>
@@ -392,6 +435,7 @@ export default function Taskbar() {
               </>
             )}
           </div>
+
           <div className="mt-3 flex items-center justify-between gap-2 border-t border-white/10 pt-3 text-xs text-white/65">
             <button onClick={() => { if (!osUsername) window.dispatchEvent(new Event('dogeub-lock')); }} className="flex min-w-0 items-center gap-2 rounded-lg pr-2 text-left hover:text-white" title={osUsername ? 'DOGEUB OS identity' : 'Set up your DOGEUB OS username'}><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sky-500/30 font-bold">{(osUsername || 'D')[0]?.toUpperCase()}</span><span className="max-w-32 truncate">{osUsername ? '@' + osUsername : 'Set up username'}</span></button>
             <div className="flex shrink-0 items-center gap-1">
@@ -472,25 +516,30 @@ export default function Taskbar() {
         </div>
       )}
 
-      <nav aria-label="Windows style taskbar" style={{ backgroundColor: 'rgba(16,24,39,var(--dogeub-hub-glass,.85))', borderTopColor: 'var(--dogeub-hub-accent,rgba(255,255,255,.1))' }} className="fixed inset-x-0 bottom-0 z-[11000] flex h-[58px] items-center justify-center border-t border-white/10 px-2 text-white shadow-[0_-8px_30px_rgba(0,0,0,0.2)] backdrop-blur-2xl">
-        <div className="flex min-w-0 items-center gap-1.5">
-          <button aria-label="Start" title="Start" onClick={() => { setStartOpen((v) => !v); setSearchOpen(false); setTrayOpen(false); }} className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition hover:bg-white/10 ${startOpen ? 'bg-white/15' : ''}`}>
+      <nav aria-label="Windows style taskbar" style={{ backgroundColor: 'rgba(16,24,39,var(--dogeub-hub-glass,.85))', borderTopColor: 'var(--dogeub-hub-accent,rgba(255,255,255,.1))' }} className="fixed inset-x-0 bottom-0 z-[11000] flex h-[58px] items-center justify-start border-t border-white/10 px-2 text-white shadow-[0_-8px_30px_rgba(0,0,0,0.2)] backdrop-blur-2xl">
+        <div className="flex min-w-0 max-w-[calc(100%-120px)] items-center gap-1 overflow-x-auto overscroll-x-contain whitespace-nowrap py-1 sm:max-w-[calc(100%-355px)]">
+          <button aria-label="Start" title="Start" onClick={() => { setStartOpen((v) => !v); setSearchOpen(false); setTrayOpen(false); }} className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition hover:bg-white/10 ${startOpen ? 'bg-white/15' : ''}`}>
             <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden="true"><path d="M2 3.5 10.5 2.3v8.2H2V3.5Zm9.5-1.35L22 0.5v10H11.5V2.15ZM2 11.5h8.5v8.2L2 18.5v-7Zm9.5 0H22v10l-10.5-1.65V11.5Z" /></svg>
           </button>
-          <button aria-label="Taskbar search" title="Search" onClick={() => { setSearchOpen((v) => !v); setStartOpen(false); setTrayOpen(false); }} className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition hover:bg-white/10 ${searchOpen ? 'bg-white/15' : ''}`}><Search size={19} /></button>
+          <button aria-label="Taskbar search" title="Search" onClick={() => { setSearchOpen((v) => !v); setStartOpen(false); setTrayOpen(false); }} className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition hover:bg-white/10 ${searchOpen ? 'bg-white/15' : ''}`}><Search size={18} /></button>
           <span className="mx-1 h-7 w-px shrink-0 bg-white/10" />
-          <button type="button" aria-label="Emoji and custom widgets" title="Emoji & Widgets" onClick={() => window.dispatchEvent(new Event('dogeub-open-emoji-widgets'))} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-cyan-100 transition hover:bg-cyan-400/15"><Smile size={20} /></button>
-          {[
-            { name: 'Home', icon: Home, path: '/' },
-            { name: 'Browser', icon: Globe, path: '/search' },
-            { name: 'Apps', icon: Grid3X3, path: '/materials' },
-            { name: 'Files', icon: FolderOpen, path: '/files' },
-            { name: 'Doge Hub', icon: AppWindow, hub: true },
-            { name: 'YouTube', icon: Youtube, path: '/search', url: 'https://www.youtube.com' },
-          ].map((app) => {
+          {apps.map((app) => {
             const Icon = app.icon;
-            const active = location.pathname === app.path;
-            return <button key={app.name} title={app.name} aria-label={app.name} onClick={() => app.hub ? window.dispatchEvent(new CustomEvent('dogeub-open-hub', { detail: { tab: 'control' } })) : app.url ? navigate('/search', { state: { url: app.url } }) : navigate(app.path)} className={`relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition hover:bg-white/10 ${active ? 'bg-white/10' : ''}`}><Icon size={20} />{active && <span className="absolute bottom-0.5 h-1 w-4 rounded-full" style={{ backgroundColor: 'var(--dogeub-hub-accent,#38bdf8)' }} />}</button>;
+            const active = Boolean(app.path) && location.pathname === app.path;
+            return (
+              <button
+                key={app.name}
+                type="button"
+                title={app.name}
+                aria-label={app.name}
+                aria-current={active ? 'page' : undefined}
+                onClick={() => openApp(app)}
+                className={`relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 ${active ? 'bg-white/10' : ''}`}
+              >
+                <Icon size={18} />
+                {active && <span className="absolute bottom-0.5 h-1 w-4 rounded-full" style={{ backgroundColor: 'var(--dogeub-hub-accent,#38bdf8)' }} />}
+              </button>
+            );
           })}
         </div>
 
