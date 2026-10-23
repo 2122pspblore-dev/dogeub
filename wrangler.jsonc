@@ -9,6 +9,14 @@
   "ai": {
     "binding": "AI"
   },
+  "previews": {
+    "vars": {
+      "API_ORIGIN": "https://studylive.up.railway.app"
+    },
+    "ai": {
+      "binding": "AI"
+    }
+  },
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
