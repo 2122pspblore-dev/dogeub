@@ -116,7 +116,7 @@ Return ONLY a valid JSON object with this exact shape: {"reply":"your user-facin
       : [];
 
     return Response.json({ reply: reply.slice(0, 1500), actions });
-  } catch (error) {
+  } catch {
     return Response.json({ error: "Doge AI could not reach the model right now. Please try again shortly." }, { status: 502 });
   }
 }
