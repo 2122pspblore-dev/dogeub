@@ -14,7 +14,7 @@ const getProxyError = (iframe) => {
     if (!trace && !hostname) return null;
 
     const text = String(trace?.innerText || doc?.body?.innerText || '')
-      .replace(/\\s+/g, ' ')
+      .replace(/\s+/g, ' ')
       .trim();
     const match = text.match(/(?:TypeError|Error processing your request|Failed to load|Internal Server Error|Could not connect)[^.]{0,180}/i);
     return {
