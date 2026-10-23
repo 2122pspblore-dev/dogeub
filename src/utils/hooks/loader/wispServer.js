@@ -17,7 +17,7 @@ const REMOTE_WISP_SERVER =
 export function resolveWispServer(configuredServer) {
   const isLocalHost = LOCAL_HOSTS.has(location.hostname);
   const localDefault =
-    `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/wisp/`;
+    (location.protocol === "https:" ? "wss:" : "ws:") + "//" + location.host + "/wisp/";
   const defaultServer = isLocalHost ? localDefault : REMOTE_WISP_SERVER;
   const savedServer = String(configuredServer || "").trim();
 
