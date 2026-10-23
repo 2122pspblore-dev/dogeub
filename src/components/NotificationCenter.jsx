@@ -4,7 +4,7 @@ const STORE='dogeub-notification-center-v1';
 function readItems(){try{return JSON.parse(localStorage.getItem(STORE))||[];}catch{return[];}}
 export default function NotificationCenter(){
  const [open,setOpen]=useState(false),[items,setItems]=useState(readItems);
- useEffect(()=>{const onKey=e=>{if(e.altKey&&e.shiftKey&&e.key.toLowerCase()==='n'){e.preventDefault();setOpen(v=>!v);}if(e.key==='Escape')setOpen(false);};window.addEventListener('keydown',onKey);return()=>window.removeEventListener('keydown',onKey);},[]);
+ useEffect(()=>{const onKey=e=>{if(e.altKey&&e.shiftKey&&e.key.toLowerCase()==='n'){e.preventDefault();setOpen(v=>!v);}if(e.key==='Escape')setOpen(false);};const onOpen=()=>setOpen(true);window.addEventListener('keydown',onKey);window.addEventListener('dogeub-open-notification-center',onOpen);return()=>{window.removeEventListener('keydown',onKey);window.removeEventListener('dogeub-open-notification-center',onOpen);};},[]);
  function save(next){setItems(next);try{localStorage.setItem(STORE,JSON.stringify(next));}catch{}}
  function addSample(){const next=[{id:Date.now(),title:'Notification Center is ready',body:'Your local notification space is set up. New alerts from supported DOGEUB features can appear here.',time:new Date().toISOString(),read:false},...items];save(next);}
  return <div className="fixed right-4 top-20 z-[2147481500] text-white">

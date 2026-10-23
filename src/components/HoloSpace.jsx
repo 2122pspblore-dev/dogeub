@@ -33,8 +33,13 @@ export default function HoloSpace() {
       }
       if (e.key === 'Escape') setOpen(false);
     };
+    const openPanel = () => setOpen(true);
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener('dogeub-open-holospace', openPanel);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('dogeub-open-holospace', openPanel);
+    };
   }, [state]);
   function switchSpace(id) {
     const next = { ...state, active: id, routes: { ...state.routes, [state.active]: location.pathname } };
