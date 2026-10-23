@@ -4,7 +4,6 @@ const { app, BrowserWindow, shell } = require('electron');
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
-const { pathToFileURL } = require('node:url');
 
 const DIST_DIR = app.isPackaged
   ? path.join(process.resourcesPath, 'dist')
