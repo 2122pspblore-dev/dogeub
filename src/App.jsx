@@ -39,6 +39,7 @@ const importGms = () => import('./pages/Apps2');
 const importSettings = () => import('./pages/Settings');
 const importRecommended = () => import('./pages/Recommended');
 const importFiles = () => import('./pages/Files');
+const importDownloads = () => import('./pages/Downloads');
 const importShortcuts = () => import('./pages/Shortcuts');
 const importMessages = () => import('./pages/Messages');
 const importDashboardStudio = () => import('./pages/DashboardStudio');
@@ -57,6 +58,7 @@ const Apps2 = lazyLoad(importGms);
 const Settings = lazyLoad(importSettings);
 const Recommended = lazyLoad(importRecommended);
 const Files = lazyLoad(importFiles);
+const Downloads = lazyLoad(importDownloads);
 const Shortcuts = lazyLoad(importShortcuts);
 const Messages = lazyLoad(importMessages);
 const DashboardStudio = lazyLoad(importDashboardStudio);
@@ -243,6 +245,7 @@ const ThemedApp = memo(() => {
       { path: '/settings', element: <Settings /> },
       { path: '/recommended', element: <Recommended /> },
       { path: '/files', element: <Files /> },
+      { path: '/downloads', element: <Downloads /> },
       { path: '/shortcuts', element: <Shortcuts /> },
       { path: '/messages', element: <Messages /> },
       { path: '/dashboard', element: <DashboardStudio /> },
