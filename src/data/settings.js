@@ -9,6 +9,7 @@ import {
 } from '/src/utils/config';
 import { exportSettings, importSettings } from '/src/utils/settingsExport';
 import { PATCH_LOGS_KEY, isPatchLogsEnabled } from '/src/components/PatchLogs';
+import { resolveWispServer } from '/src/utils/hooks/loader/wispServer';
 
 export const privacyConfig = ({ options, updateOption, openPanic }) => {
   const isCustom = options.isCustomCloak || (options.tabName && !meta.find(c => c.value.tabName === options.tabName));
@@ -262,9 +263,7 @@ export const advancedConfig = ({ options, updateOption }) => ({
   2: {
     name: 'Wisp Config',
     desc: 'Configure the websocket server location.',
-    value: options.wServer
-      ? options.wServer
-      : `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/wisp/`,
+    value: resolveWispServer(options.wServer),
     type: 'input',
     action: (b) => updateOption({ wServer: b || null }),
   },
