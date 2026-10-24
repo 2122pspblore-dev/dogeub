@@ -43,6 +43,29 @@ export default function Loader({ config = {} }) {
     loaderStore.getState().clearStore({ showTb: options.showTb ?? true });
   }, [location.key, location.state, options.showTb]);
 
+  // Allow standalone DOGEUB Lite to hand a URL to this hosted browser using
+  // /search?url=https%3A%2F%2Fexample.com. The actual URL is then processed
+  // by DOGEUB's own proxy engine rather than opened in the outer browser.
+  useEffect(() => {
+    if (location.state?.dogeubSectionSwitcher) return;
+    const requestedUrl = new URLSearchParams(location.search).get('url');
+    if (!requestedUrl) return;
+
+    const state = loaderStore.getState();
+    const tab = state.tabs.find((item) => item.active) || state.tabs[0];
+    if (!tab) return;
+
+    const processedUrl = process(
+      requestedUrl,
+      false,
+      options.prType || 'auto',
+      options.engine || 'https://www.bing.com/search?q=',
+    );
+    if (processedUrl && tab.url !== processedUrl) {
+      updateUrl(tab.id, processedUrl);
+    }
+  }, [location.key, location.search, location.state, options.prType, options.engine, updateUrl]);
+
   return (
     <div className="relative flex flex-col w-full h-screen">
       {ui && (
