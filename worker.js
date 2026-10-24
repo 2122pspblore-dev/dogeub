@@ -1,4 +1,23 @@
 const DOGE_AI_MODEL = "@cf/zai-org/glm-4.7-flash";
+
+const DOGE_AI_CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Max-Age": "86400"
+};
+
+function withDogeAiCors(response) {
+  const headers = new Headers(response.headers);
+  for (const [name, value] of Object.entries(DOGE_AI_CORS_HEADERS)) {
+    headers.set(name, value);
+  }
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers
+  });
+}
 const DOGE_AI_RATE_LIMIT = new Map();
 const DOGE_AI_ALLOWED_ACTIONS = new Set([
   "set_theme", "set_background", "toggle_pet_buddy", "toggle_tabs_bar",
@@ -133,7 +152,10 @@ export default {
     const requestUrl = new URL(request.url);
 
     if (requestUrl.pathname === "/api/doge-ai") {
-      return handleDogeAi(request, env);
+      if (request.method === "OPTIONS") {
+        return new Response(null, { status: 204, headers: DOGE_AI_CORS_HEADERS });
+      }
+      return withDogeAiCors(await handleDogeAi(request, env));
     }
 
     if (requestUrl.pathname === "/api" || requestUrl.pathname.startsWith("/api/")) {
