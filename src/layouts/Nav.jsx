@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import NavItem from '../components/NavItem';
-import { LayoutGrid, Gamepad2, Cog, Compass, FolderOpen } from 'lucide-react';
+import { LayoutGrid, Gamepad2, Cog, Compass, FolderOpen, Download } from 'lucide-react';
 import { useOptions } from '/src/utils/optionsContext';
 import pkg from '../../package.json';
 import nav from '../styles/nav.module.css';
@@ -17,6 +17,7 @@ const navItems = [
   { name: 'Games', id: 'btn-g', type: Gamepad2, route: '/docs' },
   { name: 'Recommended', id: 'btn-r', type: Compass, route: '/recommended' },
   { name: 'Files', id: 'btn-f', type: FolderOpen, route: '/files' },
+  { name: 'Lite Download', id: 'btn-lite-download', type: Download, route: '/lite-download' },
   { name: 'Settings', id: 'btn-s', type: Cog, route: '/settings' },
 ];
 
