@@ -19,13 +19,13 @@ export default function LiteDownloader() {
         const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
         const compressed = new Blob([bytes], { type: 'application/gzip' });
         const unpackedStream = compressed.stream().pipeThrough(new window.DecompressionStream('gzip'));
-        const htmlBlob = await new Response(unpackedStream).blob();
+        const htmlText = await new Response(unpackedStream).text();
 
-        if (htmlBlob.size < 10000 || htmlBlob.type && htmlBlob.type !== 'text/html') {
-          throw new Error('The bundled HTML did not pass its file-size check. Reload DOGEUB and try again.');
+        if (!/^<!doctype html/i.test(htmlText.trimStart()) || htmlText.length < 10000) {
+          throw new Error('The bundled HTML did not pass its integrity check. Reload DOGEUB and try again.');
         }
 
-        objectUrl = URL.createObjectURL(new Blob([htmlBlob], { type: 'text/html;charset=utf-8' }));
+        objectUrl = URL.createObjectURL(new Blob([htmlText], { type: 'text/html;charset=utf-8' }));
         setDownloadUrl(objectUrl);
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : 'Could not prepare the download.');
