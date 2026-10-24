@@ -50,6 +50,7 @@ const Nav = memo(() => {
 
   return (
     <div
+      data-device-nav="true"
       className={clsx(
         nav.nav,
         theme['nav-backgroundColor'],
@@ -60,6 +61,7 @@ const Nav = memo(() => {
     >
       <Logo width={dimensions.logoWidth} height={dimensions.logoHeight} action={handleLogoClick} />
       <div
+        data-device-version="true"
         className="border rounded-full text-center"
         style={{
           fontSize: `${dimensions.versionFont}px`,
@@ -70,7 +72,7 @@ const Nav = memo(() => {
       >
         {'v' + version}
       </div>
-      <div className="flex items-center gap-5 ml-auto" style={{ height: 'calc(100% - 0.5rem)' }}>
+      <div data-device-nav-items="true" className="flex items-center gap-5 ml-auto" style={{ height: 'calc(100% - 0.5rem)' }}>
         <NavItem items={items} />
       </div>
     </div>

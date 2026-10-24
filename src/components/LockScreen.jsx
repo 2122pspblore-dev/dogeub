@@ -111,7 +111,7 @@ export default function LockScreen() {
   };
 
   useEffect(() => {
-    const timer = window.setTimeout(() => passwordInputRef.current?.focus(), 50);
+    const timer = window.setTimeout(() => passwordInputRef.current?.focus({ preventScroll: true }), 50);
     return () => window.clearTimeout(timer);
   }, [unlocked, credential]);
 
@@ -234,7 +234,7 @@ export default function LockScreen() {
   if (unlocked) return null;
 
   return (
-    <div className="fixed inset-0 z-[20000] flex min-h-screen items-center justify-center overflow-y-auto bg-[#070b14] px-4 py-8 text-white">
+    <div className="fixed inset-0 z-[20000] flex min-h-screen items-start justify-center overflow-y-auto bg-[#070b14] px-4 py-8 text-white md:items-center">
       <div className="pointer-events-none absolute inset-0 opacity-40" style={{ background: 'radial-gradient(circle at 20% 25%, #164e63 0, transparent 42%), radial-gradient(circle at 85% 80%, #312e81 0, transparent 35%)' }} />
       <div className="relative mx-auto flex w-full max-w-5xl flex-col items-stretch justify-center gap-6 md:flex-row md:items-center md:gap-10">
       <aside className="w-full rounded-3xl border border-white/10 bg-white/[0.04] p-6 backdrop-blur-xl md:max-w-md md:p-8">
@@ -308,7 +308,6 @@ export default function LockScreen() {
             <input
               id="dogeub-password"
               ref={passwordInputRef}
-              autoFocus
               tabIndex={0}
               style={{ pointerEvents: "auto", userSelect: "text", WebkitUserSelect: "text" }}
               autoComplete={credential ? 'current-password' : 'new-password'}

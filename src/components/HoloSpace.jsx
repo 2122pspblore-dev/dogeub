@@ -48,7 +48,7 @@ export default function HoloSpace() {
     navigate(next.routes[id] || (id === 'school' ? '/student-center' : id === 'games' ? '/game-library' : id === 'projects' ? '/collaboration-center' : '/'));
     setOpen(false);
   }
-  return <div className="fixed bottom-[76px] left-4 z-[2147481000]">
+  return <div data-device-workspace="true" className="fixed bottom-[76px] left-4 z-[2147481000]">
     {open && <div className="mb-2 w-64 rounded-2xl border border-cyan-300/30 bg-slate-950/90 p-3 text-white shadow-2xl backdrop-blur-2xl">
       <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[.2em] text-cyan-200"><Layers size={14}/> HoloSpace</div>
       {spaces.map(space => <button key={space.id} onClick={() => switchSpace(space.id)} className={`mb-1 flex w-full items-center gap-3 rounded-xl border px-3 py-3 text-left text-sm transition ${state.active === space.id ? 'border-cyan-300/40 bg-cyan-300/10 text-cyan-100' : 'border-white/10 hover:bg-white/5'}`}><span className="text-lg">{space.icon}</span><span className="flex-1">{space.name}</span>{state.active === space.id && <span className="h-1.5 w-1.5 rounded-full bg-cyan-300"/>}</button>)}

@@ -127,7 +127,19 @@ function useTracking() {
 
 const ThemedApp = memo(() => {
   const { options, updateOption } = useOptions();
+  const [isUnlocked, setIsUnlocked] = useState(false);
   const location = useLocation();
+
+  useEffect(() => {
+    const unlock = () => setIsUnlocked(true);
+    const lock = () => setIsUnlocked(false);
+    window.addEventListener('dogeub-unlocked', unlock);
+    window.addEventListener('dogeub-lock', lock);
+    return () => {
+      window.removeEventListener('dogeub-unlocked', unlock);
+      window.removeEventListener('dogeub-lock', lock);
+    };
+  }, []);
   const [siteStatus, setSiteStatus] = useState({ gamesDisabled: false, serverMuted: false, browsingDisabled: false, maintenanceMode: false, maintenanceMessage: '', maintenanceAdmin: false, maintenanceAuthenticated: false, banned: false, banReason: '' });
   const popunderEnabled = POPUNDER_ENABLED === 'true';
   const [customBackground, setCustomBackground] = useState(() => {
@@ -325,8 +337,8 @@ const ThemedApp = memo(() => {
       <QuickLauncher />
       <SectionSwitcher />
       <HolographicTabSwitcher />
-      <NotificationCenter />
-      <HoloSpace />
+      {isUnlocked && <NotificationCenter />}
+      {isUnlocked && <HoloSpace />}
       <PetBuddy />
       <LockScreen />
       {popunderEnabled && !adKeyPassed ? <Popunder /> : null}

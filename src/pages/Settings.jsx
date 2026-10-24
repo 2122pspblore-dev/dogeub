@@ -37,6 +37,10 @@ const baseConfigs = [
       'donation',
       'tabs bar',
       'tab bar',
+      'device mode',
+      'mobile',
+      'tablet',
+      'responsive',
     ],
     key: 'customizeConfig',
   },
@@ -65,7 +69,8 @@ const baseConfigs = [
 ];
 
 const Settings = () => {
-  const { options, updateOption } = useOptions();
+  const { options, updateOption, effectiveDeviceMode } = useOptions();
+  const mobileLayout = effectiveDeviceMode === 'mobile';
   const [q, setQ] = useState('');
   const [content, setContent] = useState('Privacy');
 
@@ -127,21 +132,21 @@ const Settings = () => {
     filtered.some((s) => s.keywords.some((kw) => kw.toLowerCase().includes(fq)));
 
   return (
-    <div className="flex flex-col h-screen">
+    <div data-device-settings="true" className="flex h-[100dvh] min-h-0 flex-col">
       <div className="shrink-0">
         <Nav />
       </div>
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className={clsx('flex min-h-0 flex-1 overflow-hidden', mobileLayout && 'flex-col')}>
         <div
           className={clsx(
             theme['settings-panelColor'],
             theme[`theme-${options.theme || 'default'}`],
-            'w-60 shrink-0 overflow-y-auto p-2 pt-3',
+            mobileLayout ? 'w-full max-h-32 shrink-0 overflow-hidden p-2' : 'w-60 shrink-0 overflow-y-auto p-2 pt-3',
           )}
         >
           <div
-            className="flex items-center max-w-52 h-7 rounded-lg mx-auto px-2"
+            className="mx-auto flex h-7 w-full max-w-52 items-center rounded-lg px-2"
             style={{ backgroundColor: options.settingsSearchBar || '#3c475a' }}
           >
             <Search className="w-4 mr-1.5" />
@@ -165,14 +170,15 @@ const Settings = () => {
             </div>
           )}
 
-          <div className="flex flex-col gap-3 mt-5">
+          <div className={clsx('mt-2 flex gap-2', mobileLayout ? 'overflow-x-auto pb-1' : 'flex-col gap-3 mt-5')}>
             {filtered.map(({ name, icon: Icon, items }) => {
               const matched = fq ? items.filter((i) => i.name.toLowerCase().includes(fq)) : [];
               return (
                 <div
                   key={name}
                   className={clsx(
-                    'w-full flex flex-col rounded-xl duration-75 cursor-pointer px-5 py-2',
+                    'flex cursor-pointer flex-col rounded-xl duration-75',
+                    mobileLayout ? 'w-auto min-w-max shrink-0 px-3 py-2' : 'w-full px-5 py-2',
                     content !== name && 'bg-transparent hover:bg-[#ffffff23]',
                   )}
                   style={{
@@ -199,7 +205,8 @@ const Settings = () => {
               <div
                 key="Admin Panel"
                 className={clsx(
-                  'w-full flex flex-col rounded-xl duration-75 cursor-pointer px-5 py-2',
+                  'flex cursor-pointer flex-col rounded-xl duration-75',
+                  mobileLayout ? 'w-auto min-w-max shrink-0 px-3 py-2' : 'w-full px-5 py-2',
                   content !== 'Admin Panel' && 'bg-transparent hover:bg-[#ffffff23]',
                 )}
                 style={{

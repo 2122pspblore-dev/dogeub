@@ -156,8 +156,9 @@ const Apps = memo(() => {
     <div className={`${styles.appContainer} w-full mx-auto`}>
       <div className="w-full px-4 py-4 flex justify-center mt-3">
         <div
+          data-app-search="true"
           className={clsx(
-            'relative flex items-center gap-2.5 rounded-[10px] px-3 w-[600px] h-11',
+            'relative flex items-center gap-2.5 rounded-[10px] px-3 w-[600px] h-11 max-w-[calc(100vw-2rem)]',
             searchBarCls,
           )}
         >
