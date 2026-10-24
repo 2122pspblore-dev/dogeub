@@ -173,21 +173,28 @@ export const customizeConfig = ({ options, updateOption }) => ({
     type: 'switch',
     action: (b) => updateOption({ popularSitesWidget: b }),
   },
-  10: {
+  13: {
+    name: 'Device Layout Mode',
+    desc: 'Automatically adapt navigation and spacing to your screen, or choose a layout manually.',
+    value: options.deviceMode || 'auto',
+    type: 'device-mode',
+    action: (mode) => updateOption({ deviceMode: mode }),
+  },
+  9: {
     name: 'Most Played Games Widget',
     desc: 'Show a homepage widget for games launched through DOGEUB when game activity tracking is available.',
     value: options.mostPlayedGamesWidget ?? true,
     type: 'switch',
     action: (b) => updateOption({ mostPlayedGamesWidget: b }),
   },
-  9: {
+  10: {
     name: 'Pet Buddy',
     desc: 'Show a tiny animated animal buddy that pops up with random cute messages.',
     value: options.petBuddyEnabled ?? false,
     type: 'switch',
     action: (b) => setTimeout(() => updateOption({ petBuddyEnabled: b }), 100),
   },
-  10: {
+  11: {
     name: 'Pet Buddy Animal',
     desc: 'Choose which little animal hangs out on your screen.',
     config: [
@@ -217,7 +224,7 @@ export const customizeConfig = ({ options, updateOption }) => ({
     type: 'select',
     action: (a) => updateOption(a),
   },
-  8: {
+  12: {
     name: 'Show patch logs on load',
     desc: 'Show the Patch Logs panel listing recent changes every time the site loads.',
     value: isPatchLogsEnabled(),

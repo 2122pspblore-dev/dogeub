@@ -33,10 +33,12 @@ const SearchContainer = memo(function SearchContainer({ logo = true, cls, nav = 
       return;
     }
 
-    latestQuery.current = searchQuery;
     try {
       const response = await fetch('/return?q=' + encodeURIComponent(searchQuery));
-      if (!response.ok) return setResults([]);
+      if (!response.ok) {
+        if (latestQuery.current === searchQuery) setResults([]);
+        return;
+      }
 
       const data = await response.json();
       if (latestQuery.current !== searchQuery) return;
@@ -67,6 +69,8 @@ const SearchContainer = memo(function SearchContainer({ logo = true, cls, nav = 
       const newQuery = e.target.value;
       setQuery(newQuery);
       setActiveResult(-1);
+      // Invalidate in-flight responses before the next debounced request starts.
+      latestQuery.current = newQuery;
 
       if (debounceRef.current) clearTimeout(debounceRef.current);
       if (!newQuery.trim()) {
