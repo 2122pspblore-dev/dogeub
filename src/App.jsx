@@ -50,6 +50,7 @@ const importSocialCenter = () => import('./pages/SocialCenter');
 const importRemoteDesktop = () => import('./pages/RemoteDesktop');
 const importCollaborationCenter = () => import('./pages/CollaborationCenter');
 const importPublicProfile = () => import('./pages/PublicProfile');
+const importOffice = () => import('./pages/OfficeSuite');
 
 const Home = lazyLoad(importHome);
 const Apps = lazyLoad(importApps);
@@ -68,11 +69,13 @@ const SocialCenter = lazyLoad(importSocialCenter);
 const RemoteDesktop = lazyLoad(importRemoteDesktop);
 const CollaborationCenter = lazyLoad(importCollaborationCenter);
 const PublicProfile = lazyLoad(importPublicProfile);
+const OfficeSuite = lazyLoad(importOffice);
 const Player = lazyLoad(() => import('./pages/Player'));
 
 initPreload('/materials', importApps);
 initPreload('/docs', importGms);
 initPreload('/settings', importSettings);
+initPreload('/office', importOffice);
 initPreload('/', importHome);
 
 function SiteControlNotice({ title, detail }) {
@@ -265,6 +268,7 @@ const ThemedApp = memo(() => {
       { path: '/social', element: <SocialCenter /> },
       { path: '/remote-desktop', element: <RemoteDesktop /> },
       { path: '/collaboration-center', element: <CollaborationCenter /> },
+      { path: '/office/*', element: <OfficeSuite /> },
       { path: '/profile/:username', element: <PublicProfile /> },
       { path: '/portal/k12/*', element: <NotFound /> },
       { path: '/ham/*', element: <NotFound /> },
