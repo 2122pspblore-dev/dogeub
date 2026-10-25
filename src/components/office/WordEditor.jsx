@@ -54,6 +54,7 @@ function htmlToDocxNodes(html, fallbackFont, docx) {
   const parsed = new DOMParser().parseFromString(`<body>${html}</body>`, 'text/html');
   const body = parsed.body;
   const nodes = [];
+  const blockTags = new Set(['p', 'h1', 'h2', 'h3', 'h4', 'blockquote', 'pre', 'div', 'section', 'article', 'main', 'header', 'footer', 'ul', 'ol', 'li', 'img', 'table', 'thead', 'tbody', 'tfoot', 'tr', 'td', 'th']);
   const addBlock = (element, bullet = '') => {
     const tag = element.tagName.toLowerCase();
     const contentRuns = tag === 'img' ? textRuns(element, {}, fallbackFont, docx) : Array.from(element.childNodes).flatMap((child) => textRuns(child, {}, fallbackFont, docx));
@@ -62,16 +63,50 @@ function htmlToDocxNodes(html, fallbackFont, docx) {
     const alignment = ({ center: AlignmentType.CENTER, right: AlignmentType.RIGHT, justify: AlignmentType.JUSTIFIED })[element.style.textAlign] || AlignmentType.LEFT;
     nodes.push(new Paragraph({ children: runs.length ? runs : [new TextRun(' ')], heading, alignment, spacing: { after: 140 } }));
   };
-  const visit = (element) => {
-    const tag = element.tagName?.toLowerCase();
-    if (!tag) return;
-    if (['p', 'h1', 'h2', 'h3', 'h4', 'blockquote', 'pre'].includes(tag)) addBlock(element);
-    else if (tag === 'li') addBlock(element, '•');
-    else if (tag === 'ul' || tag === 'ol') Array.from(element.children).forEach(visit);
-    else if (tag === 'img') addBlock(element);
-    else Array.from(element.children).forEach(visit);
+  const addInlineBlock = (children) => {
+    const hasContent = children.some((child) => child.nodeType === Node.TEXT_NODE
+      ? Boolean(child.nodeValue?.trim())
+      : child.nodeType === Node.ELEMENT_NODE && (child.tagName.toLowerCase() === 'br' || Boolean(child.textContent?.trim()) || Boolean(child.querySelector?.('img'))));
+    if (!hasContent) return;
+    const runs = children.flatMap((child) => textRuns(child, {}, fallbackFont, docx));
+    if (runs.length) nodes.push(new Paragraph({ children: runs, alignment: AlignmentType.LEFT, spacing: { after: 140 } }));
   };
-  Array.from(body.children).forEach(visit);
+  const visit = (element) => {
+    if (element.nodeType === Node.TEXT_NODE) {
+      addInlineBlock([element]);
+      return;
+    }
+    if (element.nodeType !== Node.ELEMENT_NODE) return;
+    const tag = element.tagName.toLowerCase();
+    if (['p', 'h1', 'h2', 'h3', 'h4', 'blockquote', 'pre', 'img', 'td', 'th'].includes(tag)) {
+      addBlock(element);
+      return;
+    }
+    if (tag === 'li') {
+      addBlock(element, '•');
+      return;
+    }
+
+    // Browsers often create divs inside contentEditable, and pasted HTML can
+    // contain arbitrary wrappers. Keep their direct text while recursively
+    // converting nested block elements instead of silently dropping it.
+    let inlineChildren = [];
+    const flushInline = () => {
+      if (inlineChildren.length) addInlineBlock(inlineChildren);
+      inlineChildren = [];
+    };
+    Array.from(element.childNodes).forEach((child) => {
+      const childTag = child.nodeType === Node.ELEMENT_NODE ? child.tagName.toLowerCase() : '';
+      if (blockTags.has(childTag)) {
+        flushInline();
+        visit(child);
+      } else {
+        inlineChildren.push(child);
+      }
+    });
+    flushInline();
+  };
+  Array.from(body.childNodes).forEach(visit);
   if (!nodes.length) nodes.push(new Paragraph({ children: [new TextRun(' ')] }));
   return nodes;
 }
