@@ -2,11 +2,26 @@ import { WebSocketServer } from 'ws';
 import { mouse, keyboard, screen, Point, Button, Key } from '@nut-tree-fork/nut-js';
 
 const PORT = Number(process.env.DOGEUB_CONTROL_PORT || 8765);
-const ALLOWED_ORIGINS = new Set([
-  'https://studylive.up.railway.app',
-  'https://dogeub.up.railway.app',
+const DEFAULT_ALLOWED_ORIGINS = [
+  'https://schoolstudy.2122pspblore.workers.dev',
   'http://localhost:5173',
-  'http://127.0.0.1:5173'
+  'http://127.0.0.1:5173',
+  'http://localhost:5174',
+  'http://127.0.0.1:5174',
+];
+
+function normalizeOrigin(value) {
+  try {
+    const url = new URL(String(value).trim());
+    return ['http:', 'https:'].includes(url.protocol) ? url.origin : '';
+  } catch {
+    return '';
+  }
+}
+
+const ALLOWED_ORIGINS = new Set([
+  ...DEFAULT_ALLOWED_ORIGINS,
+  ...String(process.env.DOGEUB_ALLOWED_ORIGINS || '').split(',').map(normalizeOrigin).filter(Boolean),
 ]);
 
 const keyMap = {
