@@ -32,6 +32,17 @@ const makeShortPeerId = () => {
   return Array.from(bytes, byte => alphabet[byte % alphabet.length]).join('');
 };
 
+function connectToLocalControlAgent() {
+  const url = 'ws://127.0.0.1:8765';
+  try {
+    // Chrome 154+ uses this permission-aware options bag for local WebSockets.
+    return new WebSocket(url, { targetAddressSpace: 'loopback' });
+  } catch {
+    // Keep compatible with browsers that only implement the protocols argument.
+    return new WebSocket(url);
+  }
+}
+
 export default function RemoteDesktop() {
   const localVideo = useRef(null), remoteVideo = useRef(null);
   const peerRef = useRef(null), callRef = useRef(null), streamRef = useRef(null);
@@ -46,13 +57,25 @@ export default function RemoteDesktop() {
   const [inviteBusy, setInviteBusy] = useState(false), [sendingInviteTo, setSendingInviteTo] = useState('');
   const [inviteNotice, setInviteNotice] = useState('');
 
+  const disableControl = () => {
+    const socket = controlSocketRef.current;
+    controlSocketRef.current = null;
+    controlEnabledRef.current = false;
+    if (socket) {
+      if (socket.readyState === WebSocket.OPEN) {
+        try { socket.send(JSON.stringify({ type: 'disarm' })); } catch { /* Socket may already be closing. */ }
+      }
+      try { socket.close(); } catch { /* Socket may already be closed. */ }
+    }
+    setControlReady(false);
+    setControlEnabled(false);
+  };
+
   const stop = () => {
     stoppingRef.current = true;
     callRef.current?.close();
     requestRef.current?.close();
-    if (controlSocketRef.current?.readyState === WebSocket.OPEN) controlSocketRef.current.send(JSON.stringify({ type: 'disarm' }));
-    controlSocketRef.current?.close(); controlSocketRef.current = null; controlEnabledRef.current = false;
-    setControlReady(false); setControlEnabled(false);
+    disableControl();
     peerRef.current?.destroy();
     streamRef.current?.getTracks().forEach(t => t.stop());
     callRef.current = requestRef.current = peerRef.current = streamRef.current = null;
@@ -83,6 +106,7 @@ export default function RemoteDesktop() {
         callRef.current = null;
         requestRef.current?.close();
         requestRef.current = null;
+        disableControl();
       }
       setConnected(false);
       if (!stoppingRef.current) setStatus('The other computer disconnected');
@@ -139,6 +163,7 @@ export default function RemoteDesktop() {
         connection.on('close', () => {
           if (requestRef.current !== connection) return;
           requestRef.current = null;
+          disableControl();
           setIncoming(false);
           if (!stoppingRef.current && !callRef.current) setStatus('Connection request ended');
         });
@@ -253,8 +278,13 @@ export default function RemoteDesktop() {
     if (!window.confirm('Enable remote mouse and keyboard control? Only do this for someone you trust.')) return;
     setError('');
     try {
-      const socket = new WebSocket('ws://127.0.0.1:8765'); controlSocketRef.current = socket;
+      if (controlSocketRef.current && [WebSocket.CONNECTING, WebSocket.OPEN].includes(controlSocketRef.current.readyState)) {
+        setError('The host agent is already connecting or connected.');
+        return;
+      }
+      const socket = connectToLocalControlAgent(); controlSocketRef.current = socket;
       socket.onopen = () => {
+        if (controlSocketRef.current !== socket) { socket.close(); return; }
         // Wait for the local agent's acknowledgement before forwarding input.
         socket.send(JSON.stringify({ type: 'arm', confirmed: true }));
         setStatus('Waiting for host agent confirmation…');
@@ -263,9 +293,7 @@ export default function RemoteDesktop() {
         try {
           const message = JSON.parse(event.data);
           if (message.type === 'agent-error') {
-            controlEnabledRef.current = false;
-            setControlEnabled(false);
-            setControlReady(false);
+            disableControl();
             setError('Host agent: ' + message.message);
           } else if (message.type === 'agent-state') {
             const armed = message.armed === true;
@@ -277,11 +305,19 @@ export default function RemoteDesktop() {
         } catch { /* Ignore malformed messages. */ }
       };
       socket.onerror = () => {
-        controlEnabledRef.current = false; setControlEnabled(false); setControlReady(false);
-        setError('Host agent not reachable on this computer. Start the agent on the computer being shared, then retry.');
+        if (controlSocketRef.current !== socket) return;
+        disableControl();
+        setError('Host agent not reachable. Start it on the computer being shared, and allow DOGEUB local-network access if your browser asks.');
       };
-      socket.onclose = () => { controlEnabledRef.current = false; setControlEnabled(false); setControlReady(false); };
-    } catch { setError('Could not connect to the local host agent.'); }
+      socket.onclose = () => {
+        if (controlSocketRef.current !== socket) return;
+        controlSocketRef.current = null;
+        controlEnabledRef.current = false;
+        setControlEnabled(false);
+        setControlReady(false);
+        if (!stoppingRef.current) setStatus('Host agent disconnected — remote control stopped');
+      };
+    } catch { setError('Could not connect to the local host agent. Start it on the computer being shared and allow local-network access if prompted.'); }
   };
   const sendChat = event => {
     event.preventDefault();
@@ -407,7 +443,7 @@ export default function RemoteDesktop() {
           </>}
           {mode === 'host' && <section className={panel}><h2 className="font-semibold">Connection code</h2><div className="my-3 flex items-center gap-2 rounded-xl bg-black/30 p-3"><code className="flex-1 break-all text-sm text-cyan-100">{peerId || 'Creating code…'}</code><button onClick={copy} disabled={!peerId} aria-label="Copy code" className="rounded-lg p-2 hover:bg-white/10 disabled:opacity-40"><Copy size={16}/></button></div>
             {incoming && <div className="rounded-xl border border-amber-200/20 p-3"><p className="text-sm">Someone wants to view your screen.</p><div className="mt-3 grid grid-cols-2 gap-2"><button onClick={approve} className="rounded-lg bg-emerald-200 p-2 text-sm font-bold text-slate-950">Approve</button><button onClick={decline} className="rounded-lg border border-white/15 p-2 text-sm">Decline</button></div></div>}
-            {connected && <div className="mt-4 rounded-xl border border-white/10 p-3"><h3 className="font-semibold">Remote control</h3><p className="my-2 text-xs text-slate-400">Your Chromebook stays browser-only; the optional agent runs on the computer being controlled.</p><div className="text-xs text-slate-400">{controlReady ? 'Host agent armed' : 'Host agent not connected'}</div><button onClick={enableControl} className={button + ' mt-3 border border-emerald-300/30 hover:bg-emerald-300/10'}>Enable mouse + keyboard control</button>{controlEnabled && <button onClick={() => { controlSocketRef.current?.send(JSON.stringify({type:'disarm'})); controlSocketRef.current?.close(); controlSocketRef.current = null; controlEnabledRef.current = false; setControlEnabled(false); setControlReady(false); }} className={button + ' mt-2 border border-rose-300/30'}>Disable remote control</button>}</div>}
+            {connected && <div className="mt-4 rounded-xl border border-white/10 p-3"><h3 className="font-semibold">Remote control</h3><p className="my-2 text-xs text-slate-400">Full desktop input needs the optional host agent on the computer being shared. The person at that computer must approve screen sharing and enable control.</p><a href="https://github.com/2122pspblore-dev/dogeub/blob/main/REMOTE-DESKTOP-AGENT.md" target="_blank" rel="noreferrer" className="text-xs font-semibold text-cyan-200 underline decoration-cyan-200/40 underline-offset-2 hover:text-cyan-100">Host agent setup guide</a><div className="mt-2 text-xs text-slate-400">{controlReady ? 'Host agent armed' : 'Host agent not connected'}</div><button onClick={enableControl} disabled={controlEnabled} className={button + ' mt-3 border border-emerald-300/30 hover:bg-emerald-300/10 disabled:cursor-not-allowed disabled:opacity-50'}>{controlEnabled ? 'Remote control enabled' : 'Enable mouse + keyboard control'}</button>{controlEnabled && <button onClick={disableControl} className={button + ' mt-2 border border-rose-300/30'}>Disable remote control</button>}</div>}
           </section>}
           {mode === 'host' && peerId && <section className={panel}>
             <div className="flex items-center gap-2"><Users size={17} className="text-cyan-200"/><h2 className="font-semibold">Invite a Dogeub user</h2></div>
