@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { Monitor, Copy, PhoneOff, ShieldCheck, MessageCircle, Send, Search, Users } from 'lucide-react';
-import { Peer } from 'peerjs';
 import Nav from '../layouts/Nav';
 
 const peerOptions = {
@@ -83,7 +82,8 @@ function connectToLocalControlAgent() {
 
 export default function RemoteDesktop() {
   const localVideo = useRef(null), remoteVideo = useRef(null);
-  const peerRef = useRef(null), callRef = useRef(null), streamRef = useRef(null);
+  const peerRef = useRef(null), callRef = useRef(null), streamRef = useRef(null), modeRef = useRef('idle');
+  const remoteStreamRef = useRef(null), mediaTimeoutRef = useRef(0);
   const requestRef = useRef(null), stoppingRef = useRef(false), controlSocketRef = useRef(null), controlEnabledRef = useRef(false);
   const pointerQueueRef = useRef({ frameId: 0, pending: null, lastSentAt: 0 });
   const [mode, setMode] = useState('idle'), [code, setCode] = useState('');
@@ -168,14 +168,18 @@ export default function RemoteDesktop() {
   const stop = () => {
     stoppingRef.current = true;
     cancelPendingPointer();
+    window.clearTimeout(mediaTimeoutRef.current);
+    mediaTimeoutRef.current = 0;
     callRef.current?.close();
     requestRef.current?.close();
     disableControl();
     peerRef.current?.destroy();
     streamRef.current?.getTracks().forEach(t => t.stop());
     callRef.current = requestRef.current = peerRef.current = streamRef.current = null;
+    remoteStreamRef.current = null;
     if (localVideo.current) localVideo.current.srcObject = null;
     if (remoteVideo.current) remoteVideo.current.srcObject = null;
+    modeRef.current = 'idle';
     setMode('idle'); setPeerId(''); setIncoming(false); setConnected(false);
     setChatMessages([]); setChatDraft(''); setInviteSearch(''); setInviteResults([]); setInviteNotice('');
     setError(''); setStatus('Disconnected — session ended');
@@ -183,6 +187,7 @@ export default function RemoteDesktop() {
 
   useEffect(() => () => {
     cancelPendingPointer();
+    window.clearTimeout(mediaTimeoutRef.current);
     callRef.current?.close();
     requestRef.current?.close();
     controlSocketRef.current?.close();
@@ -190,19 +195,38 @@ export default function RemoteDesktop() {
     streamRef.current?.getTracks().forEach(t => t.stop());
   }, []);
 
+  useEffect(() => {
+    const video = mode === 'viewer' ? remoteVideo.current : localVideo.current;
+    const stream = mode === 'viewer' ? remoteStreamRef.current : streamRef.current;
+    if (!video || !stream) return;
+    if (video.srcObject !== stream) video.srcObject = stream;
+    video.play().catch(() => {
+      if (mode === 'viewer') setError('Edge blocked remote video playback. Click the screen to start it.');
+    });
+  }, [mode, connected]);
+
   const wireCall = (call, answerIncoming = false) => {
     callRef.current = call;
     call.on('stream', stream => {
-      if (remoteVideo.current) {
-        remoteVideo.current.srcObject = stream;
-        remoteVideo.current.play().catch(() => setError('Edge paused the remote screen. Click the screen once to start playback.'));
+      if (modeRef.current === 'viewer') {
+        remoteStreamRef.current = stream;
+        const video = remoteVideo.current;
+        if (video) {
+          video.srcObject = stream;
+          video.play().catch(() => setError('Edge blocked remote video playback. Click the screen to start it.'));
+        }
+        window.clearTimeout(mediaTimeoutRef.current);
+        mediaTimeoutRef.current = 0;
       }
       setConnected(true); setStatus('Connected — screen is live');
     });
     call.on('close', () => {
+      window.clearTimeout(mediaTimeoutRef.current);
+      mediaTimeoutRef.current = 0;
       const wasCurrentCall = callRef.current === call;
       if (wasCurrentCall) {
         callRef.current = null;
+        remoteStreamRef.current = null;
         requestRef.current?.close();
         requestRef.current = null;
         disableControl();
@@ -212,8 +236,17 @@ export default function RemoteDesktop() {
       if (remoteVideo.current) remoteVideo.current.srcObject = null;
     });
     call.on('error', err => {
+      window.clearTimeout(mediaTimeoutRef.current);
+      mediaTimeoutRef.current = 0;
       if (!stoppingRef.current) setError(peerFailureMessage(err));
     });
+    if (modeRef.current === 'viewer') {
+      mediaTimeoutRef.current = window.setTimeout(() => {
+        if (callRef.current !== call || remoteStreamRef.current) return;
+        setStatus('Screen stream did not arrive');
+        setError('The host approved, but Edge did not receive the screen. The network may be blocking WebRTC; try both devices on the same network.');
+      }, 15000);
+    }
     if (answerIncoming) call.answer();
   };
 
@@ -236,7 +269,8 @@ export default function RemoteDesktop() {
       }
       if (localVideo.current) localVideo.current.srcObject = stream;
       stream.getVideoTracks()[0]?.addEventListener('ended', stop, { once: true });
-      const peer = new Peer(makeShortPeerId(), peerOptions); peerRef.current = peer; setMode('host');
+      if (typeof window.Peer !== 'function') throw new Error('Remote Desktop networking library did not load. Refresh the page and try again.');
+      const peer = new window.Peer(makeShortPeerId(), peerOptions); peerRef.current = peer; modeRef.current = 'host'; setMode('host');
       setStatus('Starting connection…');
       peer.on('open', id => { setPeerId(id); setStatus('Ready — waiting for connection'); });
       peer.on('connection', connection => {
@@ -288,14 +322,19 @@ export default function RemoteDesktop() {
       streamRef.current?.getTracks().forEach(track => track.stop());
       streamRef.current = null;
       if (localVideo.current) localVideo.current.srcObject = null;
-      if (!['NotAllowedError', 'AbortError'].includes(err?.name)) setError('Could not share screen. Check browser permissions.');
+      if (!['NotAllowedError', 'AbortError'].includes(err?.name)) setError(err?.message || 'Could not share screen. Check browser permissions.');
     }
   };
 
   const join = () => {
     stoppingRef.current = false; setError('');
     if (!code.trim()) return setError('Enter the host connection code.');
-    const peer = new Peer(undefined, peerOptions); peerRef.current = peer; setMode('viewer');
+    if (typeof window.Peer !== 'function') return setError('Remote Desktop networking library did not load. Refresh the page and try again.');
+    let peer;
+    try { peer = new window.Peer(undefined, peerOptions); }
+    catch (err) { return setError(err?.message || 'Remote Desktop could not start. Refresh the page and try again.'); }
+    remoteStreamRef.current = null;
+    peerRef.current = peer; modeRef.current = 'viewer'; setMode('viewer');
     setStatus('Connecting to host…');
     peer.on('open', () => {
       const hostCode = code.trim().toLowerCase();
