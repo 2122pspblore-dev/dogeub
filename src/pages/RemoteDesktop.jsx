@@ -1,6 +1,44 @@
 import { useEffect, useRef, useState } from 'react';
 import { Monitor, Copy, PhoneOff, ShieldCheck, MessageCircle, Send, Search, Users } from 'lucide-react';
+import { Peer } from 'peerjs';
 import Nav from '../layouts/Nav';
+
+const peerOptions = {
+  config: {
+    iceServers: [
+      { urls: 'stun:stun.cloudflare.com:3478' },
+      { urls: 'stun:stun.l.google.com:19302' },
+    ],
+    iceCandidatePoolSize: 2,
+  },
+};
+
+function peerFailureMessage(error) {
+  const messages = {
+    'peer-unavailable': 'Host code not found. Make sure hosting is active and copy the newest 10-character code.',
+    'network': 'Could not reach the PeerJS signaling service. Check that Edge can access the internet on both devices.',
+    'server-error': 'The PeerJS signaling service returned an error. Wait a moment and retry.',
+    'socket-error': 'Edge could not open the signaling connection. Check network or school firewall restrictions.',
+    'socket-closed': 'The signaling connection closed. Retry from both devices.',
+    'disconnected': 'Disconnected from the signaling service. Stop and start the connection again.',
+    'browser-incompatible': 'This browser cannot use the required WebRTC features. Update Microsoft Edge and allow screen sharing for DOGEUB.',
+    'webrtc': 'The devices could not establish a direct WebRTC connection. A firewall or restrictive network may be blocking it; try another network.',
+    'ssl-unavailable': 'Secure signaling is unavailable. Open DOGEUB from its HTTPS Cloudflare Workers address.',
+  };
+  return messages[error?.type] || `Remote Desktop connection failed${error?.type ? ` (${error.type})` : ''}. Check both devices and try again.`;
+}
+
+function limitVideoSender(call) {
+  const sender = call.peerConnection?.getSenders().find((item) => item.track?.kind === 'video');
+  if (!sender) return;
+  try {
+    const parameters = sender.getParameters();
+    if (!parameters.encodings?.length) parameters.encodings = [{}];
+    parameters.encodings[0].maxBitrate = 2_000_000;
+    parameters.encodings[0].maxFramerate = 30;
+    sender.setParameters(parameters).catch(() => {});
+  } catch { /* Capture constraints remain the fallback on browsers that reject sender tuning. */ }
+}
 
 async function messagesApi(path, options = {}) {
   const response = await fetch(path, {
@@ -9,7 +47,7 @@ async function messagesApi(path, options = {}) {
     headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...(options.headers || {}) },
   });
   let data = {};
-  try { data = await response.json(); } catch {}
+  try { data = await response.json(); } catch { /* Some endpoints return an empty body on errors. */ }
   if (!response.ok) throw new Error(data.error || 'Dogeub Messages could not complete that request.');
   return data;
 }
@@ -18,7 +56,7 @@ async function ensureRemoteMessagesSession() {
   let data = await messagesApi('/api/messages/session');
   if (data.user) return data.user;
   let username = '';
-  try { username = String(window.localStorage.getItem('dogeub-os-username-v1') || '').trim(); } catch {}
+  try { username = String(window.localStorage.getItem('dogeub-os-username-v1') || '').trim(); } catch { /* Local storage can be disabled. */ }
   if (!username) throw new Error('Set up your Dogeub OS username before searching users or sending invites.');
   data = await messagesApi('/api/messages/os-session', { method: 'POST', body: JSON.stringify({ username }) });
   return data.user;
@@ -35,7 +73,7 @@ const makeShortPeerId = () => {
 function connectToLocalControlAgent() {
   const url = 'ws://127.0.0.1:8765';
   try {
-    // Chrome 154+ uses this permission-aware options bag for local WebSockets.
+    // Current Chromium browsers use this options bag for loopback WebSockets.
     return new WebSocket(url, { targetAddressSpace: 'loopback' });
   } catch {
     // Keep compatible with browsers that only implement the protocols argument.
@@ -47,6 +85,7 @@ export default function RemoteDesktop() {
   const localVideo = useRef(null), remoteVideo = useRef(null);
   const peerRef = useRef(null), callRef = useRef(null), streamRef = useRef(null);
   const requestRef = useRef(null), stoppingRef = useRef(false), controlSocketRef = useRef(null), controlEnabledRef = useRef(false);
+  const pointerQueueRef = useRef({ frameId: 0, pending: null, lastSentAt: 0 });
   const [mode, setMode] = useState('idle'), [code, setCode] = useState('');
   const [peerId, setPeerId] = useState(''), [incoming, setIncoming] = useState(false);
   const [connected, setConnected] = useState(false), [status, setStatus] = useState('Not connected');
@@ -56,6 +95,61 @@ export default function RemoteDesktop() {
   const [inviteSearch, setInviteSearch] = useState(''), [inviteResults, setInviteResults] = useState([]);
   const [inviteBusy, setInviteBusy] = useState(false), [sendingInviteTo, setSendingInviteTo] = useState('');
   const [inviteNotice, setInviteNotice] = useState('');
+
+  const sendInputNow = (payload) => {
+    const connection = requestRef.current;
+    if (mode === 'viewer' && connected && connection?.open) {
+      try { connection.send(payload); } catch { /* Connection may be closing. */ }
+    }
+  };
+
+  const cancelPendingPointer = () => {
+    const queue = pointerQueueRef.current;
+    if (queue.frameId) window.cancelAnimationFrame(queue.frameId);
+    queue.frameId = 0;
+    queue.pending = null;
+  };
+
+  const flushPendingPointer = () => {
+    const queue = pointerQueueRef.current;
+    if (queue.frameId) window.cancelAnimationFrame(queue.frameId);
+    queue.frameId = 0;
+    if (!queue.pending) return;
+    const payload = queue.pending;
+    queue.pending = null;
+    queue.lastSentAt = performance.now();
+    sendInputNow(payload);
+  };
+
+  const queuePointer = (payload) => {
+    const queue = pointerQueueRef.current;
+    queue.pending = payload;
+    if (queue.frameId) return;
+    const sendLatest = () => {
+      queue.frameId = 0;
+      if (!queue.pending) return;
+      const remaining = (1000 / 30) - (performance.now() - queue.lastSentAt);
+      if (remaining > 0) {
+        queue.frameId = window.requestAnimationFrame(sendLatest);
+        return;
+      }
+      const latest = queue.pending;
+      queue.pending = null;
+      queue.lastSentAt = performance.now();
+      sendInputNow(latest);
+    };
+    queue.frameId = window.requestAnimationFrame(sendLatest);
+  };
+
+  const sendInput = (payload) => {
+    if (mode !== 'viewer' || !connected) return;
+    if (payload.type === 'pointer') queuePointer(payload);
+    else {
+      // Send the newest cursor location before clicks and key presses.
+      flushPendingPointer();
+      sendInputNow(payload);
+    }
+  };
 
   const disableControl = () => {
     const socket = controlSocketRef.current;
@@ -73,6 +167,7 @@ export default function RemoteDesktop() {
 
   const stop = () => {
     stoppingRef.current = true;
+    cancelPendingPointer();
     callRef.current?.close();
     requestRef.current?.close();
     disableControl();
@@ -87,6 +182,7 @@ export default function RemoteDesktop() {
   };
 
   useEffect(() => () => {
+    cancelPendingPointer();
     callRef.current?.close();
     requestRef.current?.close();
     controlSocketRef.current?.close();
@@ -97,7 +193,10 @@ export default function RemoteDesktop() {
   const wireCall = (call, answerIncoming = false) => {
     callRef.current = call;
     call.on('stream', stream => {
-      if (remoteVideo.current) remoteVideo.current.srcObject = stream;
+      if (remoteVideo.current) {
+        remoteVideo.current.srcObject = stream;
+        remoteVideo.current.play().catch(() => setError('Edge paused the remote screen. Click the screen once to start playback.'));
+      }
       setConnected(true); setStatus('Connected — screen is live');
     });
     call.on('close', () => {
@@ -113,21 +212,31 @@ export default function RemoteDesktop() {
       if (remoteVideo.current) remoteVideo.current.srcObject = null;
     });
     call.on('error', err => {
-      if (!stoppingRef.current) setError(`Connection failed${err?.type ? ` (${err.type})` : ''}. Check both devices and try a new code.`);
+      if (!stoppingRef.current) setError(peerFailureMessage(err));
     });
     if (answerIncoming) call.answer();
   };
 
   const host = async () => {
     stoppingRef.current = false; setError('');
-    if (!window.Peer) return setError('Connection library did not load. Refresh and try again.');
     if (!navigator.mediaDevices?.getDisplayMedia) return setError('Screen sharing requires HTTPS and a supported browser.');
     try {
       const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
       streamRef.current = stream;
+      const screenTrack = stream.getVideoTracks()[0];
+      if (screenTrack) {
+        try { screenTrack.contentHint = 'motion'; } catch { /* Optional browser optimization. */ }
+        try {
+          await screenTrack.applyConstraints({
+            width: { ideal: 1280, max: 1920 },
+            height: { ideal: 720, max: 1080 },
+            frameRate: { ideal: 30, max: 30 },
+          });
+        } catch { /* Use the browser's native capture settings if constraints are unavailable. */ }
+      }
       if (localVideo.current) localVideo.current.srcObject = stream;
       stream.getVideoTracks()[0]?.addEventListener('ended', stop, { once: true });
-      const peer = new window.Peer(makeShortPeerId()); peerRef.current = peer; setMode('host');
+      const peer = new Peer(makeShortPeerId(), peerOptions); peerRef.current = peer; setMode('host');
       setStatus('Starting connection…');
       peer.on('open', id => { setPeerId(id); setStatus('Ready — waiting for connection'); });
       peer.on('connection', connection => {
@@ -173,20 +282,20 @@ export default function RemoteDesktop() {
       peer.on('call', call => call.close());
       peer.on('error', err => {
         if (stoppingRef.current) return;
-        setError(err?.type === 'unavailable-id'
-          ? 'That short code is already in use. Stop hosting and start again for a new code.'
-          : `Host setup failed${err?.type ? ` (${err.type})` : ''}. Check the internet connection and refresh if needed.`);
+        setError(err?.type === 'unavailable-id' ? 'That short code is already in use. Stop hosting and start again for a new code.' : peerFailureMessage(err));
       });
     } catch (err) {
+      streamRef.current?.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+      if (localVideo.current) localVideo.current.srcObject = null;
       if (!['NotAllowedError', 'AbortError'].includes(err?.name)) setError('Could not share screen. Check browser permissions.');
     }
   };
 
   const join = () => {
     stoppingRef.current = false; setError('');
-    if (!window.Peer) return setError('Connection library did not load. Refresh and try again.');
     if (!code.trim()) return setError('Enter the host connection code.');
-    const peer = new window.Peer(); peerRef.current = peer; setMode('viewer');
+    const peer = new Peer(undefined, peerOptions); peerRef.current = peer; setMode('viewer');
     setStatus('Connecting to host…');
     peer.on('open', () => {
       const hostCode = code.trim().toLowerCase();
@@ -217,7 +326,7 @@ export default function RemoteDesktop() {
       });
       connection.on('error', err => {
         if (stoppingRef.current) return;
-        setError(`Connection request failed${err?.type ? ` (${err.type})` : ''}. Check the host code and both internet connections.`);
+        setError(peerFailureMessage(err));
         setStatus('Request failed');
       });
       connection.on('close', () => {
@@ -238,14 +347,7 @@ export default function RemoteDesktop() {
     });
     peer.on('error', err => {
       if (stoppingRef.current) return;
-      const messages = {
-        'peer-unavailable': 'Host code not found. Make sure hosting is active and copy the newest 10-character code.',
-        'network': 'PeerJS signaling connection failed. Check internet on both laptops and try again.',
-        'server-error': 'PeerJS signaling server error. Wait a moment and retry.',
-        'socket-error': 'Could not reach the signaling server. Check internet access and try again.',
-        'disconnected': 'Disconnected from the signaling server. Stop and start the connection again.',
-      };
-      setError(messages[err?.type] || `Connection failed${err?.type ? ` (${err.type})` : ''}. Check the code and both internet connections.`);
+      setError(peerFailureMessage(err));
       setStatus('Connection failed');
     });
   };
@@ -268,6 +370,7 @@ export default function RemoteDesktop() {
       request.close();
       return;
     }
+    limitVideoSender(call);
     wireCall(call);
     setConnected(true);
     setStatus('Approved — sharing screen');
@@ -325,7 +428,7 @@ export default function RemoteDesktop() {
     const connection = requestRef.current;
     if (!text || !connected || !connection?.open) return;
     let username = '';
-    try { username = String(window.localStorage.getItem('dogeub-os-username-v1') || '').trim(); } catch {}
+    try { username = String(window.localStorage.getItem('dogeub-os-username-v1') || '').trim(); } catch { /* Local storage can be disabled. */ }
     const payload = { type: 'remote-chat', id: String(Date.now()) + '-' + Math.random().toString(36).slice(2, 8), sender: username ? '@' + username : (mode === 'host' ? 'Host' : 'Viewer'), text, at: Date.now() };
     try {
       connection.send(payload);
@@ -363,7 +466,6 @@ export default function RemoteDesktop() {
     return () => { alive = false; window.clearTimeout(timer); };
   }, [inviteSearch, mode, peerId]);
 
-  const sendInput = payload => { const connection = requestRef.current; if (mode === 'viewer' && connected && connection?.open) { try { connection.send(payload); } catch { /* Connection may be closing. */ } } };
   const handleScreenPointer = event => {
     if (mode !== 'viewer' || !connected) return;
     const video = event.currentTarget;
@@ -432,7 +534,7 @@ export default function RemoteDesktop() {
             {mode !== 'idle' && <button onClick={stop} className="rounded-xl bg-rose-500 px-4 py-2 text-xs font-extrabold text-white hover:bg-rose-400"><PhoneOff size={14} className="mr-2 inline"/>EMERGENCY DISCONNECT</button>}
           </header>
           <div className="grid min-h-[300px] place-items-center bg-black/50 p-3">
-            <video ref={mode === 'viewer' ? remoteVideo : localVideo} autoPlay playsInline muted={mode !== 'viewer'} tabIndex={mode === 'viewer' ? 0 : -1} onPointerMove={handleScreenPointer} onPointerDown={event => { if (mode !== 'viewer') return; event.preventDefault(); event.currentTarget.focus(); try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* Capture may be unavailable. */ } handleScreenPointer(event); sendInput({ type: 'mouse-down', button: event.button === 2 ? 'right' : event.button === 1 ? 'middle' : 'left' }); }} onPointerUp={event => { if (mode === 'viewer') { event.preventDefault(); handleScreenPointer(event); sendInput({ type: 'mouse-up', button: event.button === 2 ? 'right' : event.button === 1 ? 'middle' : 'left' }); try { event.currentTarget.releasePointerCapture(event.pointerId); } catch { /* Capture may already be released. */ } } }} onDoubleClick={enterRemoteFullscreen} onContextMenu={event => { if (mode === 'viewer') event.preventDefault(); }} onWheel={event => { if (mode === 'viewer') { event.preventDefault(); sendInput({ type: 'scroll', amount: Math.sign(event.deltaY) * 3 }); } }} onKeyDown={handleScreenKeyDown} onKeyUp={handleScreenKeyUp} className={(connected || (mode === 'host' && streamRef.current) ? 'block' : 'hidden') + ' max-h-[65vh] w-full rounded-xl object-contain'}/>
+            <video ref={mode === 'viewer' ? remoteVideo : localVideo} autoPlay playsInline muted tabIndex={mode === 'viewer' ? 0 : -1} onPointerMove={handleScreenPointer} onPointerDown={event => { if (mode !== 'viewer') return; event.preventDefault(); event.currentTarget.focus(); try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* Capture may be unavailable. */ } handleScreenPointer(event); sendInput({ type: 'mouse-down', button: event.button === 2 ? 'right' : event.button === 1 ? 'middle' : 'left' }); }} onPointerUp={event => { if (mode === 'viewer') { event.preventDefault(); handleScreenPointer(event); sendInput({ type: 'mouse-up', button: event.button === 2 ? 'right' : event.button === 1 ? 'middle' : 'left' }); try { event.currentTarget.releasePointerCapture(event.pointerId); } catch { /* Capture may already be released. */ } } }} onDoubleClick={enterRemoteFullscreen} onContextMenu={event => { if (mode === 'viewer') event.preventDefault(); }} onWheel={event => { if (mode === 'viewer') { event.preventDefault(); sendInput({ type: 'scroll', amount: Math.sign(event.deltaY) * 3 }); } }} onKeyDown={handleScreenKeyDown} onKeyUp={handleScreenKeyUp} className={(connected || (mode === 'host' && streamRef.current) ? 'block' : 'hidden') + ' max-h-[65vh] w-full rounded-xl object-contain'}/>
             {!connected && !(mode === 'host' && streamRef.current) && <div className="p-8 text-center text-slate-400"><Monitor size={32} className="mx-auto mb-3"/><p className="text-sm">Start hosting or enter a connection code.</p></div>}
           </div>
         </section>
