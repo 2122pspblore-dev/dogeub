@@ -12,6 +12,7 @@ const apps = [
   { name: 'YouTube', description: 'Open YouTube', icon: Youtube, url: 'https://www.youtube.com' },
   { name: 'Doge AI', description: 'Your personal AI assistant for DOGEUB', icon: Sparkles, assistant: true },
   { name: 'Apps', description: 'Explore apps and tools', icon: Grid3X3, path: '/materials' },
+  { name: 'DOGEUB Office', description: 'Open Writer, Sheets, Slides, and recent files', icon: Grid3X3, path: '/office', startOnly: true },
   { name: 'DOGEUB Writer', description: 'Word documents', icon: FileText, path: '/office/word' },
   { name: 'DOGEUB Sheets', description: 'Spreadsheets and formulas', icon: Table2, path: '/office/sheet' },
   { name: 'DOGEUB Slides', description: 'Presentations', icon: Presentation, path: '/office/slides' },
@@ -540,7 +541,7 @@ export default function Taskbar() {
           </button>
           <button aria-label="Taskbar search" title="Search" onClick={() => { setSearchOpen((v) => !v); setStartOpen(false); setTrayOpen(false); }} className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition hover:bg-white/10 ${searchOpen ? 'bg-white/15' : ''}`}><Search size={18} /></button>
           <span className="mx-1 h-7 w-px shrink-0 bg-white/10" />
-          {apps.map((app) => {
+          {apps.filter((app) => !app.startOnly).map((app) => {
             const Icon = app.icon;
             const active = Boolean(app.path) && location.pathname === app.path;
             return (

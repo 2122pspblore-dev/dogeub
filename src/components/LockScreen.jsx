@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { LockKeyhole, ShieldCheck, Eye, EyeOff, CloudSun, MapPin, RefreshCw } from 'lucide-react';
 
 const PASSWORD_KEY = 'dogeub-password-credential-v1';
+const UNLOCKED_SESSION_KEY = 'dogeub-unlocked-session-v1';
 const USERNAME_KEY = 'dogeub-os-username-v1';
 
 function readOSUsername() {
@@ -53,7 +54,11 @@ export default function LockScreen() {
   const [osUsername, setOSUsername] = useState(readOSUsername);
   const [usernameDraft, setUsernameDraft] = useState(readOSUsername);
   const [authMode, setAuthMode] = useState(() => readOSUsername() ? 'login' : 'register');
-  const [unlocked, setUnlocked] = useState(false);
+  const [unlocked, setUnlocked] = useState(() => {
+    try {
+      return window.sessionStorage.getItem(UNLOCKED_SESSION_KEY) === 'true' && Boolean(readOSUsername() && readCredential());
+    } catch { return false; }
+  });
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -117,6 +122,7 @@ export default function LockScreen() {
 
   useEffect(() => {
     const lock = () => {
+      try { window.sessionStorage.removeItem(UNLOCKED_SESSION_KEY); } catch {}
       setUnlocked(false);
       setPassword('');
       setConfirmPassword('');
@@ -218,6 +224,7 @@ export default function LockScreen() {
         setOSUsername(canonicalUsername);
         window.dispatchEvent(new CustomEvent('dogeub-identity-change', { detail: { username: canonicalUsername } }));
       }
+      try { window.sessionStorage.setItem(UNLOCKED_SESSION_KEY, 'true'); } catch {}
       setUnlocked(true);
       window.dispatchEvent(new CustomEvent('dogeub-unlocked'));
       setPassword('');
