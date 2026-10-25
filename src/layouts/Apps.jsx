@@ -1,6 +1,6 @@
 import Nav from '../layouts/Nav';
 import { useState, useMemo, useRef, useEffect, useCallback, memo } from 'react';
-import { Search, ChevronDown, LayoutGrid } from 'lucide-react';
+import { Search, ChevronDown, FileText, LayoutGrid, Presentation, Table2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useOptions } from '/src/utils/optionsContext';
 import Pagination from '../components/Pagination';
@@ -17,6 +17,7 @@ const SORT_OPTIONS = [
 
 const AppCard = memo(({ app, onClick, fallbackMap, onImgError, itemTheme, itemStyles }) => {
   const [loaded, setLoaded] = useState(false);
+  const OfficeIcon = app.appName === 'DOGEUB Writer' ? FileText : app.appName === 'DOGEUB Sheets' ? Table2 : app.appName === 'DOGEUB Slides' ? Presentation : null;
   
   return (
     <div
@@ -33,7 +34,9 @@ const AppCard = memo(({ app, onClick, fallbackMap, onImgError, itemTheme, itemSt
         {!loaded && !fallbackMap[app.appName] && (
           <div className="absolute inset-0 bg-gray-700 animate-pulse" />
         )}
-        {fallbackMap[app.appName] ? (
+        {OfficeIcon ? (
+          <div className="grid h-full w-full place-items-center rounded-xl bg-gradient-to-br from-cyan-300/20 to-blue-400/10 text-cyan-100"><OfficeIcon className="h-10 w-10" /></div>
+        ) : fallbackMap[app.appName] ? (
           <LayoutGrid className="w-full h-full" />
         ) : (
           <img
@@ -118,6 +121,10 @@ const Apps = memo(() => {
       if (!app) return;
       const appName = String(app.appName || '');
       const appUrl = String(app.url || '');
+      if (app.internal === true || appUrl.startsWith('/office/')) {
+        nav(appUrl || '/office');
+        return;
+      }
       const looksLikeGame = /game|roblox|minecraft|fnf|slope|retro|geometry|cookie|drift|racing|among us|subway|mario|sonic|pokemon|2048|idle|run 3/i.test(appName);
       if (looksLikeGame) {
         try {

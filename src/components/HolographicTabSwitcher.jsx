@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { AppWindow, Globe, Search, X, CornerDownLeft, ArrowUp, ArrowDown } from 'lucide-react';
+import { AppWindow, FileText, Globe, Search, X, CornerDownLeft, ArrowUp, ArrowDown } from 'lucide-react';
 import './HolographicTabSwitcher.css';
 
 const APP_PAGES = [
   { label: 'Home', path: '/', group: 'Dogeub Pages' },
   { label: 'Apps & Materials', path: '/materials', group: 'Dogeub Pages' },
+  { label: 'Office Suite', path: '/office', group: 'Dogeub Pages', icon: FileText },
   { label: 'Games', path: '/docs', group: 'Dogeub Pages' },
   { label: 'Search', path: '/search', group: 'Dogeub Pages' },
   { label: 'Settings', path: '/settings', group: 'Dogeub Pages' },

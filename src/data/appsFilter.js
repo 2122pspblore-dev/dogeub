@@ -18,6 +18,9 @@ const EXTRA_APPS = [
     url: 'https://www.youtube.com',
     disabled: false,
   },
+  { appName: 'DOGEUB Writer', desc: 'Create and format documents. Import and export DOCX files.', icon: '', url: '/office/word', disabled: false, internal: true },
+  { appName: 'DOGEUB Sheets', desc: 'Edit spreadsheets, formulas, fonts, and images. Import and export XLSX.', icon: '', url: '/office/sheet', disabled: false, internal: true },
+  { appName: 'DOGEUB Slides', desc: 'Build presentations with text, images, and custom fonts. Import and export PPTX.', icon: '', url: '/office/slides', disabled: false, internal: true },
 ];
 
 const nameOf = (a) => String(a?.appName ?? '').trim().toLowerCase();

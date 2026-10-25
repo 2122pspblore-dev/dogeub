@@ -17,6 +17,7 @@ import {
   Cpu,
   Library,
   GraduationCap,
+  FileText,
   Users,
   X,
 } from 'lucide-react';
@@ -27,6 +28,7 @@ const SECTIONS = [
   { id: 'games', name: 'Games', detail: 'Open the games catalog', icon: Gamepad2, path: '/docs' },
   { id: 'recommended', name: 'Recommended', detail: 'Discover recommended sites and tools', icon: Compass, path: '/recommended' },
   { id: 'files', name: 'Files', detail: 'Open your DOGEUB file manager', icon: Files, path: '/files' },
+  { id: 'office', name: 'Office Suite', detail: 'Open Writer, Sheets, and Slides', icon: FileText, path: '/office' },
   { id: 'settings', name: 'Settings', detail: 'Customize DOGEUB', icon: Settings, path: '/settings' },
   { id: 'messages', name: 'Messages', detail: 'Global chat and private conversations', icon: MessagesSquare, path: '/messages' },
   { id: 'dashboard-studio', name: 'Dashboard Studio', detail: 'Customize and rearrange your DOGEUB dashboard', icon: LayoutDashboard, path: '/dashboard' },

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { getCachedSpecs, getDeviceSpecs, specsToText } from '../utils/deviceSpecs';
 import {
-  AppWindow, BatteryFull, Globe, Home, Search, Settings, BatteryCharging,
+  AppWindow, BatteryFull, FileText, Table2, Presentation, Globe, Home, Search, Settings, BatteryCharging,
   Wifi, WifiOff, Music2, X, Youtube, BookOpen, Grid3X3, Power, ChevronUp, Cpu, LockKeyhole, Sparkles, Smile, FolderOpen, Keyboard, Zap, Command, MessagesSquare, ShieldCheck, Monitor, UsersRound, Compass, Gamepad2, GraduationCap, Wrench, Bell, Layers
 } from 'lucide-react';
 
@@ -12,6 +12,9 @@ const apps = [
   { name: 'YouTube', description: 'Open YouTube', icon: Youtube, url: 'https://www.youtube.com' },
   { name: 'Doge AI', description: 'Your personal AI assistant for DOGEUB', icon: Sparkles, assistant: true },
   { name: 'Apps', description: 'Explore apps and tools', icon: Grid3X3, path: '/materials' },
+  { name: 'DOGEUB Writer', description: 'Word documents', icon: FileText, path: '/office/word' },
+  { name: 'DOGEUB Sheets', description: 'Spreadsheets and formulas', icon: Table2, path: '/office/sheet' },
+  { name: 'DOGEUB Slides', description: 'Presentations', icon: Presentation, path: '/office/slides' },
   { name: 'Docs & Resources', description: 'Games and resources', icon: BookOpen, path: '/docs' },
   { name: 'Recommended', description: 'Discover recommended sites and tools', icon: Compass, path: '/recommended' },
   { name: 'Game Library', description: 'Browse the game library', icon: Gamepad2, path: '/game-library' },

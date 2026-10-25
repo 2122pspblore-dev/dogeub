@@ -215,6 +215,7 @@ export default defineConfig(({ command }) => {
             if (/lucide/.test(pkg)) return 'icons';
             if (/react-ga4/.test(pkg)) return 'analytics';
             if (/nprogress/.test(pkg)) return 'progress';
+            if (/^(docx|dompurify|exceljs|mammoth|pptxgenjs|jszip|archiver|dayjs|fast-csv|readable-stream|saxes|tmp|unzipper|uuid|hash\.js|nanoid|@xmldom\/xmldom|argparse|base64-js|dingbat-to-unicode|lop|underscore|xmlbuilder|image-size)$/.test(pkg)) return 'office-libraries';
             return 'vendor';
           },
         },
