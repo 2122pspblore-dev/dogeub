@@ -179,3 +179,12 @@ html[data-device-mode='mobile'] [data-device-settings] {
 html[data-device-mode='tablet'] [data-device-settings] {
   height: calc(100dvh - 62px) !important;
 }
+
+/* App shortcuts can live on the desktop instead of crowding the taskbar. */
+[data-device-taskbar][data-app-layout='desktop'] > div:first-child > button[aria-label]:not([aria-label='Start']):not([aria-label='Taskbar search']),
+[data-device-taskbar][data-app-layout='desktop'] > div:first-child > span { display: none !important; }
+.dogeub-desktop-icons { position: fixed; z-index: 70; top: 74px; left: 12px; bottom: 76px; display: flex; flex-direction: column; flex-wrap: wrap; align-content: flex-start; gap: 9px; overflow: auto; padding: 8px; max-width: min(220px, 28vw); }
+.dogeub-desktop-icon { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 5px; width: 76px; min-height: 72px; padding: 6px 4px; border: 1px solid transparent; border-radius: 10px; color: #eef6ff; text-align: center; font-size: 10px; line-height: 1.25; text-shadow: 0 1px 4px #000; overflow-wrap: anywhere; }
+.dogeub-desktop-icon:hover,.dogeub-desktop-icon:focus-visible { background: rgba(86,185,255,.16); border-color: rgba(150,220,255,.25); outline: none; }
+.dogeub-desktop-icon-art { display: grid; place-items: center; width: 42px; height: 42px; border: 1px solid rgba(170,220,255,.22); border-radius: 13px; background: linear-gradient(145deg, rgba(80,155,225,.32), rgba(30,45,75,.88)); box-shadow: 0 5px 15px #0004; color: #bde8ff; }
+@media (max-width: 700px) { .dogeub-desktop-icons { top: 50px; left: 2px; gap: 3px; } .dogeub-desktop-icon { width: 62px; font-size: 9px; } .dogeub-desktop-icon-art { width: 36px; height: 36px; } }
