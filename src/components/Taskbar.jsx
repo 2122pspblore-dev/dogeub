@@ -72,6 +72,22 @@ export default function Taskbar() {
     try { return window.localStorage.getItem('dogeub-gaming-mode') === 'true'; } catch { return false; }
   });
   const [fps, setFps] = useState(0);
+  const [appLayout, setAppLayout] = useState(() => {
+    try { return window.localStorage.getItem('dogeub-app-layout') || 'taskbar'; } catch { return 'taskbar'; }
+  });
+  useEffect(() => {
+    const syncLayout = (event) => {
+      if (event?.detail?.layout) { setAppLayout(event.detail.layout); return; }
+      try { setAppLayout(window.localStorage.getItem('dogeub-app-layout') || 'taskbar'); } catch {}
+    };
+    window.addEventListener('dogeub-app-layout-change', syncLayout);
+    window.addEventListener('storage', syncLayout);
+    return () => {
+      window.removeEventListener('dogeub-app-layout-change', syncLayout);
+      window.removeEventListener('storage', syncLayout);
+    };
+  }, []);
+
 
   useEffect(() => {
     let frameId;
@@ -534,7 +550,18 @@ export default function Taskbar() {
         </div>
       )}
 
-      <nav aria-label="Windows style taskbar" data-device-taskbar="true" style={{ backgroundColor: 'rgba(16,24,39,var(--dogeub-hub-glass,.85))', borderTopColor: 'var(--dogeub-hub-accent,rgba(255,255,255,.1))' }} className="fixed inset-x-0 bottom-0 z-[11000] flex h-[58px] items-center justify-start border-t border-white/10 px-2 text-white shadow-[0_-8px_30px_rgba(0,0,0,0.2)] backdrop-blur-2xl">
+      {appLayout === 'desktop' && (
+        <div className="dogeub-desktop-icons" aria-label="Desktop app shortcuts">
+          {apps.filter((app) => app.path && !app.startOnly).map((app) => {
+            const Icon = app.icon;
+            return <button key={app.name} type="button" title={app.name} onClick={() => openApp(app)} className="dogeub-desktop-icon">
+              <span className="dogeub-desktop-icon-art"><Icon size={22} /></span><span>{app.name}</span>
+            </button>;
+          })}
+        </div>
+      )}
+
+      <nav aria-label="Windows style taskbar" data-device-taskbar="true" data-app-layout={appLayout} style={{ backgroundColor: 'rgba(16,24,39,var(--dogeub-hub-glass,.85))', borderTopColor: 'var(--dogeub-hub-accent,rgba(255,255,255,.1))' }} className="fixed inset-x-0 bottom-0 z-[11000] flex h-[58px] items-center justify-start border-t border-white/10 px-2 text-white shadow-[0_-8px_30px_rgba(0,0,0,0.2)] backdrop-blur-2xl">
         <div className="flex min-w-0 max-w-[calc(100%-120px)] items-center gap-1 overflow-x-auto overscroll-x-contain whitespace-nowrap py-1 sm:max-w-[calc(100%-355px)]">
           <button aria-label="Start" title="Start" onClick={() => { setStartOpen((v) => !v); setSearchOpen(false); setTrayOpen(false); }} className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition hover:bg-white/10 ${startOpen ? 'bg-white/15' : ''}`}>
             <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden="true"><path d="M2 3.5 10.5 2.3v8.2H2V3.5Zm9.5-1.35L22 0.5v10H11.5V2.15ZM2 11.5h8.5v8.2L2 18.5v-7Zm9.5 0H22v10l-10.5-1.65V11.5Z" /></svg>
