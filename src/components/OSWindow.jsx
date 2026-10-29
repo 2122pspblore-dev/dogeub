@@ -16,8 +16,15 @@ const TITLES = [
 
 const titleFor = (path) => TITLES.find(([pattern]) => pattern.test(path))?.[1] || 'DOGEUB App';
 const readLayout = () => {
-  try { return window.localStorage.getItem('dogeub-app-layout') || 'desktop'; }
-  catch { return 'desktop'; }
+  try {
+    const version = window.localStorage.getItem('dogeub-app-layout-version');
+    if (version !== '2') {
+      window.localStorage.setItem('dogeub-app-layout', 'desktop');
+      window.localStorage.setItem('dogeub-app-layout-version', '2');
+      return 'desktop';
+    }
+    return window.localStorage.getItem('dogeub-app-layout') || 'desktop';
+  } catch { return 'desktop'; }
 };
 
 function defaultBounds() {
