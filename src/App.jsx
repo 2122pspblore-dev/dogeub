@@ -8,7 +8,6 @@ import { useLocation } from 'react-router-dom';
 import Popunder from './components/Popunder';
 import PanicButton from './components/PanicButton';
 import Taskbar from './components/Taskbar';
-import OSWindow from './components/OSWindow';
 import AdminPanelWindow from './components/AdminPanelWindow';
 import PatchLogs from './components/PatchLogs';
 import AdminAnnouncement from './components/AdminAnnouncement';
@@ -251,29 +250,29 @@ const ThemedApp = memo(() => {
 
   const pages = useMemo(
     () => [
-      { path: '/', element: <OSWindow><Home /></OSWindow> },
-      { path: '/materials', element: <OSWindow><Apps /></OSWindow> },
-      { path: '/docs', element: <OSWindow><Apps2 /></OSWindow> },
-      { path: '/docs/r', element: <OSWindow><Player /></OSWindow> },
-      { path: '/search', element: <OSWindow><Search /></OSWindow>},
-      { path: '/settings', element: <OSWindow><Settings /></OSWindow> },
-      { path: '/recommended', element: <OSWindow><Recommended /></OSWindow> },
-      { path: '/files', element: <OSWindow><Files /></OSWindow> },
-      { path: '/shortcuts', element: <OSWindow><Shortcuts /></OSWindow> },
-      { path: '/messages', element: <OSWindow><Messages /></OSWindow> },
-      { path: '/dashboard', element: <OSWindow><DashboardStudio /></OSWindow> },
-      { path: '/toolbox', element: <OSWindow><Toolbox /></OSWindow> },
-      { path: '/pc-center', element: <OSWindow><PCCenter /></OSWindow> },
-      { path: '/game-library', element: <OSWindow><GameLibrary /></OSWindow> },
-      { path: '/student-center', element: <OSWindow><StudentCenter /></OSWindow> },
-      { path: '/social', element: <OSWindow><SocialCenter /></OSWindow> },
-      { path: '/remote-desktop', element: <OSWindow><RemoteDesktop /></OSWindow> },
-      { path: '/collaboration-center', element: <OSWindow><CollaborationCenter /></OSWindow> },
-      { path: '/office/*', element: <OSWindow><OfficeSuite /></OSWindow> },
-      { path: '/profile/:username', element: <OSWindow><PublicProfile /></OSWindow> },
+      { path: '/', element: <Home /> },
+      { path: '/materials', element: <Apps /> },
+      { path: '/docs', element: <Apps2 /> },
+      { path: '/docs/r', element: <Player /> },
+      { path: '/search', element: <Search />},
+      { path: '/settings', element: <Settings /> },
+      { path: '/recommended', element: <Recommended /> },
+      { path: '/files', element: <Files /> },
+      { path: '/shortcuts', element: <Shortcuts /> },
+      { path: '/messages', element: <Messages /> },
+      { path: '/dashboard', element: <DashboardStudio /> },
+      { path: '/toolbox', element: <Toolbox /> },
+      { path: '/pc-center', element: <PCCenter /> },
+      { path: '/game-library', element: <GameLibrary /> },
+      { path: '/student-center', element: <StudentCenter /> },
+      { path: '/social', element: <SocialCenter /> },
+      { path: '/remote-desktop', element: <RemoteDesktop /> },
+      { path: '/collaboration-center', element: <CollaborationCenter /> },
+      { path: '/office/*', element: <OfficeSuite /> },
+      { path: '/profile/:username', element: <PublicProfile /> },
       { path: '/portal/k12/*', element: <NotFound /> },
       { path: '/ham/*', element: <NotFound /> },
-      { path: '*', element: <OSWindow><NotFound /></OSWindow> },
+      { path: '*', element: <NotFound /> },
     ],
     [],
   );
