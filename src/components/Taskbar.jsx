@@ -40,6 +40,18 @@ const apps = [
   { name: 'Startup / Shutdown', description: 'Preview the DOGEUB OS power animations', icon: Power, studio: true, tab: 'power' },
 ];
 
+function readAppLayout() {
+  try {
+    const version = window.localStorage.getItem('dogeub-app-layout-version');
+    if (version !== '2') {
+      window.localStorage.setItem('dogeub-app-layout', 'desktop');
+      window.localStorage.setItem('dogeub-app-layout-version', '2');
+      return 'desktop';
+    }
+    return window.localStorage.getItem('dogeub-app-layout') || 'desktop';
+  } catch { return 'desktop'; }
+}
+
 const OS_USERNAME_KEY = 'dogeub-os-username-v1';
 
 function readOSUsername() {
@@ -72,13 +84,11 @@ export default function Taskbar() {
     try { return window.localStorage.getItem('dogeub-gaming-mode') === 'true'; } catch { return false; }
   });
   const [fps, setFps] = useState(0);
-  const [appLayout, setAppLayout] = useState(() => {
-    try { return window.localStorage.getItem('dogeub-app-layout') || 'taskbar'; } catch { return 'taskbar'; }
-  });
+  const [appLayout, setAppLayout] = useState(readAppLayout);
   useEffect(() => {
     const syncLayout = (event) => {
       if (event?.detail?.layout) { setAppLayout(event.detail.layout); return; }
-      try { setAppLayout(window.localStorage.getItem('dogeub-app-layout') || 'taskbar'); } catch {}
+      setAppLayout(readAppLayout());
     };
     window.addEventListener('dogeub-app-layout-change', syncLayout);
     window.addEventListener('storage', syncLayout);
@@ -339,6 +349,7 @@ export default function Taskbar() {
       setSearchOpen(false);
       return;
     }
+    if (location.pathname === app.path) window.dispatchEvent(new Event('dogeub-restore-window'));
     navigate(app.path);
     setStartOpen(false);
     setSearchOpen(false);
