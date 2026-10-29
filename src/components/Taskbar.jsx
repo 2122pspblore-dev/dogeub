@@ -73,7 +73,7 @@ export default function Taskbar() {
   });
   const [fps, setFps] = useState(0);
   const [appLayout, setAppLayout] = useState(() => {
-    try { return window.localStorage.getItem('dogeub-app-layout') || 'desktop'; } catch { return 'taskbar'; }
+    try { return window.localStorage.getItem('dogeub-app-layout') || 'desktop'; } catch { return 'desktop'; }
   });
   useEffect(() => {
     const syncLayout = (event) => {
