@@ -86,20 +86,37 @@ function ShieldBanIcon() {
 }
 
 function Windows10Startup() {
-  const [visible, setVisible] = useState(true);
+  const [visible, setVisible] = useState(() => {
+    try { return window.sessionStorage.getItem('dogeub-startup-seen-v1') !== 'true'; }
+    catch { return true; }
+  });
+
+  const dismiss = () => {
+    try { window.sessionStorage.setItem('dogeub-startup-seen-v1', 'true'); } catch {}
+    setVisible(false);
+  };
 
   useEffect(() => {
-    const timeout = window.setTimeout(() => setVisible(false), 5000);
+    if (!visible) return undefined;
+    const timeout = window.setTimeout(dismiss, 5000);
     return () => window.clearTimeout(timeout);
-  }, []);
+  }, [visible]);
 
   if (!visible) return null;
 
   return (
     <div
       role="status"
-      aria-label="Starting DOGEUB"
-      className="flex flex-col items-center justify-center text-white" style={{ position: "fixed", inset: 0, zIndex: 2147483647, backgroundColor: "#000000" }}
+      aria-label="Starting DOGEUB. Click or press Escape to skip."
+      onClick={dismiss}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape' || event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          dismiss();
+        }
+      }}
+      tabIndex={0}
+      className="flex flex-col items-center justify-center text-white cursor-pointer" style={{ position: "fixed", inset: 0, zIndex: 2147483647, backgroundColor: "#000000" }}
     >
       <div className="mb-16 flex h-24 w-24 -skew-y-2 flex-col gap-[4px]">
         <div className="flex flex-1 gap-[3px]">
