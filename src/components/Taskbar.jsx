@@ -73,12 +73,12 @@ export default function Taskbar() {
   });
   const [fps, setFps] = useState(0);
   const [appLayout, setAppLayout] = useState(() => {
-    try { return window.localStorage.getItem('dogeub-app-layout') || 'taskbar'; } catch { return 'taskbar'; }
+    try { return window.localStorage.getItem('dogeub-app-layout') || 'desktop'; } catch { return 'taskbar'; }
   });
   useEffect(() => {
     const syncLayout = (event) => {
       if (event?.detail?.layout) { setAppLayout(event.detail.layout); return; }
-      try { setAppLayout(window.localStorage.getItem('dogeub-app-layout') || 'taskbar'); } catch {}
+      try { setAppLayout(window.localStorage.getItem('dogeub-app-layout') || 'desktop'); } catch {}
     };
     window.addEventListener('dogeub-app-layout-change', syncLayout);
     window.addEventListener('storage', syncLayout);
@@ -339,6 +339,7 @@ export default function Taskbar() {
       setSearchOpen(false);
       return;
     }
+    if (location.pathname === app.path) window.dispatchEvent(new Event('dogeub-restore-window'));
     navigate(app.path);
     setStartOpen(false);
     setSearchOpen(false);
