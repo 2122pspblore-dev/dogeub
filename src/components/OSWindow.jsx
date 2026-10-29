@@ -28,14 +28,16 @@ const readLayout = () => {
 };
 
 function defaultBounds() {
-  const width = Math.min(1180, Math.max(420, window.innerWidth - 132));
-  const height = Math.min(760, Math.max(300, window.innerHeight - 112));
-  const availableWidth = Math.max(0, window.innerWidth - 112);
+  const isSmallScreen = window.innerWidth <= 700;
+  const desktopRail = isSmallScreen ? 0 : 240;
+  const availableWidth = Math.max(320, window.innerWidth - desktopRail - 24);
+  const width = Math.min(1180, availableWidth);
+  const height = Math.min(850, Math.max(300, window.innerHeight - 112));
   return {
-    x: Math.max(8, 112 + Math.round((availableWidth - width) / 2)),
-    y: 28,
-    width: Math.min(width, window.innerWidth - 16),
-    height: Math.min(height, window.innerHeight - 82),
+    x: isSmallScreen ? 0 : desktopRail + Math.max(0, Math.round((availableWidth - width) / 2)),
+    y: isSmallScreen ? 0 : 28,
+    width: isSmallScreen ? window.innerWidth : width,
+    height: isSmallScreen ? window.innerHeight - 62 : Math.min(height, window.innerHeight - 82),
   };
 }
 
@@ -181,8 +183,11 @@ export default function OSWindow({ children }) {
   };
 
   const endPointer = (event) => {
-    if (dragRef.current?.pointerId === event.pointerId) dragRef.current = null;
-    if (resizeRef.current?.pointerId === event.pointerId) resizeRef.current = null;
+    const endedDrag = dragRef.current?.pointerId === event.pointerId;
+    const endedResize = resizeRef.current?.pointerId === event.pointerId;
+    if (!endedDrag && !endedResize) return;
+    if (endedDrag) dragRef.current = null;
+    if (endedResize) resizeRef.current = null;
     setDragging(false);
   };
 
