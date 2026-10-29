@@ -1,7 +1,7 @@
 /* DOGEUB OS floating app window */
 .dogeub-os-window {
   position: fixed;
-  z-index: 100;
+  z-index: 200;
   display: flex;
   flex-direction: column;
   min-width: min(360px, calc(100vw - 16px));
@@ -27,7 +27,7 @@
 }
 .dogeub-window-titlebar {
   position: relative;
-  z-index: 8;
+  z-index: 20;
   display: flex;
   flex: 0 0 46px;
   align-items: center;
@@ -129,21 +129,21 @@
   border-radius: 0 0 16px 16px;
 }
 .dogeub-window-resize { position: absolute; z-index: 10; display: block; touch-action: none; background: transparent; }
-.dogeub-window-resize-n, .dogeub-window-resize-s { left: 12px; right: 12px; height: 7px; cursor: ns-resize; }
-.dogeub-window-resize-n { top: -2px; }
-.dogeub-window-resize-s { bottom: -2px; }
-.dogeub-window-resize-e, .dogeub-window-resize-w { top: 12px; bottom: 12px; width: 7px; cursor: ew-resize; }
-.dogeub-window-resize-e { right: -2px; }
-.dogeub-window-resize-w { left: -2px; }
-.dogeub-window-resize-ne, .dogeub-window-resize-nw, .dogeub-window-resize-se, .dogeub-window-resize-sw { width: 14px; height: 14px; }
-.dogeub-window-resize-ne { top: -2px; right: -2px; cursor: nesw-resize; }
-.dogeub-window-resize-nw { top: -2px; left: -2px; cursor: nwse-resize; }
-.dogeub-window-resize-se { bottom: -2px; right: -2px; cursor: nwse-resize; }
-.dogeub-window-resize-sw { bottom: -2px; left: -2px; cursor: nesw-resize; }
+.dogeub-window-resize-n, .dogeub-window-resize-s { left: 16px; right: 16px; height: 8px; cursor: ns-resize; }
+.dogeub-window-resize-n { top: 0; }
+.dogeub-window-resize-s { bottom: 0; }
+.dogeub-window-resize-e, .dogeub-window-resize-w { top: 16px; bottom: 16px; width: 8px; cursor: ew-resize; }
+.dogeub-window-resize-e { right: 0; }
+.dogeub-window-resize-w { left: 0; }
+.dogeub-window-resize-ne, .dogeub-window-resize-nw, .dogeub-window-resize-se, .dogeub-window-resize-sw { width: 18px; height: 18px; }
+.dogeub-window-resize-ne { top: 0; right: 0; cursor: nesw-resize; }
+.dogeub-window-resize-nw { top: 0; left: 0; cursor: nwse-resize; }
+.dogeub-window-resize-se { bottom: 0; right: 0; cursor: nwse-resize; }
+.dogeub-window-resize-sw { bottom: 0; left: 0; cursor: nesw-resize; }
 .dogeub-os-window.is-maximized .dogeub-window-resize { display: none; }
 .dogeub-window-restore {
   position: fixed;
-  z-index: 10999;
+  z-index: 11002;
   left: 16px;
   bottom: 72px;
   display: inline-flex;
@@ -163,7 +163,9 @@
 }
 .dogeub-window-restore:hover { background: rgba(35,55,82,.98); border-color: rgba(125,211,252,.45); }
 .dogeub-window-restore span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dogeub-desktop-icons { z-index: 120 !important; }
+.dogeub-desktop-icons { z-index: 70 !important; pointer-events: none; }
+.dogeub-desktop-icon { pointer-events: auto; }
+.dogeub-window-control, .dogeub-window-actions button { position: relative; z-index: 30; }
 @media (max-width: 700px) {
   .dogeub-os-window {
     left: 0 !important;
